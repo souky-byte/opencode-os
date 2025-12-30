@@ -620,6 +620,112 @@ opencode-studio/
     └── {module}_{timestamp}.log
 ```
 
+### 9.5 OpenCode Integration Strategy
+
+> **Rozhodnutí (2024-12-30):** Po analýze škálovatelnosti a porovnání s vibe-kanban implementací volíme **HTTP Server API** přístup místo ACP (Agent Client Protocol).
+
+#### 9.5.1 Přístupy k integraci
+
+| Přístup | Popis | Výhody | Nevýhody |
+|---------|-------|--------|----------|
+| **ACP (subprocess)** | `npx opencode-ai acp` | Přímá kontrola, offline | Každý task = nový Node.js proces (~100MB RAM) |
+| **HTTP Server API** ✅ | `opencode serve` + REST/SSE | Stateless, škálovatelné, SDK z OpenAPI | Vyžaduje běžící server |
+
+#### 9.5.2 Proč HTTP Server API
+
+1. **Horizontální škálování**: REST je stateless, jeden OpenCode server zvládne více sessions
+2. **Resource efficiency**: Jeden server proces vs N Node.js procesů pro N tasků
+3. **SDK generování**: OpenCode poskytuje OpenAPI 3.1 spec na `/doc` endpoint
+4. **Distributed deployment**: OpenCode server může běžet na remote machine
+5. **Paralelní tasky**: PRD specifikuje `parallel_tasks_limit = 5` - HTTP to zvládne efektivněji
+
+#### 9.5.3 OpenCode Server API
+
+OpenCode server (`opencode serve --port 4096`) poskytuje:
+
+```
+# Sessions
+POST   /session                    # Vytvořit session
+GET    /session/:id                # Detail session
+POST   /session/:id/message        # Poslat zprávu (sync)
+POST   /session/:id/prompt_async   # Poslat zprávu (async)
+POST   /session/:id/abort          # Přerušit session
+GET    /session/:id/diff           # Získat diff změn
+
+# Real-time
+GET    /event                      # SSE stream všech eventů
+GET    /global/event               # Globální eventy
+
+# Files & VCS
+GET    /file?path=<path>           # List souborů
+GET    /vcs                        # VCS info
+```
+
+#### 9.5.4 Rust SDK generování
+
+```bash
+# OpenCode poskytuje OpenAPI 3.1 spec
+curl http://localhost:4096/doc > opencode-api.json
+
+# Generování Rust klienta
+cargo install openapi-generator-cli
+openapi-generator generate -i opencode-api.json -g rust -o crates/opencode-sdk
+```
+
+Alternativně použít `progenitor` crate pro compile-time generování.
+
+#### 9.5.5 Architektura integrace
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     OpenCode Studio Backend                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                 crates/opencode/                          │   │
+│  │                                                           │   │
+│  │  ┌─────────────────┐    ┌─────────────────┐              │   │
+│  │  │  OpenCodeClient │    │  SessionManager │              │   │
+│  │  │  (generated SDK)│    │  (state tracking)│              │   │
+│  │  └────────┬────────┘    └────────┬────────┘              │   │
+│  │           │                      │                        │   │
+│  │           ▼                      ▼                        │   │
+│  │  ┌─────────────────────────────────────────┐             │   │
+│  │  │            EventStream (SSE)             │             │   │
+│  │  │  - session.message                       │             │   │
+│  │  │  - task.status_changed                   │             │   │
+│  │  │  - workspace.created                     │             │   │
+│  │  └─────────────────────────────────────────┘             │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                              │                                   │
+│                              ▼                                   │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                   OpenCode Server                         │   │
+│  │                   (standalone process)                    │   │
+│  │                   opencode serve --port 4096              │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### 9.5.6 Fallback strategie
+
+Pro případ, kdy HTTP server není dostupný, zachováváme možnost ACP fallbacku:
+
+```rust
+#[async_trait]
+pub trait AgentExecutor: Send + Sync {
+    async fn create_session(&self, config: SessionConfig) -> Result<Session>;
+    async fn send_prompt(&self, session_id: &str, prompt: &str) -> Result<()>;
+    async fn subscribe_events(&self) -> Result<EventStream>;
+    async fn abort_session(&self, session_id: &str) -> Result<()>;
+}
+
+// Implementace
+pub struct HttpAgentExecutor { /* ... */ }  // Primární
+pub struct AcpAgentExecutor { /* ... */ }   // Fallback (future)
+```
+
 ---
 
 ## 10. Module System

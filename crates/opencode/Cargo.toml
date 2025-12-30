@@ -1,0 +1,22 @@
+[package]
+name = "opencode"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+opencode_core.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+futures.workspace = true
+eventsource-stream.workspace = true
+bytes.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
