@@ -1,0 +1,175 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.3.10/schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true,
+		"defaultBranch": "main"
+	},
+	"files": {
+		"includes": ["**", "!**/generated", "!**/node_modules"],
+		"ignoreUnknown": true
+	},
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab",
+		"indentWidth": 2,
+		"lineWidth": 100,
+		"lineEnding": "lf"
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"complexity": {
+				"noExcessiveCognitiveComplexity": {
+					"level": "warn",
+					"options": { "maxAllowedComplexity": 15 }
+				},
+				"noForEach": "warn",
+				"noVoid": "off",
+				"useSimplifiedLogicExpression": "warn"
+			},
+			"correctness": {
+				"noUnusedVariables": "error",
+				"noUnusedImports": "error",
+				"noUnusedFunctionParameters": "warn",
+				"noUnusedPrivateClassMembers": "warn"
+			},
+			"nursery": {
+				"noFloatingPromises": "error",
+				"useConsistentArrowReturn": "warn"
+			},
+			"performance": {
+				"noBarrelFile": "warn",
+				"noReExportAll": "warn",
+				"noAccumulatingSpread": "error"
+			},
+			"security": {
+				"noSecrets": "error"
+			},
+			"style": {
+				"noDefaultExport": "off",
+				"noNegationElse": "warn",
+				"noParameterAssign": "error",
+				"noRestrictedGlobals": "off",
+				"useBlockStatements": "warn",
+				"useCollapsedElseIf": "warn",
+				"useConst": "error",
+				"useExportType": "error",
+				"useImportType": "error",
+				"useNamingConvention": {
+					"level": "warn",
+					"options": {
+						"strictCase": false,
+						"requireAscii": true,
+						"conventions": [
+							{
+								"selector": { "kind": "function" },
+								"formats": ["camelCase", "PascalCase"]
+							},
+							{
+								"selector": { "kind": "variable" },
+								"formats": ["camelCase", "PascalCase", "CONSTANT_CASE"]
+							},
+							{
+								"selector": { "kind": "typeLike" },
+								"formats": ["PascalCase"]
+							},
+							{
+								"selector": { "kind": "objectLiteralProperty" },
+								"formats": ["camelCase", "PascalCase", "CONSTANT_CASE"]
+							}
+						]
+					}
+				},
+				"useShorthandAssign": "warn",
+				"useSingleVarDeclarator": "error",
+				"useTemplate": "warn",
+				"useArrayLiterals": "warn"
+			},
+			"suspicious": {
+				"noConsole": "warn",
+				"noDebugger": "error",
+				"noDoubleEquals": "error",
+				"noEmptyBlockStatements": "warn",
+				"noExplicitAny": "warn",
+				"noImplicitAnyLet": "error",
+				"noVar": "error"
+			}
+		}
+	},
+	"assist": {
+		"enabled": true,
+		"actions": {
+			"source": {
+				"organizeImports": "on"
+			}
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "double",
+			"jsxQuoteStyle": "double",
+			"trailingCommas": "all",
+			"semicolons": "always",
+			"arrowParentheses": "always",
+			"bracketSameLine": false,
+			"bracketSpacing": true
+		},
+		"jsxRuntime": "transparent"
+	},
+	"json": {
+		"parser": {
+			"allowComments": true,
+			"allowTrailingCommas": true
+		},
+		"formatter": {
+			"trailingCommas": "none"
+		}
+	},
+	"css": {
+		"parser": {
+			"cssModules": true,
+			"tailwindDirectives": true
+		},
+		"formatter": {
+			"enabled": true
+		},
+		"linter": {
+			"enabled": true
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["frontend/src/app/**/*.tsx", "frontend/src/app/**/*.ts"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noDefaultExport": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noExplicitAny": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["*.config.js", "*.config.ts", "*.config.mjs"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noDefaultExport": "off"
+					}
+				}
+			}
+		}
+	]
+}
