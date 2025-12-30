@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/cli",
     "crates/core",
     "crates/db",
     "crates/server",
@@ -9,6 +10,7 @@ members = [
     "crates/vcs",
     "crates/events",
     "crates/websocket",
+    "crates/github",
 ]
 
 [workspace.package]
@@ -25,6 +27,7 @@ orchestrator = { path = "crates/orchestrator" }
 vcs = { path = "crates/vcs" }
 events = { path = "crates/events" }
 websocket = { path = "crates/websocket" }
+github = { path = "crates/github" }
 
 # HTTP client
 reqwest = { version = "0.12", features = ["json", "stream"] }
@@ -58,6 +61,14 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 async-trait = "0.1"
+
+# Type generation for TypeScript
+ts-rs = { version = "10.1", features = ["uuid-impl", "chrono-impl", "serde-compat"] }
+
+# OpenAPI documentation
+utoipa = { version = "5", features = ["uuid", "chrono", "axum_extras"] }
+utoipa-axum = "0.2"
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
 
 [profile.release]
 strip = true

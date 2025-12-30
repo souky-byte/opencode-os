@@ -7,11 +7,31 @@ use uuid::Uuid;
 use crate::error::AppError;
 use crate::state::AppState;
 
+#[utoipa::path(
+    get,
+    path = "/api/sessions",
+    responses(
+        (status = 200, description = "List of all sessions", body = Vec<Session>)
+    ),
+    tag = "sessions"
+)]
 pub async fn list_sessions(State(state): State<AppState>) -> Result<Json<Vec<Session>>, AppError> {
     let sessions = state.session_repository.find_all().await?;
     Ok(Json(sessions))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/sessions/{id}",
+    params(
+        ("id" = Uuid, Path, description = "Session ID")
+    ),
+    responses(
+        (status = 200, description = "Session found", body = Session),
+        (status = 404, description = "Session not found")
+    ),
+    tag = "sessions"
+)]
 pub async fn get_session(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -24,6 +44,17 @@ pub async fn get_session(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/tasks/{task_id}/sessions",
+    params(
+        ("task_id" = Uuid, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 200, description = "Sessions for task", body = Vec<Session>)
+    ),
+    tag = "sessions"
+)]
 pub async fn list_sessions_for_task(
     State(state): State<AppState>,
     Path(task_id): Path<Uuid>,
@@ -32,6 +63,18 @@ pub async fn list_sessions_for_task(
     Ok(Json(sessions))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/sessions/{id}",
+    params(
+        ("id" = Uuid, Path, description = "Session ID")
+    ),
+    responses(
+        (status = 204, description = "Session deleted"),
+        (status = 404, description = "Session not found")
+    ),
+    tag = "sessions"
+)]
 pub async fn delete_session(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

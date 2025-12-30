@@ -50,9 +50,56 @@ Start implementation now."#,
         )
     }
 
+    pub fn implementation_with_plan(task: &Task, plan: Option<&str>) -> String {
+        if let Some(plan_content) = plan {
+            format!(
+                r#"Implement the following task according to the plan.
+
+## Task
+**Title:** {title}
+**Description:** {description}
+
+## Plan
+{plan_content}
+
+## Instructions
+1. Follow the plan step by step
+2. Implement each item thoroughly
+3. Write tests if applicable
+4. Ensure code quality and consistency
+
+Start implementation now."#,
+                title = task.title,
+                description = task.description,
+                plan_content = plan_content
+            )
+        } else {
+            format!(
+                r#"Implement the following task.
+
+## Task
+**Title:** {title}
+**Description:** {description}
+
+## Instructions
+1. Analyze the task requirements
+2. Implement the feature/fix
+3. Write tests if applicable
+4. Ensure code quality and consistency
+
+Start implementation now."#,
+                title = task.title,
+                description = task.description
+            )
+        }
+    }
+
     pub fn review(task: &Task, diff: &str) -> String {
         format!(
             r#"Review the following code changes for task: {title}
+
+## Task Description
+{description}
 
 ## Diff
 ```
@@ -72,6 +119,7 @@ Save your review to: `.opencode-studio/kanban/reviews/{id}.md`
 If approved, respond with: APPROVED
 If changes needed, respond with: CHANGES_REQUESTED and explain what needs fixing."#,
             title = task.title,
+            description = task.description,
             diff = diff,
             id = task.id
         )
@@ -87,11 +135,42 @@ If changes needed, respond with: CHANGES_REQUESTED and explain what needs fixing
 ## Instructions
 1. Address each issue mentioned
 2. Update tests if needed
-3. Commit your changes
+3. Ensure the fix is complete
 
 Fix the issues now."#,
             title = task.title,
             feedback = feedback
+        )
+    }
+
+    pub fn replan(task: &Task, feedback: &str) -> String {
+        format!(
+            r#"Revise the implementation plan based on feedback.
+
+## Task
+**Title:** {title}
+**Description:** {description}
+
+## Feedback on Previous Plan
+{feedback}
+
+## Required Output
+Create a revised plan addressing the feedback.
+Save your analysis to: `.opencode-studio/kanban/plans/{id}.md`
+
+The revised plan should:
+1. Address all feedback points
+2. Include technical analysis
+3. List files to modify/create
+4. Provide step-by-step implementation steps
+5. Note potential risks
+6. Estimate complexity (S/M/L/XL)
+
+Do NOT implement anything yet. Only create the revised plan."#,
+            title = task.title,
+            description = task.description,
+            feedback = feedback,
+            id = task.id
         )
     }
 }
@@ -134,6 +213,27 @@ mod tests {
     }
 
     #[test]
+    fn test_implementation_with_plan_includes_content() {
+        let task = sample_task();
+        let plan = "## Steps\n1. Do something\n2. Do something else";
+        let prompt = PhasePrompts::implementation_with_plan(&task, Some(plan));
+
+        assert!(prompt.contains(&task.title));
+        assert!(prompt.contains("Do something"));
+        assert!(prompt.contains("Do something else"));
+    }
+
+    #[test]
+    fn test_implementation_without_plan() {
+        let task = sample_task();
+        let prompt = PhasePrompts::implementation_with_plan(&task, None);
+
+        assert!(prompt.contains(&task.title));
+        assert!(prompt.contains(&task.description));
+        assert!(prompt.contains("Analyze the task requirements"));
+    }
+
+    #[test]
     fn test_review_prompt_contains_diff() {
         let task = sample_task();
         let diff = "+ added line\n- removed line";
@@ -142,5 +242,26 @@ mod tests {
         assert!(prompt.contains(diff));
         assert!(prompt.contains("APPROVED"));
         assert!(prompt.contains("CHANGES_REQUESTED"));
+    }
+
+    #[test]
+    fn test_fix_issues_contains_feedback() {
+        let task = sample_task();
+        let feedback = "Error handling is missing";
+        let prompt = PhasePrompts::fix_issues(&task, feedback);
+
+        assert!(prompt.contains(&task.title));
+        assert!(prompt.contains(feedback));
+    }
+
+    #[test]
+    fn test_replan_contains_feedback() {
+        let task = sample_task();
+        let feedback = "Plan is too vague";
+        let prompt = PhasePrompts::replan(&task, feedback);
+
+        assert!(prompt.contains(&task.title));
+        assert!(prompt.contains(feedback));
+        assert!(prompt.contains("revised plan"));
     }
 }

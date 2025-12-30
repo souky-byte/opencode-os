@@ -175,6 +175,9 @@ impl VersionControl for JujutsuVcs {
 
         for line in output.lines() {
             if let Some(name) = line.split_whitespace().next() {
+                // jj workspace list outputs "task-123: <commit_id> <description>"
+                // We need to strip the trailing colon from the workspace name
+                let name = name.trim_end_matches(':');
                 if name.starts_with("task-") {
                     let task_id = name.strip_prefix("task-").unwrap_or(name);
                     let path = self.workspace_path(task_id);

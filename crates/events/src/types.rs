@@ -1,11 +1,11 @@
-//! Event types for the OpenCode Studio event system
-
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
-/// Envelope wrapping all events with metadata
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct EventEnvelope {
     /// Unique event ID
     pub id: Uuid,
@@ -26,8 +26,9 @@ impl EventEnvelope {
     }
 }
 
-/// All possible events in the system
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Event {
     // Task events
@@ -98,8 +99,9 @@ pub enum Event {
     },
 }
 
-/// Data for agent message events
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct AgentMessageData {
     /// The message content
     pub content: String,
@@ -109,8 +111,9 @@ pub struct AgentMessageData {
     pub is_partial: bool,
 }
 
-/// Data for tool execution events
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct ToolExecutionData {
     /// Tool name
     pub name: String,

@@ -5,16 +5,35 @@ use events::{Event, EventEnvelope};
 use opencode_core::{CreateTaskRequest, Task, TaskStatus, UpdateTaskRequest};
 use orchestrator::PhaseResult;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::AppError;
 use crate::state::AppState;
 
+#[utoipa::path(
+    get,
+    path = "/api/tasks",
+    responses(
+        (status = 200, description = "List of all tasks", body = Vec<Task>)
+    ),
+    tag = "tasks"
+)]
 pub async fn list_tasks(State(state): State<AppState>) -> Result<Json<Vec<Task>>, AppError> {
     let tasks = state.task_repository.find_all().await?;
     Ok(Json(tasks))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/tasks",
+    request_body = CreateTaskRequest,
+    responses(
+        (status = 201, description = "Task created", body = Task),
+        (status = 400, description = "Invalid request")
+    ),
+    tag = "tasks"
+)]
 pub async fn create_task(
     State(state): State<AppState>,
     Json(payload): Json<CreateTaskRequest>,
@@ -36,6 +55,18 @@ pub async fn create_task(
     Ok((StatusCode::CREATED, Json(created)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/tasks/{id}",
+    params(
+        ("id" = Uuid, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 200, description = "Task found", body = Task),
+        (status = 404, description = "Task not found")
+    ),
+    tag = "tasks"
+)]
 pub async fn get_task(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -48,6 +79,19 @@ pub async fn get_task(
     }
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/tasks/{id}",
+    params(
+        ("id" = Uuid, Path, description = "Task ID")
+    ),
+    request_body = UpdateTaskRequest,
+    responses(
+        (status = 200, description = "Task updated", body = Task),
+        (status = 404, description = "Task not found")
+    ),
+    tag = "tasks"
+)]
 pub async fn update_task(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -61,6 +105,18 @@ pub async fn update_task(
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/tasks/{id}",
+    params(
+        ("id" = Uuid, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 204, description = "Task deleted"),
+        (status = 404, description = "Task not found")
+    ),
+    tag = "tasks"
+)]
 pub async fn delete_task(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -74,17 +130,35 @@ pub async fn delete_task(
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct TransitionRequest {
     pub status: TaskStatus,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct TransitionResponse {
     pub task: Task,
     pub previous_status: TaskStatus,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/tasks/{id}/transition",
+    params(
+        ("id" = Uuid, Path, description = "Task ID")
+    ),
+    request_body = TransitionRequest,
+    responses(
+        (status = 200, description = "Task transitioned", body = TransitionResponse),
+        (status = 400, description = "Invalid transition"),
+        (status = 404, description = "Task not found")
+    ),
+    tag = "tasks"
+)]
 pub async fn transition_task(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -122,19 +196,25 @@ pub async fn transition_task(
     }))
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct ExecuteResponse {
     pub task: Task,
     pub result: PhaseResultDto,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum PhaseResultDto {
     SessionCreated { session_id: String },
-    AwaitingApproval,
-    ReviewPassed,
-    ReviewFailed { feedback: String },
+    PlanCreated { session_id: String, plan_path: String },
+    AwaitingApproval { phase: String },
+    ReviewPassed { session_id: String },
+    ReviewFailed { session_id: String, feedback: String, iteration: u32 },
+    MaxIterationsExceeded { iterations: u32 },
     Completed,
 }
 
@@ -142,14 +222,37 @@ impl From<PhaseResult> for PhaseResultDto {
     fn from(result: PhaseResult) -> Self {
         match result {
             PhaseResult::SessionCreated { session_id } => Self::SessionCreated { session_id },
-            PhaseResult::AwaitingApproval => Self::AwaitingApproval,
-            PhaseResult::ReviewPassed => Self::ReviewPassed,
-            PhaseResult::ReviewFailed { feedback } => Self::ReviewFailed { feedback },
+            PhaseResult::PlanCreated { session_id, plan_path } => {
+                Self::PlanCreated { session_id, plan_path }
+            }
+            PhaseResult::AwaitingApproval { phase } => {
+                Self::AwaitingApproval { phase: phase.as_str().to_string() }
+            }
+            PhaseResult::ReviewPassed { session_id } => Self::ReviewPassed { session_id },
+            PhaseResult::ReviewFailed { session_id, feedback, iteration } => {
+                Self::ReviewFailed { session_id, feedback, iteration }
+            }
+            PhaseResult::MaxIterationsExceeded { iterations } => {
+                Self::MaxIterationsExceeded { iterations }
+            }
             PhaseResult::Completed => Self::Completed,
         }
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/tasks/{id}/execute",
+    params(
+        ("id" = Uuid, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 200, description = "Phase executed", body = ExecuteResponse),
+        (status = 404, description = "Task not found"),
+        (status = 500, description = "Execution failed")
+    ),
+    tag = "tasks"
+)]
 pub async fn execute_task(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
