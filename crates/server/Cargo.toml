@@ -1,14 +1,28 @@
 [package]
 name = "server"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
+opencode_core = { workspace = true }
+opencode = { workspace = true }
+orchestrator = { workspace = true }
+db = { workspace = true }
+vcs = { workspace = true }
+events = { workspace = true }
+websocket = { workspace = true }
+sqlx = { workspace = true }
 tokio = { workspace = true }
 axum = { workspace = true }
 tower-http = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+uuid = { workspace = true }
 anyhow = { workspace = true }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+axum-test = "16"
