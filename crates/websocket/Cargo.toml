@@ -3,6 +3,10 @@ name = "websocket"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = []
+typescript = ["ts-rs", "events/typescript"]
+
 [dependencies]
 events = { path = "../events" }
 
@@ -13,6 +17,7 @@ serde_json = { workspace = true }
 uuid = { workspace = true }
 tracing = { workspace = true }
 futures-util = "0.3"
+ts-rs = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "test-util"] }

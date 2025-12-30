@@ -2,13 +2,17 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use utoipa::ToSchema;
 
 use crate::error::Result;
 
-/// Represents an isolated workspace for a task
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct Workspace {
     pub task_id: String,
+    #[schema(value_type = String)]
+    #[cfg_attr(feature = "typescript", ts(type = "string"))]
     pub path: PathBuf,
     pub branch_name: String,
     pub status: WorkspaceStatus,
@@ -27,8 +31,9 @@ impl Workspace {
     }
 }
 
-/// Status of a workspace
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum WorkspaceStatus {
     Active,
@@ -36,8 +41,9 @@ pub enum WorkspaceStatus {
     Abandoned,
 }
 
-/// Result of a merge operation
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum MergeResult {
     Success,
@@ -57,15 +63,19 @@ impl MergeResult {
     }
 }
 
-/// Represents a file with merge conflicts
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct ConflictFile {
+    #[schema(value_type = String)]
+    #[cfg_attr(feature = "typescript", ts(type = "string"))]
     pub path: PathBuf,
     pub conflict_type: ConflictType,
 }
 
-/// Type of conflict in a file
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum ConflictType {
     Content,

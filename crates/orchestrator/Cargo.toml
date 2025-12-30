@@ -8,7 +8,9 @@ rust-version.workspace = true
 opencode_core.workspace = true
 opencode.workspace = true
 db.workspace = true
-tokio.workspace = true
+vcs.workspace = true
+events.workspace = true
+tokio = { workspace = true, features = ["fs"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -19,3 +21,4 @@ async-trait.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
+tempfile = "3"

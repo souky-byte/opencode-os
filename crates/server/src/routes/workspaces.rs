@@ -2,13 +2,16 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 use vcs::{MergeResult, Workspace};
 
 use crate::error::AppError;
 use crate::state::AppState;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct WorkspaceResponse {
     pub task_id: String,
     pub path: String,
@@ -29,6 +32,24 @@ impl From<Workspace> for WorkspaceResponse {
     }
 }
 
+#[derive(Debug, Serialize, ToSchema)]
+pub struct WorkspaceStatusResponse {
+    pub task_id: String,
+    pub status: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/tasks/{task_id}/workspace",
+    params(
+        ("task_id" = Uuid, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 201, description = "Workspace created", body = WorkspaceResponse),
+        (status = 404, description = "Task not found")
+    ),
+    tag = "workspaces"
+)]
 pub async fn create_workspace_for_task(
     State(state): State<AppState>,
     Path(task_id): Path<Uuid>,
@@ -47,6 +68,14 @@ pub async fn create_workspace_for_task(
     Ok((StatusCode::CREATED, Json(workspace.into())))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/workspaces",
+    responses(
+        (status = 200, description = "List of all workspaces", body = Vec<WorkspaceResponse>)
+    ),
+    tag = "workspaces"
+)]
 pub async fn list_workspaces(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<WorkspaceResponse>>, AppError> {
@@ -54,12 +83,26 @@ pub async fn list_workspaces(
     Ok(Json(workspaces.into_iter().map(Into::into).collect()))
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct DiffResponse {
     pub task_id: String,
     pub diff: String,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/workspaces/{task_id}/diff",
+    params(
+        ("task_id" = String, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 200, description = "Workspace diff", body = DiffResponse),
+        (status = 404, description = "Workspace not found")
+    ),
+    tag = "workspaces"
+)]
 pub async fn get_workspace_diff(
     State(state): State<AppState>,
     Path(task_id): Path<String>,
@@ -79,10 +122,22 @@ pub async fn get_workspace_diff(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/workspaces/{task_id}",
+    params(
+        ("task_id" = String, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 200, description = "Workspace status", body = WorkspaceStatusResponse),
+        (status = 404, description = "Workspace not found")
+    ),
+    tag = "workspaces"
+)]
 pub async fn get_workspace_status(
     State(state): State<AppState>,
     Path(task_id): Path<String>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<WorkspaceStatusResponse>, AppError> {
     let workspaces = state.workspace_manager.list_workspaces().await?;
 
     let workspace = workspaces
@@ -92,18 +147,22 @@ pub async fn get_workspace_status(
 
     let status = state.workspace_manager.get_status(&workspace).await?;
 
-    Ok(Json(serde_json::json!({
-        "task_id": workspace.task_id,
-        "status": status
-    })))
+    Ok(Json(WorkspaceStatusResponse {
+        task_id: workspace.task_id,
+        status,
+    }))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct MergeRequest {
     pub message: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 #[serde(tag = "result", rename_all = "snake_case")]
 pub enum MergeResponse {
     Success,
@@ -124,6 +183,19 @@ impl From<MergeResult> for MergeResponse {
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/workspaces/{task_id}/merge",
+    params(
+        ("task_id" = String, Path, description = "Task ID")
+    ),
+    request_body = MergeRequest,
+    responses(
+        (status = 200, description = "Merge result", body = MergeResponse),
+        (status = 404, description = "Workspace not found")
+    ),
+    tag = "workspaces"
+)]
 pub async fn merge_workspace(
     State(state): State<AppState>,
     Path(task_id): Path<String>,
@@ -144,6 +216,18 @@ pub async fn merge_workspace(
     Ok(Json(result.into()))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/workspaces/{task_id}",
+    params(
+        ("task_id" = String, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 204, description = "Workspace deleted"),
+        (status = 404, description = "Workspace not found")
+    ),
+    tag = "workspaces"
+)]
 pub async fn delete_workspace(
     State(state): State<AppState>,
     Path(task_id): Path<String>,

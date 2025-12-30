@@ -1,14 +1,5 @@
-mod error;
-mod routes;
-mod state;
-
-use axum::routing::{get, post};
-use axum::Router;
-use tower_http::cors::CorsLayer;
-use tower_http::trace::TraceLayer;
+use server::{create_router, state::AppState};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
-use state::AppState;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -34,45 +25,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Database migrations completed");
 
     let state = AppState::new(pool, &opencode_url);
-
-    let app = Router::new()
-        .route("/health", get(routes::health_check))
-        .route(
-            "/api/tasks",
-            get(routes::list_tasks).post(routes::create_task),
-        )
-        .route(
-            "/api/tasks/{id}",
-            get(routes::get_task)
-                .patch(routes::update_task)
-                .delete(routes::delete_task),
-        )
-        .route("/api/tasks/{id}/transition", post(routes::transition_task))
-        .route("/api/tasks/{id}/execute", post(routes::execute_task))
-        .route(
-            "/api/tasks/{id}/sessions",
-            get(routes::list_sessions_for_task),
-        )
-        .route(
-            "/api/tasks/{id}/workspace",
-            post(routes::create_workspace_for_task),
-        )
-        .route("/api/sessions", get(routes::list_sessions))
-        .route(
-            "/api/sessions/{id}",
-            get(routes::get_session).delete(routes::delete_session),
-        )
-        .route("/api/workspaces", get(routes::list_workspaces))
-        .route(
-            "/api/workspaces/{id}",
-            get(routes::get_workspace_status).delete(routes::delete_workspace),
-        )
-        .route("/api/workspaces/{id}/diff", get(routes::get_workspace_diff))
-        .route("/api/workspaces/{id}/merge", post(routes::merge_workspace))
-        .route("/ws", get(routes::websocket_handler))
-        .layer(TraceLayer::new_for_http())
-        .layer(CorsLayer::permissive())
-        .with_state(state);
+    let app = create_router(state);
 
     let port = std::env::var("PORT")
         .ok()

@@ -4,6 +4,8 @@ use uuid::Uuid;
 use events::EventEnvelope;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClientMessage {
     Subscribe { filter: Option<SubscriptionFilter> },
@@ -12,6 +14,8 @@ pub enum ClientMessage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage {
     Event { envelope: EventEnvelope },
@@ -22,6 +26,8 @@ pub enum ServerMessage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
 pub struct SubscriptionFilter {
     pub task_ids: Option<Vec<Uuid>>,
 }
