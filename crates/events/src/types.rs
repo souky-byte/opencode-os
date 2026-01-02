@@ -51,7 +51,18 @@ pub enum Event {
     // Session events
     /// OpenCode session started
     #[serde(rename = "session.started")]
-    SessionStarted { session_id: Uuid, task_id: Uuid },
+    SessionStarted {
+        session_id: Uuid,
+        task_id: Uuid,
+        /// Session phase (planning, implementation, review, etc.)
+        phase: String,
+        /// Session status (pending, running, completed, failed)
+        status: String,
+        /// OpenCode session ID (when connected)
+        opencode_session_id: Option<String>,
+        /// When the session was created
+        created_at: DateTime<Utc>,
+    },
 
     /// OpenCode session ended
     #[serde(rename = "session.ended")]
@@ -90,6 +101,19 @@ pub enum Event {
     #[serde(rename = "workspace.deleted")]
     WorkspaceDeleted { task_id: Uuid },
 
+    // Project events
+    /// A project was opened/switched
+    #[serde(rename = "project.opened")]
+    ProjectOpened {
+        path: String,
+        name: String,
+        was_initialized: bool,
+    },
+
+    /// The current project was closed
+    #[serde(rename = "project.closed")]
+    ProjectClosed { path: String },
+
     // System events
     /// Generic error event
     #[serde(rename = "error")]
@@ -126,7 +150,6 @@ pub struct ToolExecutionData {
 }
 
 impl Event {
-    /// Get the task ID associated with this event, if any
     pub fn task_id(&self) -> Option<Uuid> {
         match self {
             Event::TaskCreated { task_id, .. } => Some(*task_id),
@@ -139,6 +162,8 @@ impl Event {
             Event::WorkspaceCreated { task_id, .. } => Some(*task_id),
             Event::WorkspaceMerged { task_id, .. } => Some(*task_id),
             Event::WorkspaceDeleted { task_id } => Some(*task_id),
+            Event::ProjectOpened { .. } => None,
+            Event::ProjectClosed { .. } => None,
             Event::Error { .. } => None,
         }
     }

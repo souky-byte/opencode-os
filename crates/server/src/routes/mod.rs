@@ -1,13 +1,17 @@
+pub mod filesystem;
 mod health;
-mod project;
+pub mod project;
+pub mod projects;
 mod sessions;
+pub mod sse;
 mod tasks;
 mod workspaces;
-mod ws;
 
+pub use filesystem::*;
 pub use health::*;
 pub use project::*;
+pub use projects::*;
 pub use sessions::*;
+pub use sse::*;
 pub use tasks::*;
 pub use workspaces::*;
-pub use ws::*;

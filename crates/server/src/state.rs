@@ -1,70 +1,93 @@
-use db::{SessionRepository, TaskRepository};
+use crate::project_manager::{GlobalConfigManager, ProjectContext, ProjectError, ProjectManager};
+use crate::routes::sse::{EventBuffer, SharedEventBuffer, DEFAULT_EVENT_BUFFER_SIZE};
 use events::EventBus;
 use github::{GitHubClient, RepoConfig};
-use opencode::OpenCodeClient;
-use orchestrator::{ExecutorConfig, TaskExecutor};
-use sqlx::SqlitePool;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tokio::sync::OnceCell;
-use vcs::{GitVcs, JujutsuVcs, VersionControl, WorkspaceConfig, WorkspaceManager};
 
 #[derive(Clone)]
 pub struct AppState {
-    pub task_repository: TaskRepository,
-    pub session_repository: SessionRepository,
-    pub task_executor: Arc<TaskExecutor>,
-    pub workspace_manager: Arc<WorkspaceManager>,
+    pub project_manager: Arc<ProjectManager>,
+    pub global_config: GlobalConfigManager,
     pub event_bus: EventBus,
-    #[allow(dead_code)]
-    pub repo_path: PathBuf,
-    #[allow(dead_code)]
+    pub event_buffer: SharedEventBuffer,
+    pub opencode_url: String,
+    pub app_dir: Option<PathBuf>,
     github_client: Arc<OnceCell<GitHubClient>>,
 }
 
 impl AppState {
-    pub fn new(pool: SqlitePool, opencode_url: &str) -> Self {
-        let opencode_client = Arc::new(OpenCodeClient::new(opencode_url));
-
-        let repo_path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        let workspace_base = repo_path
-            .parent()
-            .map(|p| p.join(".workspaces"))
-            .unwrap_or_else(|| PathBuf::from("../.workspaces"));
-
-        let vcs = Self::detect_vcs(&repo_path, &workspace_base);
-        let config = WorkspaceConfig::new(workspace_base.clone());
-        let workspace_manager = Arc::new(WorkspaceManager::new(vcs, config, repo_path.clone()));
-
-        let session_repository = SessionRepository::new(pool.clone());
+    pub fn new(opencode_url: &str) -> Self {
         let event_bus = EventBus::new();
-
-        let config = ExecutorConfig::new(&repo_path)
-            .with_plan_approval(true)
-            .with_human_review(true)
-            .with_max_iterations(3);
-
-        let task_executor = TaskExecutor::new(opencode_client, config)
-            .with_workspace_manager(workspace_manager.clone())
-            .with_session_repo(Arc::new(session_repository.clone()))
-            .with_event_bus(event_bus.clone());
+        let event_buffer = Arc::new(RwLock::new(EventBuffer::new(DEFAULT_EVENT_BUFFER_SIZE)));
+        let global_config = GlobalConfigManager::new();
+        let project_manager = Arc::new(ProjectManager::new(opencode_url.to_string(), event_bus.clone()));
 
         Self {
-            task_repository: TaskRepository::new(pool),
-            session_repository,
-            task_executor: Arc::new(task_executor),
-            workspace_manager,
+            project_manager,
+            global_config,
             event_bus,
-            repo_path,
+            event_buffer,
+            opencode_url: opencode_url.to_string(),
+            app_dir: None,
             github_client: Arc::new(OnceCell::new()),
         }
     }
 
+    pub fn with_app_dir(mut self, app_dir: PathBuf) -> Self {
+        self.app_dir = Some(app_dir);
+        self
+    }
+
+    pub async fn project(&self) -> Result<ProjectContext, ProjectError> {
+        self.project_manager
+            .current()
+            .await
+            .ok_or(ProjectError::NoProjectOpen)
+    }
+
+    pub async fn open_project(&self, path: &Path) -> Result<(), ProjectError> {
+        let result = self.project_manager.open(path).await?;
+
+        self.global_config.add_recent(path)?;
+        self.global_config.set_last(path)?;
+
+        tracing::info!(
+            "Opened project: {} (initialized: {})",
+            result.project.name,
+            result.was_initialized
+        );
+
+        Ok(())
+    }
+
+    pub async fn auto_open_last_project(&self) -> Result<bool, ProjectError> {
+        if !self.global_config.should_auto_open_last() {
+            return Ok(false);
+        }
+
+        if let Some(last_path) = self.global_config.get_last() {
+            if last_path.exists() && last_path.join(".git").exists()
+                || last_path.join(".jj").exists()
+            {
+                self.open_project(&last_path).await?;
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+
     #[allow(dead_code)]
     pub async fn github_client(&self) -> Result<&GitHubClient, github::GitHubError> {
+        let project = self.project().await.map_err(|e| {
+            github::GitHubError::Config(format!("No project open: {}", e))
+        })?;
+
         self.github_client
             .get_or_try_init(|| async {
-                let repo_config = RepoConfig::from_git_remote(&self.repo_path)
+                let repo_config = RepoConfig::from_git_remote(&project.path)
                     .await
                     .ok_or_else(|| {
                         github::GitHubError::Config(
@@ -81,21 +104,5 @@ impl AppState {
                 GitHubClient::from_env(repo_config)
             })
             .await
-    }
-
-    fn detect_vcs(repo_path: &Path, workspace_base: &Path) -> Arc<dyn VersionControl> {
-        if repo_path.join(".jj").exists() {
-            tracing::info!("Detected Jujutsu repository");
-            Arc::new(JujutsuVcs::new(
-                repo_path.to_path_buf(),
-                workspace_base.to_path_buf(),
-            ))
-        } else {
-            tracing::info!("Using Git as VCS backend");
-            Arc::new(GitVcs::new(
-                repo_path.to_path_buf(),
-                workspace_base.to_path_buf(),
-            ))
-        }
     }
 }

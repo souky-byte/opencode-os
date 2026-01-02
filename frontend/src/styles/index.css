@@ -1,0 +1,156 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	:root {
+		color-scheme: dark;
+
+		/* Modern Dark Theme - Inspired by Linear & vibe-kanban */
+		/* Base colors - warm gray palette */
+		--background: 240 6% 10%;
+		--foreground: 0 0% 95%;
+
+		/* Card surfaces - slightly elevated */
+		--card: 240 5% 12%;
+		--card-foreground: 0 0% 95%;
+
+		/* Popover/dropdown */
+		--popover: 240 5% 14%;
+		--popover-foreground: 0 0% 95%;
+
+		/* Primary - purple accent like Linear */
+		--primary: 262 83% 58%;
+		--primary-foreground: 0 0% 100%;
+
+		/* Secondary - subtle surface */
+		--secondary: 240 4% 16%;
+		--secondary-foreground: 0 0% 85%;
+
+		/* Muted - for backgrounds and subtle elements */
+		--muted: 240 4% 16%;
+		--muted-foreground: 240 5% 65%;
+
+		/* Accent - hover states */
+		--accent: 240 4% 20%;
+		--accent-foreground: 0 0% 95%;
+
+		/* Destructive - red for errors */
+		--destructive: 0 72% 51%;
+		--destructive-foreground: 0 0% 100%;
+
+		/* Borders and inputs */
+		--border: 240 4% 20%;
+		--input: 240 4% 16%;
+		--ring: 262 83% 58%;
+
+		--radius: 0.5rem;
+
+		/* Status colors */
+		--success: 142 71% 45%;
+		--success-foreground: 0 0% 100%;
+		--warning: 38 92% 50%;
+		--warning-foreground: 0 0% 0%;
+
+		/* Kanban status colors */
+		--status-todo: 240 4% 20%;
+		--status-todo-foreground: 0 0% 80%;
+		--status-running: 217 91% 60%;
+		--status-running-foreground: 0 0% 100%;
+		--status-complete: 142 71% 45%;
+		--status-complete-foreground: 0 0% 100%;
+		--status-failed: 0 72% 51%;
+		--status-failed-foreground: 0 0% 100%;
+	}
+}
+
+@layer base {
+	* {
+		@apply border-border;
+	}
+
+	html,
+	body,
+	#root {
+		@apply min-h-screen;
+	}
+
+	body {
+		@apply bg-background text-foreground antialiased;
+		font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+	}
+
+	/* Better focus states */
+	*:focus-visible {
+		@apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+	}
+
+	/* Smooth scrollbar */
+	::-webkit-scrollbar {
+		width: 8px;
+		height: 8px;
+	}
+
+	::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	::-webkit-scrollbar-thumb {
+		background: hsl(var(--border));
+		border-radius: 4px;
+	}
+
+	::-webkit-scrollbar-thumb:hover {
+		background: hsl(var(--muted-foreground) / 0.3);
+	}
+
+	/* Code/mono font */
+	code, pre, .font-mono {
+		font-family: "JetBrains Mono", ui-monospace, monospace;
+	}
+}
+
+/* Custom utility classes */
+@layer utilities {
+	/* Subtle gradient backgrounds */
+	.bg-gradient-subtle {
+		background: linear-gradient(
+			180deg,
+			hsl(var(--background)) 0%,
+			hsl(240 6% 8%) 100%
+		);
+	}
+
+	/* Glass effect */
+	.bg-glass {
+		background: hsl(var(--card) / 0.8);
+		backdrop-filter: blur(8px);
+	}
+
+	/* Glow effects for active states */
+	.glow-primary {
+		box-shadow: 0 0 20px hsl(var(--primary) / 0.15);
+	}
+
+	.glow-success {
+		box-shadow: 0 0 20px hsl(var(--success) / 0.15);
+	}
+
+	/* Status dot animation */
+	@keyframes pulse-glow {
+		0%, 100% {
+			opacity: 1;
+			transform: scale(1);
+		}
+		50% {
+			opacity: 0.7;
+			transform: scale(1.1);
+		}
+	}
+
+	.animate-pulse-glow {
+		animation: pulse-glow 2s ease-in-out infinite;
+	}
+}

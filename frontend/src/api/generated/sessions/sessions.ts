@@ -28,23 +28,45 @@ import type {
   Session
 } from '.././model';
 
-import { customInstance } from '../../mutator/custom-instance';
+import { customFetch } from '../../../lib/api-fetcher';
+
+
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-
-export const listSessions = (
+export type listSessionsResponse200 = {
+  data: Session[]
+  status: 200
+}
     
- signal?: AbortSignal
-) => {
-      
-      
-      return customInstance<Session[]>(
-      {url: `/api/sessions`, method: 'GET', signal
-    },
-      );
-    }
+export type listSessionsResponseSuccess = (listSessionsResponse200) & {
+  headers: Headers;
+};
+;
+
+export type listSessionsResponse = (listSessionsResponseSuccess)
+
+export const getListSessionsUrl = () => {
+
+
   
+
+  return `/api/sessions`
+}
+
+export const listSessions = async ( options?: RequestInit): Promise<listSessionsResponse> => {
+  
+  return customFetch<listSessionsResponse>(getListSessionsUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
 
 
 
@@ -55,16 +77,16 @@ export const getListSessionsQueryKey = () => {
     }
 
     
-export const getListSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listSessions>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>>, }
+export const getListSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listSessions>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
-const {query: queryOptions} = options ?? {};
+const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListSessionsQueryKey();
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSessions>>> = ({ signal }) => listSessions(signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSessions>>> = ({ signal }) => listSessions({ signal, ...requestOptions });
 
       
 
@@ -84,7 +106,7 @@ export function useListSessions<TData = Awaited<ReturnType<typeof listSessions>>
           TError,
           Awaited<ReturnType<typeof listSessions>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListSessions<TData = Awaited<ReturnType<typeof listSessions>>, TError = unknown>(
@@ -94,16 +116,16 @@ export function useListSessions<TData = Awaited<ReturnType<typeof listSessions>>
           TError,
           Awaited<ReturnType<typeof listSessions>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListSessions<TData = Awaited<ReturnType<typeof listSessions>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>>, }
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useListSessions<TData = Awaited<ReturnType<typeof listSessions>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>>, }
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -119,18 +141,45 @@ export function useListSessions<TData = Awaited<ReturnType<typeof listSessions>>
 
 
 
-export const getSession = (
-    id: string,
- signal?: AbortSignal
-) => {
-      
-      
-      return customInstance<Session>(
-      {url: `/api/sessions/${id}`, method: 'GET', signal
-    },
-      );
-    }
+export type getSessionResponse200 = {
+  data: Session
+  status: 200
+}
+
+export type getSessionResponse404 = {
+  data: void
+  status: 404
+}
+    
+export type getSessionResponseSuccess = (getSessionResponse200) & {
+  headers: Headers;
+};
+export type getSessionResponseError = (getSessionResponse404) & {
+  headers: Headers;
+};
+
+export type getSessionResponse = (getSessionResponseSuccess | getSessionResponseError)
+
+export const getGetSessionUrl = (id: string,) => {
+
+
   
+
+  return `/api/sessions/${id}`
+}
+
+export const getSession = async (id: string, options?: RequestInit): Promise<getSessionResponse> => {
+  
+  return customFetch<getSessionResponse>(getGetSessionUrl(id),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
 
 
 
@@ -141,16 +190,16 @@ export const getGetSessionQueryKey = (id?: string,) => {
     }
 
     
-export const getGetSessionQueryOptions = <TData = Awaited<ReturnType<typeof getSession>>, TError = void>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>>, }
+export const getGetSessionQueryOptions = <TData = Awaited<ReturnType<typeof getSession>>, TError = void>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
-const {query: queryOptions} = options ?? {};
+const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetSessionQueryKey(id);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSession>>> = ({ signal }) => getSession(id, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSession>>> = ({ signal }) => getSession(id, { signal, ...requestOptions });
 
       
 
@@ -170,7 +219,7 @@ export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TE
           TError,
           Awaited<ReturnType<typeof getSession>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TError = void>(
@@ -180,16 +229,16 @@ export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TE
           TError,
           Awaited<ReturnType<typeof getSession>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TError = void>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>>, }
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TError = void>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>>, }
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -205,29 +254,57 @@ export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TE
 
 
 
-export const deleteSession = (
-    id: string,
- ) => {
-      
-      
-      return customInstance<void>(
-      {url: `/api/sessions/${id}`, method: 'DELETE'
-    },
-      );
-    }
+export type deleteSessionResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteSessionResponse404 = {
+  data: void
+  status: 404
+}
+    
+export type deleteSessionResponseSuccess = (deleteSessionResponse204) & {
+  headers: Headers;
+};
+export type deleteSessionResponseError = (deleteSessionResponse404) & {
+  headers: Headers;
+};
+
+export type deleteSessionResponse = (deleteSessionResponseSuccess | deleteSessionResponseError)
+
+export const getDeleteSessionUrl = (id: string,) => {
+
+
   
+
+  return `/api/sessions/${id}`
+}
+
+export const deleteSession = async (id: string, options?: RequestInit): Promise<deleteSessionResponse> => {
+  
+  return customFetch<deleteSessionResponse>(getDeleteSessionUrl(id),
+  {      
+    ...options,
+    method: 'DELETE'
+    
+    
+  }
+);}
+
+
 
 
 export const getDeleteSessionMutationOptions = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSession>>, TError,{id: string}, TContext>, }
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSession>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteSession>>, TError,{id: string}, TContext> => {
 
 const mutationKey = ['deleteSession'];
-const {mutation: mutationOptions} = options ?
+const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
       : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
+      : {mutation: { mutationKey, }, request: undefined};
 
       
 
@@ -235,7 +312,7 @@ const {mutation: mutationOptions} = options ?
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteSession>>, {id: string}> = (props) => {
           const {id} = props ?? {};
 
-          return  deleteSession(id,)
+          return  deleteSession(id,requestOptions)
         }
 
         
@@ -248,7 +325,7 @@ const {mutation: mutationOptions} = options ?
     export type DeleteSessionMutationError = void
 
     export const useDeleteSession = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSession>>, TError,{id: string}, TContext>, }
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSession>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof deleteSession>>,
         TError,
@@ -260,18 +337,151 @@ const {mutation: mutationOptions} = options ?
 
       return useMutation(mutationOptions, queryClient);
     }
-    export const listSessionsForTask = (
-    taskId: string,
- signal?: AbortSignal
-) => {
-      
-      
-      return customInstance<Session[]>(
-      {url: `/api/tasks/${taskId}/sessions`, method: 'GET', signal
-    },
-      );
-    }
+    export type sessionActivityStreamResponse200 = {
+  data: void
+  status: 200
+}
+
+export type sessionActivityStreamResponse404 = {
+  data: void
+  status: 404
+}
+    
+export type sessionActivityStreamResponseSuccess = (sessionActivityStreamResponse200) & {
+  headers: Headers;
+};
+export type sessionActivityStreamResponseError = (sessionActivityStreamResponse404) & {
+  headers: Headers;
+};
+
+export type sessionActivityStreamResponse = (sessionActivityStreamResponseSuccess | sessionActivityStreamResponseError)
+
+export const getSessionActivityStreamUrl = (id: string,) => {
+
+
   
+
+  return `/api/sessions/${id}/activity`
+}
+
+export const sessionActivityStream = async (id: string, options?: RequestInit): Promise<sessionActivityStreamResponse> => {
+  
+  return customFetch<sessionActivityStreamResponse>(getSessionActivityStreamUrl(id),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+
+
+export const getSessionActivityStreamQueryKey = (id?: string,) => {
+    return [
+    `/api/sessions/${id}/activity`
+    ] as const;
+    }
+
+    
+export const getSessionActivityStreamQueryOptions = <TData = Awaited<ReturnType<typeof sessionActivityStream>>, TError = void>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof sessionActivityStream>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSessionActivityStreamQueryKey(id);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof sessionActivityStream>>> = ({ signal }) => sessionActivityStream(id, { signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof sessionActivityStream>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type SessionActivityStreamQueryResult = NonNullable<Awaited<ReturnType<typeof sessionActivityStream>>>
+export type SessionActivityStreamQueryError = void
+
+
+export function useSessionActivityStream<TData = Awaited<ReturnType<typeof sessionActivityStream>>, TError = void>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof sessionActivityStream>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof sessionActivityStream>>,
+          TError,
+          Awaited<ReturnType<typeof sessionActivityStream>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSessionActivityStream<TData = Awaited<ReturnType<typeof sessionActivityStream>>, TError = void>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof sessionActivityStream>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof sessionActivityStream>>,
+          TError,
+          Awaited<ReturnType<typeof sessionActivityStream>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSessionActivityStream<TData = Awaited<ReturnType<typeof sessionActivityStream>>, TError = void>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof sessionActivityStream>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useSessionActivityStream<TData = Awaited<ReturnType<typeof sessionActivityStream>>, TError = void>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof sessionActivityStream>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getSessionActivityStreamQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+export type listSessionsForTaskResponse200 = {
+  data: Session[]
+  status: 200
+}
+    
+export type listSessionsForTaskResponseSuccess = (listSessionsForTaskResponse200) & {
+  headers: Headers;
+};
+;
+
+export type listSessionsForTaskResponse = (listSessionsForTaskResponseSuccess)
+
+export const getListSessionsForTaskUrl = (taskId: string,) => {
+
+
+  
+
+  return `/api/tasks/${taskId}/sessions`
+}
+
+export const listSessionsForTask = async (taskId: string, options?: RequestInit): Promise<listSessionsForTaskResponse> => {
+  
+  return customFetch<listSessionsForTaskResponse>(getListSessionsForTaskUrl(taskId),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
 
 
 
@@ -282,16 +492,16 @@ export const getListSessionsForTaskQueryKey = (taskId?: string,) => {
     }
 
     
-export const getListSessionsForTaskQueryOptions = <TData = Awaited<ReturnType<typeof listSessionsForTask>>, TError = unknown>(taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessionsForTask>>, TError, TData>>, }
+export const getListSessionsForTaskQueryOptions = <TData = Awaited<ReturnType<typeof listSessionsForTask>>, TError = unknown>(taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessionsForTask>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
-const {query: queryOptions} = options ?? {};
+const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListSessionsForTaskQueryKey(taskId);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSessionsForTask>>> = ({ signal }) => listSessionsForTask(taskId, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSessionsForTask>>> = ({ signal }) => listSessionsForTask(taskId, { signal, ...requestOptions });
 
       
 
@@ -311,7 +521,7 @@ export function useListSessionsForTask<TData = Awaited<ReturnType<typeof listSes
           TError,
           Awaited<ReturnType<typeof listSessionsForTask>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListSessionsForTask<TData = Awaited<ReturnType<typeof listSessionsForTask>>, TError = unknown>(
@@ -321,16 +531,16 @@ export function useListSessionsForTask<TData = Awaited<ReturnType<typeof listSes
           TError,
           Awaited<ReturnType<typeof listSessionsForTask>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListSessionsForTask<TData = Awaited<ReturnType<typeof listSessionsForTask>>, TError = unknown>(
- taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessionsForTask>>, TError, TData>>, }
+ taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessionsForTask>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useListSessionsForTask<TData = Awaited<ReturnType<typeof listSessionsForTask>>, TError = unknown>(
- taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessionsForTask>>, TError, TData>>, }
+ taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessionsForTask>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 

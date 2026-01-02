@@ -2,7 +2,20 @@
 import type { AgentMessageData } from "./AgentMessageData";
 import type { ToolExecutionData } from "./ToolExecutionData";
 
+export type Event = { "type": "task.created", task_id: string, title: string, } | { "type": "task.updated", task_id: string, } | { "type": "task.status_changed", task_id: string, from_status: string, to_status: string, } | { "type": "session.started", session_id: string, task_id: string, 
 /**
- * All possible events in the system
+ * Session phase (planning, implementation, review, etc.)
  */
-export type Event = { "type": "task.created", task_id: string, title: string, } | { "type": "task.updated", task_id: string, } | { "type": "task.status_changed", task_id: string, from_status: string, to_status: string, } | { "type": "session.started", session_id: string, task_id: string, } | { "type": "session.ended", session_id: string, task_id: string, success: boolean, } | { "type": "agent.message", session_id: string, task_id: string, message: AgentMessageData, } | { "type": "tool.execution", session_id: string, task_id: string, tool: ToolExecutionData, } | { "type": "workspace.created", task_id: string, path: string, } | { "type": "workspace.merged", task_id: string, success: boolean, } | { "type": "workspace.deleted", task_id: string, } | { "type": "error", message: string, context: string | null, };
+phase: string, 
+/**
+ * Session status (pending, running, completed, failed)
+ */
+status: string, 
+/**
+ * OpenCode session ID (when connected)
+ */
+opencode_session_id: string | null, 
+/**
+ * When the session was created
+ */
+created_at: string, } | { "type": "session.ended", session_id: string, task_id: string, success: boolean, } | { "type": "agent.message", session_id: string, task_id: string, message: AgentMessageData, } | { "type": "tool.execution", session_id: string, task_id: string, tool: ToolExecutionData, } | { "type": "workspace.created", task_id: string, path: string, } | { "type": "workspace.merged", task_id: string, success: boolean, } | { "type": "workspace.deleted", task_id: string, } | { "type": "project.opened", path: string, name: string, was_initialized: boolean, } | { "type": "project.closed", path: string, } | { "type": "error", message: string, context: string | null, };

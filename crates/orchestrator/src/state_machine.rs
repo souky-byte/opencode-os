@@ -1,4 +1,5 @@
 use opencode_core::TaskStatus;
+use tracing::{debug, warn};
 
 use crate::error::{OrchestratorError, Result};
 
@@ -9,8 +10,19 @@ impl TaskStateMachine {
         let allowed = Self::allowed_transitions(from);
 
         if allowed.contains(to) {
+            debug!(
+                from = %from.as_str(),
+                to = %to.as_str(),
+                "State transition validated"
+            );
             Ok(())
         } else {
+            warn!(
+                from = %from.as_str(),
+                to = %to.as_str(),
+                allowed = ?allowed.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+                "Invalid state transition attempted"
+            );
             Err(OrchestratorError::InvalidTransition {
                 from: from.as_str().to_string(),
                 to: to.as_str().to_string(),
@@ -24,7 +36,10 @@ impl TaskStateMachine {
             TaskStatus::Planning => vec![TaskStatus::PlanningReview, TaskStatus::Todo],
             TaskStatus::PlanningReview => vec![TaskStatus::InProgress, TaskStatus::Planning],
             TaskStatus::InProgress => vec![TaskStatus::AiReview, TaskStatus::PlanningReview],
-            TaskStatus::AiReview => vec![TaskStatus::Review, TaskStatus::InProgress],
+            // AiReview can go to: Fix (fix findings), Review (skip/approved), InProgress (back to impl)
+            TaskStatus::AiReview => vec![TaskStatus::Fix, TaskStatus::Review, TaskStatus::InProgress],
+            // Fix goes back to AiReview for re-review after fixing
+            TaskStatus::Fix => vec![TaskStatus::AiReview],
             TaskStatus::Review => vec![TaskStatus::Done, TaskStatus::InProgress],
             TaskStatus::Done => vec![],
         }
@@ -40,7 +55,11 @@ impl TaskStateMachine {
             TaskStatus::Planning => Some(TaskStatus::PlanningReview),
             TaskStatus::PlanningReview => Some(TaskStatus::InProgress),
             TaskStatus::InProgress => Some(TaskStatus::AiReview),
+            // From AiReview, default next is Review (approved/skip path)
+            // Use transition_to_fix() for the fix path
             TaskStatus::AiReview => Some(TaskStatus::Review),
+            // Fix goes back to AiReview
+            TaskStatus::Fix => Some(TaskStatus::AiReview),
             TaskStatus::Review => Some(TaskStatus::Done),
             TaskStatus::Done => None,
         }
@@ -53,6 +72,8 @@ impl TaskStateMachine {
             TaskStatus::PlanningReview => Some(TaskStatus::Planning),
             TaskStatus::InProgress => Some(TaskStatus::PlanningReview),
             TaskStatus::AiReview => Some(TaskStatus::InProgress),
+            // Fix comes after AiReview
+            TaskStatus::Fix => Some(TaskStatus::AiReview),
             TaskStatus::Review => Some(TaskStatus::AiReview),
             TaskStatus::Done => Some(TaskStatus::Review),
         }

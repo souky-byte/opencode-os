@@ -5,10 +5,11 @@
  * API for OpenCode Studio - AI-powered development platform
  * OpenAPI spec version: 0.1.0
  */
-import type { PhaseResultDto } from './phaseResultDto';
 import type { Task } from './task';
 
 export interface ExecuteResponse {
-  result: PhaseResultDto;
+  opencode_session_id: string;
+  phase: string;
+  session_id: string;
   task: Task;
 }

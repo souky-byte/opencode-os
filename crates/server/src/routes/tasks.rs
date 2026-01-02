@@ -3,8 +3,9 @@ use axum::http::StatusCode;
 use axum::Json;
 use events::{Event, EventEnvelope};
 use opencode_core::{CreateTaskRequest, Task, TaskStatus, UpdateTaskRequest};
-use orchestrator::PhaseResult;
+use orchestrator::ReviewFinding;
 use serde::{Deserialize, Serialize};
+use tracing::{debug, error, info, instrument, warn};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -20,7 +21,8 @@ use crate::state::AppState;
     tag = "tasks"
 )]
 pub async fn list_tasks(State(state): State<AppState>) -> Result<Json<Vec<Task>>, AppError> {
-    let tasks = state.task_repository.find_all().await?;
+    let project = state.project().await?;
+    let tasks = project.task_repository.find_all().await?;
     Ok(Json(tasks))
 }
 
@@ -38,12 +40,26 @@ pub async fn create_task(
     State(state): State<AppState>,
     Json(payload): Json<CreateTaskRequest>,
 ) -> Result<(StatusCode, Json<Task>), AppError> {
+    info!(
+        title = %payload.title,
+        has_description = !payload.description.is_empty(),
+        "API: Creating new task"
+    );
+
     if payload.title.trim().is_empty() {
+        warn!("API: Task creation rejected - empty title");
         return Err(AppError::BadRequest("Title cannot be empty".to_string()));
     }
 
+    let project = state.project().await?;
     let task = Task::new(payload.title.clone(), payload.description);
-    let created = state.task_repository.create(&task).await?;
+    let created = project.task_repository.create(&task).await?;
+
+    info!(
+        task_id = %created.id,
+        title = %created.title,
+        "API: Task created successfully"
+    );
 
     state
         .event_bus
@@ -71,7 +87,8 @@ pub async fn get_task(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Task>, AppError> {
-    let task = state.task_repository.find_by_id(id).await?;
+    let project = state.project().await?;
+    let task = project.task_repository.find_by_id(id).await?;
 
     match task {
         Some(t) => Ok(Json(t)),
@@ -97,7 +114,8 @@ pub async fn update_task(
     Path(id): Path<Uuid>,
     Json(payload): Json<UpdateTaskRequest>,
 ) -> Result<Json<Task>, AppError> {
-    let updated = state.task_repository.update(id, &payload).await?;
+    let project = state.project().await?;
+    let updated = project.task_repository.update(id, &payload).await?;
 
     match updated {
         Some(t) => Ok(Json(t)),
@@ -121,7 +139,8 @@ pub async fn delete_task(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
-    let deleted = state.task_repository.delete(id).await?;
+    let project = state.project().await?;
+    let deleted = project.task_repository.delete(id).await?;
 
     if deleted {
         Ok(StatusCode::NO_CONTENT)
@@ -159,36 +178,60 @@ pub struct TransitionResponse {
     ),
     tag = "tasks"
 )]
+#[instrument(skip(state), fields(task_id = %id))]
 pub async fn transition_task(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(payload): Json<TransitionRequest>,
 ) -> Result<Json<TransitionResponse>, AppError> {
-    let task = state.task_repository.find_by_id(id).await?;
+    info!(
+        task_id = %id,
+        target_status = %payload.status.as_str(),
+        "API: Task transition requested"
+    );
+
+    let project = state.project().await?;
+    let task = project.task_repository.find_by_id(id).await?;
     let Some(mut task) = task else {
+        warn!(task_id = %id, "API: Task not found for transition");
         return Err(AppError::NotFound(format!("Task not found: {}", id)));
     };
 
     let previous_status = task.status;
+    debug!(
+        current_status = %previous_status.as_str(),
+        target_status = %payload.status.as_str(),
+        "Attempting state transition"
+    );
 
-    state
+    project
         .task_executor
         .transition(&mut task, payload.status)
-        .map_err(|e| AppError::BadRequest(e.to_string()))?;
+        .map_err(|e| {
+            warn!(
+                task_id = %id,
+                from = %previous_status.as_str(),
+                to = %payload.status.as_str(),
+                error = %e,
+                "API: Task transition failed"
+            );
+            AppError::BadRequest(e.to_string())
+        })?;
 
     let update = UpdateTaskRequest {
         status: Some(task.status),
         ..Default::default()
     };
-    state.task_repository.update(id, &update).await?;
+    project.task_repository.update(id, &update).await?;
 
-    state
-        .event_bus
-        .publish(EventEnvelope::new(Event::TaskStatusChanged {
-            task_id: id,
-            from_status: format!("{:?}", previous_status),
-            to_status: format!("{:?}", task.status),
-        }));
+    info!(
+        task_id = %id,
+        from = %previous_status.as_str(),
+        to = %task.status.as_str(),
+        "API: Task transition completed"
+    );
+
+    // Note: TaskStatusChanged event is already emitted by task_executor.transition()
 
     Ok(Json(TransitionResponse {
         task,
@@ -201,43 +244,9 @@ pub async fn transition_task(
 #[cfg_attr(feature = "typescript", ts(export))]
 pub struct ExecuteResponse {
     pub task: Task,
-    pub result: PhaseResultDto,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
-#[cfg_attr(feature = "typescript", ts(export))]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum PhaseResultDto {
-    SessionCreated { session_id: String },
-    PlanCreated { session_id: String, plan_path: String },
-    AwaitingApproval { phase: String },
-    ReviewPassed { session_id: String },
-    ReviewFailed { session_id: String, feedback: String, iteration: u32 },
-    MaxIterationsExceeded { iterations: u32 },
-    Completed,
-}
-
-impl From<PhaseResult> for PhaseResultDto {
-    fn from(result: PhaseResult) -> Self {
-        match result {
-            PhaseResult::SessionCreated { session_id } => Self::SessionCreated { session_id },
-            PhaseResult::PlanCreated { session_id, plan_path } => {
-                Self::PlanCreated { session_id, plan_path }
-            }
-            PhaseResult::AwaitingApproval { phase } => {
-                Self::AwaitingApproval { phase: phase.as_str().to_string() }
-            }
-            PhaseResult::ReviewPassed { session_id } => Self::ReviewPassed { session_id },
-            PhaseResult::ReviewFailed { session_id, feedback, iteration } => {
-                Self::ReviewFailed { session_id, feedback, iteration }
-            }
-            PhaseResult::MaxIterationsExceeded { iterations } => {
-                Self::MaxIterationsExceeded { iterations }
-            }
-            PhaseResult::Completed => Self::Completed,
-        }
-    }
+    pub session_id: String,
+    pub opencode_session_id: String,
+    pub phase: String,
 }
 
 #[utoipa::path(
@@ -247,35 +256,378 @@ impl From<PhaseResult> for PhaseResultDto {
         ("id" = Uuid, Path, description = "Task ID")
     ),
     responses(
-        (status = 200, description = "Phase executed", body = ExecuteResponse),
+        (status = 202, description = "Execution started", body = ExecuteResponse),
         (status = 404, description = "Task not found"),
-        (status = 500, description = "Execution failed")
+        (status = 500, description = "Execution failed to start")
     ),
     tag = "tasks"
 )]
+#[instrument(skip(state), fields(task_id = %id))]
 pub async fn execute_task(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<Json<ExecuteResponse>, AppError> {
-    let task = state.task_repository.find_by_id(id).await?;
+) -> Result<(StatusCode, Json<ExecuteResponse>), AppError> {
+    info!(task_id = %id, "API: Task execution requested");
+
+    let project = state.project().await?;
+    let task = project.task_repository.find_by_id(id).await?;
     let Some(mut task) = task else {
+        warn!(task_id = %id, "API: Task not found for execution");
         return Err(AppError::NotFound(format!("Task not found: {}", id)));
     };
 
-    let result = state
+    info!(
+        task_id = %id,
+        task_title = %task.title,
+        current_status = %task.status.as_str(),
+        "API: Starting task phase execution"
+    );
+
+    let started = project
         .task_executor
-        .execute_phase(&mut task)
+        .start_phase_async(&mut task)
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .map_err(|e| {
+            error!(
+                task_id = %id,
+                error = %e,
+                "API: Task execution failed to start"
+            );
+            AppError::Internal(e.to_string())
+        })?;
 
     let update = UpdateTaskRequest {
         status: Some(task.status),
         ..Default::default()
     };
-    state.task_repository.update(id, &update).await?;
+    project.task_repository.update(id, &update).await?;
 
-    Ok(Json(ExecuteResponse {
-        task,
-        result: result.into(),
-    }))
+    info!(
+        task_id = %id,
+        session_id = %started.session_id,
+        opencode_session_id = %started.opencode_session_id,
+        phase = %started.phase.as_str(),
+        "API: Execution started"
+    );
+
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(ExecuteResponse {
+            task,
+            session_id: started.session_id.to_string(),
+            opencode_session_id: started.opencode_session_id,
+            phase: started.phase.as_str().to_string(),
+        }),
+    ))
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+pub struct PlanResponse {
+    pub content: String,
+    pub exists: bool,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/tasks/{id}/plan",
+    params(
+        ("id" = Uuid, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 200, description = "Plan content", body = PlanResponse),
+        (status = 404, description = "Task not found")
+    ),
+    tag = "tasks"
+)]
+pub async fn get_task_plan(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<PlanResponse>, AppError> {
+    let project = state.project().await?;
+
+    // Verify task exists
+    let task = project.task_repository.find_by_id(id).await?;
+    if task.is_none() {
+        return Err(AppError::NotFound(format!("Task not found: {}", id)));
+    }
+
+    let file_manager = project.task_executor.file_manager();
+    if file_manager.plan_exists(id).await {
+        match file_manager.read_plan(id).await {
+            Ok(content) => Ok(Json(PlanResponse {
+                content,
+                exists: true,
+            })),
+            Err(e) => {
+                error!(task_id = %id, error = %e, "Failed to read plan file");
+                Ok(Json(PlanResponse {
+                    content: String::new(),
+                    exists: false,
+                }))
+            }
+        }
+    } else {
+        Ok(Json(PlanResponse {
+            content: String::new(),
+            exists: false,
+        }))
+    }
+}
+
+// ============================================================================
+// Findings API
+// ============================================================================
+
+#[derive(Debug, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+pub struct FindingsResponse {
+    pub findings: Vec<ReviewFinding>,
+    pub summary: String,
+    pub approved: bool,
+    pub exists: bool,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/tasks/{id}/findings",
+    params(
+        ("id" = Uuid, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 200, description = "Task findings", body = FindingsResponse),
+        (status = 404, description = "Task not found")
+    ),
+    tag = "tasks"
+)]
+pub async fn get_task_findings(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<FindingsResponse>, AppError> {
+    let project = state.project().await?;
+
+    // Verify task exists
+    let task = project.task_repository.find_by_id(id).await?;
+    if task.is_none() {
+        return Err(AppError::NotFound(format!("Task not found: {}", id)));
+    }
+
+    let file_manager = project.task_executor.file_manager();
+    match file_manager.read_findings(id).await {
+        Ok(Some(findings)) => Ok(Json(FindingsResponse {
+            findings: findings.findings,
+            summary: findings.summary,
+            approved: findings.approved,
+            exists: true,
+        })),
+        Ok(None) => Ok(Json(FindingsResponse {
+            findings: vec![],
+            summary: String::new(),
+            approved: false,
+            exists: false,
+        })),
+        Err(e) => {
+            error!(task_id = %id, error = %e, "Failed to read findings file");
+            Ok(Json(FindingsResponse {
+                findings: vec![],
+                summary: String::new(),
+                approved: false,
+                exists: false,
+            }))
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+pub struct FixFindingsRequest {
+    /// IDs of findings to fix, or empty to fix all
+    pub finding_ids: Option<Vec<String>>,
+    /// If true, fix all findings regardless of finding_ids
+    pub fix_all: Option<bool>,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/tasks/{id}/findings/fix",
+    params(
+        ("id" = Uuid, Path, description = "Task ID")
+    ),
+    request_body = FixFindingsRequest,
+    responses(
+        (status = 202, description = "Fix started", body = ExecuteResponse),
+        (status = 404, description = "Task not found"),
+        (status = 400, description = "Invalid request")
+    ),
+    tag = "tasks"
+)]
+#[instrument(skip(state), fields(task_id = %id))]
+pub async fn fix_findings(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<FixFindingsRequest>,
+) -> Result<(StatusCode, Json<ExecuteResponse>), AppError> {
+    info!(task_id = %id, "API: Fix findings requested");
+
+    let project = state.project().await?;
+    let task = project.task_repository.find_by_id(id).await?;
+    let Some(mut task) = task else {
+        return Err(AppError::NotFound(format!("Task not found: {}", id)));
+    };
+
+    // Verify task is in ai_review state
+    if task.status != TaskStatus::AiReview {
+        return Err(AppError::BadRequest(format!(
+            "Task must be in ai_review state to fix findings. Current: {}",
+            task.status.as_str()
+        )));
+    }
+
+    // Read current findings
+    let file_manager = project.task_executor.file_manager();
+    let findings_data = file_manager.read_findings(id).await.map_err(|e| {
+        error!(task_id = %id, error = %e, "Failed to read findings");
+        AppError::Internal(e.to_string())
+    })?;
+
+    let Some(findings_data) = findings_data else {
+        return Err(AppError::NotFound("No findings found for this task".to_string()));
+    };
+
+    // Determine which findings to fix
+    let findings_to_fix: Vec<&ReviewFinding> = if payload.fix_all.unwrap_or(false) {
+        findings_data
+            .findings
+            .iter()
+            .filter(|f| f.status == orchestrator::FindingStatus::Pending)
+            .collect()
+    } else if let Some(ref ids) = payload.finding_ids {
+        findings_data
+            .findings
+            .iter()
+            .filter(|f| ids.contains(&f.id) && f.status == orchestrator::FindingStatus::Pending)
+            .collect()
+    } else {
+        return Err(AppError::BadRequest(
+            "Either finding_ids or fix_all must be provided".to_string(),
+        ));
+    };
+
+    if findings_to_fix.is_empty() {
+        return Err(AppError::BadRequest("No pending findings to fix".to_string()));
+    }
+
+    info!(
+        task_id = %id,
+        finding_count = findings_to_fix.len(),
+        "API: Fixing selected findings"
+    );
+
+    // Transition task to Fix state
+    project
+        .task_executor
+        .transition(&mut task, TaskStatus::Fix)
+        .map_err(|e| {
+            error!(task_id = %id, error = %e, "Failed to transition to fix state");
+            AppError::BadRequest(e.to_string())
+        })?;
+
+    // Start fix execution (this will run fix phase with MCP)
+    let started = project
+        .task_executor
+        .start_phase_async(&mut task)
+        .await
+        .map_err(|e| {
+            error!(
+                task_id = %id,
+                error = %e,
+                "API: Fix execution failed to start"
+            );
+            AppError::Internal(e.to_string())
+        })?;
+
+    let update = UpdateTaskRequest {
+        status: Some(task.status),
+        ..Default::default()
+    };
+    project.task_repository.update(id, &update).await?;
+
+    info!(
+        task_id = %id,
+        session_id = %started.session_id,
+        "API: Fix execution started"
+    );
+
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(ExecuteResponse {
+            task,
+            session_id: started.session_id.to_string(),
+            opencode_session_id: started.opencode_session_id,
+            phase: started.phase.as_str().to_string(),
+        }),
+    ))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/tasks/{id}/findings/skip",
+    params(
+        ("id" = Uuid, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 200, description = "Findings skipped, task moved to review", body = Task),
+        (status = 404, description = "Task not found"),
+        (status = 400, description = "Invalid state")
+    ),
+    tag = "tasks"
+)]
+#[instrument(skip(state), fields(task_id = %id))]
+pub async fn skip_findings(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Task>, AppError> {
+    info!(task_id = %id, "API: Skip findings requested");
+
+    let project = state.project().await?;
+    let task = project.task_repository.find_by_id(id).await?;
+    let Some(mut task) = task else {
+        return Err(AppError::NotFound(format!("Task not found: {}", id)));
+    };
+
+    // Verify task is in ai_review state
+    if task.status != TaskStatus::AiReview {
+        return Err(AppError::BadRequest(format!(
+            "Task must be in ai_review state to skip findings. Current: {}",
+            task.status.as_str()
+        )));
+    }
+
+    // Mark all pending findings as skipped
+    let file_manager = project.task_executor.file_manager();
+    if let Err(e) = file_manager.skip_all_findings(id).await {
+        warn!(task_id = %id, error = %e, "Failed to update findings status (continuing anyway)");
+    }
+
+    // Transition to review state
+    project
+        .task_executor
+        .transition(&mut task, TaskStatus::Review)
+        .map_err(|e| {
+            error!(task_id = %id, error = %e, "Failed to transition to review");
+            AppError::Internal(e.to_string())
+        })?;
+
+    let update = UpdateTaskRequest {
+        status: Some(task.status),
+        ..Default::default()
+    };
+    project.task_repository.update(id, &update).await?;
+
+    info!(task_id = %id, "API: Findings skipped, task moved to review");
+
+    Ok(Json(task))
 }

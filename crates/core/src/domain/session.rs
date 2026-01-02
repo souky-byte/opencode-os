@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default, ToSchema)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default, ToSchema, Hash)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export))]
 #[serde(rename_all = "snake_case")]
@@ -12,6 +12,8 @@ pub enum SessionPhase {
     Planning,
     Implementation,
     Review,
+    /// Fix phase - used to fix issues found during review
+    Fix,
 }
 
 impl SessionPhase {
@@ -20,6 +22,7 @@ impl SessionPhase {
             Self::Planning => "planning",
             Self::Implementation => "implementation",
             Self::Review => "review",
+            Self::Fix => "fix",
         }
     }
 
@@ -28,6 +31,7 @@ impl SessionPhase {
             "planning" => Some(Self::Planning),
             "implementation" => Some(Self::Implementation),
             "review" => Some(Self::Review),
+            "fix" => Some(Self::Fix),
             _ => None,
         }
     }

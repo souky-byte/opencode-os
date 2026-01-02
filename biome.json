@@ -78,7 +78,7 @@
 							},
 							{
 								"selector": { "kind": "objectLiteralProperty" },
-								"formats": ["camelCase", "PascalCase", "CONSTANT_CASE"]
+								"formats": ["camelCase", "PascalCase", "CONSTANT_CASE", "snake_case"]
 							}
 						]
 					}

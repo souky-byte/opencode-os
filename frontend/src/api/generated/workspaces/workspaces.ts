@@ -32,35 +32,64 @@ import type {
   WorkspaceStatusResponse
 } from '.././model';
 
-import { customInstance } from '../../mutator/custom-instance';
+import { customFetch } from '../../../lib/api-fetcher';
+
+
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
+export type createWorkspaceForTaskResponse201 = {
+  data: WorkspaceResponse
+  status: 201
+}
 
-export const createWorkspaceForTask = (
-    taskId: string,
- signal?: AbortSignal
-) => {
-      
-      
-      return customInstance<WorkspaceResponse>(
-      {url: `/api/tasks/${taskId}/workspace`, method: 'POST', signal
-    },
-      );
-    }
+export type createWorkspaceForTaskResponse404 = {
+  data: void
+  status: 404
+}
+    
+export type createWorkspaceForTaskResponseSuccess = (createWorkspaceForTaskResponse201) & {
+  headers: Headers;
+};
+export type createWorkspaceForTaskResponseError = (createWorkspaceForTaskResponse404) & {
+  headers: Headers;
+};
+
+export type createWorkspaceForTaskResponse = (createWorkspaceForTaskResponseSuccess | createWorkspaceForTaskResponseError)
+
+export const getCreateWorkspaceForTaskUrl = (taskId: string,) => {
+
+
   
+
+  return `/api/tasks/${taskId}/workspace`
+}
+
+export const createWorkspaceForTask = async (taskId: string, options?: RequestInit): Promise<createWorkspaceForTaskResponse> => {
+  
+  return customFetch<createWorkspaceForTaskResponse>(getCreateWorkspaceForTaskUrl(taskId),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
+  }
+);}
+
+
 
 
 export const getCreateWorkspaceForTaskMutationOptions = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWorkspaceForTask>>, TError,{taskId: string}, TContext>, }
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWorkspaceForTask>>, TError,{taskId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createWorkspaceForTask>>, TError,{taskId: string}, TContext> => {
 
 const mutationKey = ['createWorkspaceForTask'];
-const {mutation: mutationOptions} = options ?
+const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
       : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
+      : {mutation: { mutationKey, }, request: undefined};
 
       
 
@@ -68,7 +97,7 @@ const {mutation: mutationOptions} = options ?
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof createWorkspaceForTask>>, {taskId: string}> = (props) => {
           const {taskId} = props ?? {};
 
-          return  createWorkspaceForTask(taskId,)
+          return  createWorkspaceForTask(taskId,requestOptions)
         }
 
         
@@ -81,7 +110,7 @@ const {mutation: mutationOptions} = options ?
     export type CreateWorkspaceForTaskMutationError = void
 
     export const useCreateWorkspaceForTask = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWorkspaceForTask>>, TError,{taskId: string}, TContext>, }
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWorkspaceForTask>>, TError,{taskId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof createWorkspaceForTask>>,
         TError,
@@ -93,18 +122,38 @@ const {mutation: mutationOptions} = options ?
 
       return useMutation(mutationOptions, queryClient);
     }
-    export const listWorkspaces = (
+    export type listWorkspacesResponse200 = {
+  data: WorkspaceResponse[]
+  status: 200
+}
     
- signal?: AbortSignal
-) => {
-      
-      
-      return customInstance<WorkspaceResponse[]>(
-      {url: `/api/workspaces`, method: 'GET', signal
-    },
-      );
-    }
+export type listWorkspacesResponseSuccess = (listWorkspacesResponse200) & {
+  headers: Headers;
+};
+;
+
+export type listWorkspacesResponse = (listWorkspacesResponseSuccess)
+
+export const getListWorkspacesUrl = () => {
+
+
   
+
+  return `/api/workspaces`
+}
+
+export const listWorkspaces = async ( options?: RequestInit): Promise<listWorkspacesResponse> => {
+  
+  return customFetch<listWorkspacesResponse>(getListWorkspacesUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
 
 
 
@@ -115,16 +164,16 @@ export const getListWorkspacesQueryKey = () => {
     }
 
     
-export const getListWorkspacesQueryOptions = <TData = Awaited<ReturnType<typeof listWorkspaces>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWorkspaces>>, TError, TData>>, }
+export const getListWorkspacesQueryOptions = <TData = Awaited<ReturnType<typeof listWorkspaces>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWorkspaces>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
-const {query: queryOptions} = options ?? {};
+const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getListWorkspacesQueryKey();
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWorkspaces>>> = ({ signal }) => listWorkspaces(signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWorkspaces>>> = ({ signal }) => listWorkspaces({ signal, ...requestOptions });
 
       
 
@@ -144,7 +193,7 @@ export function useListWorkspaces<TData = Awaited<ReturnType<typeof listWorkspac
           TError,
           Awaited<ReturnType<typeof listWorkspaces>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListWorkspaces<TData = Awaited<ReturnType<typeof listWorkspaces>>, TError = unknown>(
@@ -154,16 +203,16 @@ export function useListWorkspaces<TData = Awaited<ReturnType<typeof listWorkspac
           TError,
           Awaited<ReturnType<typeof listWorkspaces>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListWorkspaces<TData = Awaited<ReturnType<typeof listWorkspaces>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWorkspaces>>, TError, TData>>, }
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWorkspaces>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useListWorkspaces<TData = Awaited<ReturnType<typeof listWorkspaces>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWorkspaces>>, TError, TData>>, }
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWorkspaces>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -179,18 +228,45 @@ export function useListWorkspaces<TData = Awaited<ReturnType<typeof listWorkspac
 
 
 
-export const getWorkspaceStatus = (
-    taskId: string,
- signal?: AbortSignal
-) => {
-      
-      
-      return customInstance<WorkspaceStatusResponse>(
-      {url: `/api/workspaces/${taskId}`, method: 'GET', signal
-    },
-      );
-    }
+export type getWorkspaceStatusResponse200 = {
+  data: WorkspaceStatusResponse
+  status: 200
+}
+
+export type getWorkspaceStatusResponse404 = {
+  data: void
+  status: 404
+}
+    
+export type getWorkspaceStatusResponseSuccess = (getWorkspaceStatusResponse200) & {
+  headers: Headers;
+};
+export type getWorkspaceStatusResponseError = (getWorkspaceStatusResponse404) & {
+  headers: Headers;
+};
+
+export type getWorkspaceStatusResponse = (getWorkspaceStatusResponseSuccess | getWorkspaceStatusResponseError)
+
+export const getGetWorkspaceStatusUrl = (taskId: string,) => {
+
+
   
+
+  return `/api/workspaces/${taskId}`
+}
+
+export const getWorkspaceStatus = async (taskId: string, options?: RequestInit): Promise<getWorkspaceStatusResponse> => {
+  
+  return customFetch<getWorkspaceStatusResponse>(getGetWorkspaceStatusUrl(taskId),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
 
 
 
@@ -201,16 +277,16 @@ export const getGetWorkspaceStatusQueryKey = (taskId?: string,) => {
     }
 
     
-export const getGetWorkspaceStatusQueryOptions = <TData = Awaited<ReturnType<typeof getWorkspaceStatus>>, TError = void>(taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStatus>>, TError, TData>>, }
+export const getGetWorkspaceStatusQueryOptions = <TData = Awaited<ReturnType<typeof getWorkspaceStatus>>, TError = void>(taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStatus>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
-const {query: queryOptions} = options ?? {};
+const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetWorkspaceStatusQueryKey(taskId);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkspaceStatus>>> = ({ signal }) => getWorkspaceStatus(taskId, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkspaceStatus>>> = ({ signal }) => getWorkspaceStatus(taskId, { signal, ...requestOptions });
 
       
 
@@ -230,7 +306,7 @@ export function useGetWorkspaceStatus<TData = Awaited<ReturnType<typeof getWorks
           TError,
           Awaited<ReturnType<typeof getWorkspaceStatus>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetWorkspaceStatus<TData = Awaited<ReturnType<typeof getWorkspaceStatus>>, TError = void>(
@@ -240,16 +316,16 @@ export function useGetWorkspaceStatus<TData = Awaited<ReturnType<typeof getWorks
           TError,
           Awaited<ReturnType<typeof getWorkspaceStatus>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetWorkspaceStatus<TData = Awaited<ReturnType<typeof getWorkspaceStatus>>, TError = void>(
- taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStatus>>, TError, TData>>, }
+ taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStatus>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useGetWorkspaceStatus<TData = Awaited<ReturnType<typeof getWorkspaceStatus>>, TError = void>(
- taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStatus>>, TError, TData>>, }
+ taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStatus>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -265,29 +341,57 @@ export function useGetWorkspaceStatus<TData = Awaited<ReturnType<typeof getWorks
 
 
 
-export const deleteWorkspace = (
-    taskId: string,
- ) => {
-      
-      
-      return customInstance<void>(
-      {url: `/api/workspaces/${taskId}`, method: 'DELETE'
-    },
-      );
-    }
+export type deleteWorkspaceResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteWorkspaceResponse404 = {
+  data: void
+  status: 404
+}
+    
+export type deleteWorkspaceResponseSuccess = (deleteWorkspaceResponse204) & {
+  headers: Headers;
+};
+export type deleteWorkspaceResponseError = (deleteWorkspaceResponse404) & {
+  headers: Headers;
+};
+
+export type deleteWorkspaceResponse = (deleteWorkspaceResponseSuccess | deleteWorkspaceResponseError)
+
+export const getDeleteWorkspaceUrl = (taskId: string,) => {
+
+
   
+
+  return `/api/workspaces/${taskId}`
+}
+
+export const deleteWorkspace = async (taskId: string, options?: RequestInit): Promise<deleteWorkspaceResponse> => {
+  
+  return customFetch<deleteWorkspaceResponse>(getDeleteWorkspaceUrl(taskId),
+  {      
+    ...options,
+    method: 'DELETE'
+    
+    
+  }
+);}
+
+
 
 
 export const getDeleteWorkspaceMutationOptions = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteWorkspace>>, TError,{taskId: string}, TContext>, }
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteWorkspace>>, TError,{taskId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteWorkspace>>, TError,{taskId: string}, TContext> => {
 
 const mutationKey = ['deleteWorkspace'];
-const {mutation: mutationOptions} = options ?
+const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
       : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
+      : {mutation: { mutationKey, }, request: undefined};
 
       
 
@@ -295,7 +399,7 @@ const {mutation: mutationOptions} = options ?
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteWorkspace>>, {taskId: string}> = (props) => {
           const {taskId} = props ?? {};
 
-          return  deleteWorkspace(taskId,)
+          return  deleteWorkspace(taskId,requestOptions)
         }
 
         
@@ -308,7 +412,7 @@ const {mutation: mutationOptions} = options ?
     export type DeleteWorkspaceMutationError = void
 
     export const useDeleteWorkspace = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteWorkspace>>, TError,{taskId: string}, TContext>, }
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteWorkspace>>, TError,{taskId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof deleteWorkspace>>,
         TError,
@@ -320,18 +424,45 @@ const {mutation: mutationOptions} = options ?
 
       return useMutation(mutationOptions, queryClient);
     }
-    export const getWorkspaceDiff = (
-    taskId: string,
- signal?: AbortSignal
-) => {
-      
-      
-      return customInstance<DiffResponse>(
-      {url: `/api/workspaces/${taskId}/diff`, method: 'GET', signal
-    },
-      );
-    }
+    export type getWorkspaceDiffResponse200 = {
+  data: DiffResponse
+  status: 200
+}
+
+export type getWorkspaceDiffResponse404 = {
+  data: void
+  status: 404
+}
+    
+export type getWorkspaceDiffResponseSuccess = (getWorkspaceDiffResponse200) & {
+  headers: Headers;
+};
+export type getWorkspaceDiffResponseError = (getWorkspaceDiffResponse404) & {
+  headers: Headers;
+};
+
+export type getWorkspaceDiffResponse = (getWorkspaceDiffResponseSuccess | getWorkspaceDiffResponseError)
+
+export const getGetWorkspaceDiffUrl = (taskId: string,) => {
+
+
   
+
+  return `/api/workspaces/${taskId}/diff`
+}
+
+export const getWorkspaceDiff = async (taskId: string, options?: RequestInit): Promise<getWorkspaceDiffResponse> => {
+  
+  return customFetch<getWorkspaceDiffResponse>(getGetWorkspaceDiffUrl(taskId),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
 
 
 
@@ -342,16 +473,16 @@ export const getGetWorkspaceDiffQueryKey = (taskId?: string,) => {
     }
 
     
-export const getGetWorkspaceDiffQueryOptions = <TData = Awaited<ReturnType<typeof getWorkspaceDiff>>, TError = void>(taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceDiff>>, TError, TData>>, }
+export const getGetWorkspaceDiffQueryOptions = <TData = Awaited<ReturnType<typeof getWorkspaceDiff>>, TError = void>(taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceDiff>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
-const {query: queryOptions} = options ?? {};
+const {query: queryOptions, request: requestOptions} = options ?? {};
 
   const queryKey =  queryOptions?.queryKey ?? getGetWorkspaceDiffQueryKey(taskId);
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkspaceDiff>>> = ({ signal }) => getWorkspaceDiff(taskId, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkspaceDiff>>> = ({ signal }) => getWorkspaceDiff(taskId, { signal, ...requestOptions });
 
       
 
@@ -371,7 +502,7 @@ export function useGetWorkspaceDiff<TData = Awaited<ReturnType<typeof getWorkspa
           TError,
           Awaited<ReturnType<typeof getWorkspaceDiff>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetWorkspaceDiff<TData = Awaited<ReturnType<typeof getWorkspaceDiff>>, TError = void>(
@@ -381,16 +512,16 @@ export function useGetWorkspaceDiff<TData = Awaited<ReturnType<typeof getWorkspa
           TError,
           Awaited<ReturnType<typeof getWorkspaceDiff>>
         > , 'initialData'
-      >, }
+      >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetWorkspaceDiff<TData = Awaited<ReturnType<typeof getWorkspaceDiff>>, TError = void>(
- taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceDiff>>, TError, TData>>, }
+ taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceDiff>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useGetWorkspaceDiff<TData = Awaited<ReturnType<typeof getWorkspaceDiff>>, TError = void>(
- taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceDiff>>, TError, TData>>, }
+ taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceDiff>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -406,33 +537,59 @@ export function useGetWorkspaceDiff<TData = Awaited<ReturnType<typeof getWorkspa
 
 
 
-export const mergeWorkspace = (
-    taskId: string,
-    mergeRequest: MergeRequest,
- signal?: AbortSignal
-) => {
-      
-      
-      return customInstance<MergeResponse>(
-      {url: `/api/workspaces/${taskId}/merge`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: mergeRequest, signal
-    },
-      );
-    }
+export type mergeWorkspaceResponse200 = {
+  data: MergeResponse
+  status: 200
+}
+
+export type mergeWorkspaceResponse404 = {
+  data: void
+  status: 404
+}
+    
+export type mergeWorkspaceResponseSuccess = (mergeWorkspaceResponse200) & {
+  headers: Headers;
+};
+export type mergeWorkspaceResponseError = (mergeWorkspaceResponse404) & {
+  headers: Headers;
+};
+
+export type mergeWorkspaceResponse = (mergeWorkspaceResponseSuccess | mergeWorkspaceResponseError)
+
+export const getMergeWorkspaceUrl = (taskId: string,) => {
+
+
   
+
+  return `/api/workspaces/${taskId}/merge`
+}
+
+export const mergeWorkspace = async (taskId: string,
+    mergeRequest: MergeRequest, options?: RequestInit): Promise<mergeWorkspaceResponse> => {
+  
+  return customFetch<mergeWorkspaceResponse>(getMergeWorkspaceUrl(taskId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      mergeRequest,)
+  }
+);}
+
+
 
 
 export const getMergeWorkspaceMutationOptions = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mergeWorkspace>>, TError,{taskId: string;data: MergeRequest}, TContext>, }
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mergeWorkspace>>, TError,{taskId: string;data: MergeRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof mergeWorkspace>>, TError,{taskId: string;data: MergeRequest}, TContext> => {
 
 const mutationKey = ['mergeWorkspace'];
-const {mutation: mutationOptions} = options ?
+const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
       : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
+      : {mutation: { mutationKey, }, request: undefined};
 
       
 
@@ -440,7 +597,7 @@ const {mutation: mutationOptions} = options ?
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof mergeWorkspace>>, {taskId: string;data: MergeRequest}> = (props) => {
           const {taskId,data} = props ?? {};
 
-          return  mergeWorkspace(taskId,data,)
+          return  mergeWorkspace(taskId,data,requestOptions)
         }
 
         
@@ -453,7 +610,7 @@ const {mutation: mutationOptions} = options ?
     export type MergeWorkspaceMutationError = void
 
     export const useMergeWorkspace = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mergeWorkspace>>, TError,{taskId: string;data: MergeRequest}, TContext>, }
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mergeWorkspace>>, TError,{taskId: string;data: MergeRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof mergeWorkspace>>,
         TError,

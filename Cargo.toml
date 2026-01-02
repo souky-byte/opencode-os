@@ -5,12 +5,12 @@ members = [
     "crates/core",
     "crates/db",
     "crates/server",
-    "crates/opencode",
+    "crates/opencode-client",
     "crates/orchestrator",
     "crates/vcs",
     "crates/events",
-    "crates/websocket",
     "crates/github",
+    "crates/mcp-findings",
 ]
 
 [workspace.package]
@@ -22,12 +22,12 @@ rust-version = "1.75"
 # Internal crates
 opencode_core = { path = "crates/core" }
 db = { path = "crates/db" }
-opencode = { path = "crates/opencode" }
+opencode_client = { path = "crates/opencode-client" }  # OpenAPI Generator SDK
 orchestrator = { path = "crates/orchestrator" }
 vcs = { path = "crates/vcs" }
 events = { path = "crates/events" }
-websocket = { path = "crates/websocket" }
 github = { path = "crates/github" }
+mcp-findings = { path = "crates/mcp-findings" }
 
 # HTTP client
 reqwest = { version = "0.12", features = ["json", "stream"] }
@@ -40,7 +40,7 @@ tokio = { version = "1.0", features = ["full"] }
 
 # Web framework
 axum = { version = "0.8", features = ["macros", "ws"] }
-tower-http = { version = "0.5", features = ["cors", "trace"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
 
 # Database
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }

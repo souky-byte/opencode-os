@@ -9,7 +9,7 @@ pub enum OrchestratorError {
     TaskNotFound(String),
 
     #[error("OpenCode error: {0}")]
-    OpenCode(#[from] opencode::OpenCodeError),
+    OpenCodeError(String),
 
     #[error("Database error: {0}")]
     Database(#[from] db::DbError),

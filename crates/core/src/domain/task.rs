@@ -14,6 +14,8 @@ pub enum TaskStatus {
     PlanningReview,
     InProgress,
     AiReview,
+    /// Fix phase - AI fixes issues found during AI review
+    Fix,
     Review,
     Done,
 }
@@ -26,6 +28,7 @@ impl TaskStatus {
             Self::PlanningReview => "planning_review",
             Self::InProgress => "in_progress",
             Self::AiReview => "ai_review",
+            Self::Fix => "fix",
             Self::Review => "review",
             Self::Done => "done",
         }
@@ -38,6 +41,7 @@ impl TaskStatus {
             "planning_review" => Some(Self::PlanningReview),
             "in_progress" => Some(Self::InProgress),
             "ai_review" => Some(Self::AiReview),
+            "fix" => Some(Self::Fix),
             "review" => Some(Self::Review),
             "done" => Some(Self::Done),
             _ => None,

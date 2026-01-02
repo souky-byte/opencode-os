@@ -19,15 +19,12 @@ export * from './MergeResult';
 export * from './ConflictFile';
 export * from './ConflictType';
 
-export * from './ClientMessage';
-export * from './ServerMessage';
-export * from './SubscriptionFilter';
-
 export * from './TransitionRequest';
 export * from './TransitionResponse';
 export * from './ExecuteResponse';
-export * from './PhaseResultDto';
 export * from './WorkspaceResponse';
 export * from './DiffResponse';
 export * from './MergeRequest';
 export * from './MergeResponse';
+
+export * from './SessionActivityMsg';

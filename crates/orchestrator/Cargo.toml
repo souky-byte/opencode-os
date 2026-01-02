@@ -4,13 +4,21 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 
+[features]
+default = []
+typescript = ["ts-rs"]
+openapi = ["utoipa"]
+
 [dependencies]
+ts-rs = { workspace = true, optional = true }
+utoipa = { workspace = true, optional = true }
 opencode_core.workspace = true
-opencode.workspace = true
+opencode_client.workspace = true
 db.workspace = true
 vcs.workspace = true
 events.workspace = true
-tokio = { workspace = true, features = ["fs"] }
+tokio = { workspace = true, features = ["fs", "sync"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -18,6 +26,13 @@ tracing.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 async-trait.workspace = true
+futures = "0.3"
+json-patch = "3"
+axum = { workspace = true }
+reqwest = { workspace = true }
+eventsource-stream.workspace = true
+bytes.workspace = true
+urlencoding = "2"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
