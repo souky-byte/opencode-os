@@ -3,9 +3,8 @@ use events::{Event, EventBus, EventEnvelope};
 use opencode_client::apis::configuration::Configuration;
 use opencode_client::apis::default_api;
 use opencode_client::models::{
-    McpAddRequest, McpAddRequestConfig,
-    Part, SessionCreateRequest, SessionPromptRequest, SessionPromptRequestPartsInner,
-    Session as OpenCodeSession,
+    McpAddRequest, McpAddRequestConfig, Part, Session as OpenCodeSession, SessionCreateRequest,
+    SessionPromptRequest, SessionPromptRequestPartsInner,
 };
 use opencode_core::{Session, SessionPhase, Task, TaskStatus, UpdateTaskRequest};
 use std::path::PathBuf;
@@ -298,26 +297,15 @@ impl TaskExecutor {
                             let success = error.is_empty();
                             let result = if success { output } else { error };
                             activities.push(SessionActivityMsg::tool_result(
-                                call_id,
-                                tool_name,
-                                None,
-                                result,
-                                success,
+                                call_id, tool_name, None, result, success,
                             ));
                         } else {
-                            activities.push(SessionActivityMsg::tool_call(
-                                call_id,
-                                tool_name,
-                                None,
-                            ));
+                            activities
+                                .push(SessionActivityMsg::tool_call(call_id, tool_name, None));
                         }
                     } else {
                         // No state yet, treat as pending tool call
-                        activities.push(SessionActivityMsg::tool_call(
-                            call_id,
-                            tool_name,
-                            None,
-                        ));
+                        activities.push(SessionActivityMsg::tool_call(call_id, tool_name, None));
                     }
                 }
                 Type::StepStart => {
@@ -348,9 +336,7 @@ impl TaskExecutor {
             "text" => {
                 let text = part.get("text").and_then(|v| v.as_str()).unwrap_or("");
                 // Check if this is a partial or complete message
-                let is_partial = part.get("time")
-                    .and_then(|t| t.get("end"))
-                    .is_none();
+                let is_partial = part.get("time").and_then(|t| t.get("end")).is_none();
                 Some(SessionActivityMsg::agent_message(id, text, is_partial))
             }
             "reasoning" => {
@@ -363,7 +349,10 @@ impl TaskExecutor {
             }
             "tool" => {
                 let call_id = part.get("callID").and_then(|v| v.as_str()).unwrap_or(id);
-                let tool_name = part.get("tool").and_then(|v| v.as_str()).unwrap_or("unknown");
+                let tool_name = part
+                    .get("tool")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
                 let state = part.get("state");
 
                 let status = state
@@ -386,24 +375,18 @@ impl TaskExecutor {
                     let result = if success { output } else { error };
 
                     Some(SessionActivityMsg::tool_result(
-                        call_id,
-                        tool_name,
-                        None,
-                        result,
-                        success,
+                        call_id, tool_name, None, result, success,
                     ))
                 } else {
                     // Pending or running - emit tool call
                     Some(SessionActivityMsg::tool_call(call_id, tool_name, None))
                 }
             }
-            "step-start" => {
-                Some(SessionActivityMsg::StepStart {
-                    id: id.to_string(),
-                    step_name: None,
-                    timestamp: chrono::Utc::now(),
-                })
-            }
+            "step-start" => Some(SessionActivityMsg::StepStart {
+                id: id.to_string(),
+                step_name: None,
+                timestamp: chrono::Utc::now(),
+            }),
             _ => {
                 debug!(part_type = %part_type, "Skipping unknown SSE part type");
                 None
@@ -424,10 +407,14 @@ impl TaskExecutor {
     }
 
     async fn create_opencode_session(&self) -> Result<OpenCodeSession> {
-        self.create_opencode_session_in_dir(&self.config.repo_path).await
+        self.create_opencode_session_in_dir(&self.config.repo_path)
+            .await
     }
 
-    async fn create_opencode_session_in_dir(&self, working_dir: &std::path::Path) -> Result<OpenCodeSession> {
+    async fn create_opencode_session_in_dir(
+        &self,
+        working_dir: &std::path::Path,
+    ) -> Result<OpenCodeSession> {
         let request = SessionCreateRequest {
             title: None,
             parent_id: None,
@@ -505,7 +492,9 @@ impl TaskExecutor {
         info!("Disconnecting MCP findings server");
 
         // Disconnect the MCP server (ignore errors - server might already be disconnected)
-        if let Err(e) = default_api::mcp_disconnect(&self.opencode_config, "opencode-findings", directory).await {
+        if let Err(e) =
+            default_api::mcp_disconnect(&self.opencode_config, "opencode-findings", directory).await
+        {
             warn!(error = %e, "Failed to disconnect MCP findings server (may already be disconnected)");
         }
 
@@ -537,7 +526,13 @@ impl TaskExecutor {
         prompt: &str,
         activity_store: Option<&SessionActivityStore>,
     ) -> Result<String> {
-        self.send_opencode_message_in_dir(session_id, prompt, activity_store, &self.config.repo_path).await
+        self.send_opencode_message_in_dir(
+            session_id,
+            prompt,
+            activity_store,
+            &self.config.repo_path,
+        )
+        .await
     }
 
     async fn send_opencode_message_in_dir(
@@ -564,13 +559,17 @@ impl TaskExecutor {
         };
 
         let directory = working_dir.to_str();
-        let response =
-            default_api::session_prompt(&self.opencode_config, session_id, directory, Some(request))
-                .await
-                .map_err(|e| {
-                    error!(error = %e, directory = ?directory, "Failed to send message to OpenCode");
-                    OrchestratorError::OpenCodeError(format!("Failed to send message: {}", e))
-                })?;
+        let response = default_api::session_prompt(
+            &self.opencode_config,
+            session_id,
+            directory,
+            Some(request),
+        )
+        .await
+        .map_err(|e| {
+            error!(error = %e, directory = ?directory, "Failed to send message to OpenCode");
+            OrchestratorError::OpenCodeError(format!("Failed to send message: {}", e))
+        })?;
 
         if let Some(store) = activity_store {
             self.push_activities_to_store(store, &response.parts);
@@ -785,9 +784,10 @@ impl TaskExecutor {
                     }
                     Err(e) => {
                         error!(error = %e, "Failed to setup workspace for async execution");
-                        return Err(OrchestratorError::ExecutionFailed(
-                            format!("Failed to setup workspace: {}", e)
-                        ));
+                        return Err(OrchestratorError::ExecutionFailed(format!(
+                            "Failed to setup workspace: {}",
+                            e
+                        )));
                     }
                 }
                 // Persist workspace_path to database
@@ -806,7 +806,8 @@ impl TaskExecutor {
         }
 
         // Determine working directory
-        let working_dir = task.workspace_path
+        let working_dir = task
+            .workspace_path
             .as_ref()
             .map(PathBuf::from)
             .unwrap_or_else(|| self.config.repo_path.clone());
@@ -829,7 +830,9 @@ impl TaskExecutor {
                     total_phases = parsed.total_phases(),
                     "Using phased implementation for multi-phase plan"
                 );
-                return self.start_phased_implementation_async(task, parsed, working_dir).await;
+                return self
+                    .start_phased_implementation_async(task, parsed, working_dir)
+                    .await;
             }
         }
 
@@ -877,7 +880,8 @@ impl TaskExecutor {
         info!(task_id = %task.id, "Starting review with SessionRunner");
 
         // Determine working directory
-        let working_dir = task.workspace_path
+        let working_dir = task
+            .workspace_path
             .as_ref()
             .map(PathBuf::from)
             .unwrap_or_else(|| self.config.repo_path.clone());
@@ -886,7 +890,10 @@ impl TaskExecutor {
         let mcp_config = if task.status == TaskStatus::AiReview {
             // Create a temporary session ID for MCP setup
             let temp_session_id = Uuid::new_v4();
-            match self.add_mcp_findings_server(task.id, temp_session_id, &working_dir).await {
+            match self
+                .add_mcp_findings_server(task.id, temp_session_id, &working_dir)
+                .await
+            {
                 Ok(_) => {
                     info!(task_id = %task.id, "MCP findings server added for review");
                     Some(crate::session_runner::McpConfig {
@@ -947,7 +954,8 @@ impl TaskExecutor {
         info!(task_id = %task.id, "Starting fix with SessionRunner");
 
         // Determine working directory
-        let working_dir = task.workspace_path
+        let working_dir = task
+            .workspace_path
             .as_ref()
             .map(PathBuf::from)
             .unwrap_or_else(|| self.config.repo_path.clone());
@@ -959,6 +967,64 @@ impl TaskExecutor {
         });
 
         let prompt = PhasePrompts::fix_with_mcp(task);
+
+        let config = SessionConfig {
+            task_id: task.id,
+            task_status: task.status,
+            phase: SessionPhase::Fix,
+            prompt,
+            working_dir,
+            provider_id: self.provider_id.clone(),
+            model_id: self.model_id.clone(),
+            mcp_config,
+            implementation_phase: None,
+            skip_task_status_update: false,
+        };
+
+        let deps = SessionDependencies::new(
+            Arc::clone(&self.opencode_config),
+            self.session_repo.clone(),
+            self.task_repo.clone(),
+            self.event_bus.clone(),
+            self.activity_registry.clone(),
+            self.file_manager.clone(),
+        );
+
+        let result = SessionRunner::start(config, deps).await?;
+
+        Ok(StartedExecution {
+            session_id: result.session_id,
+            opencode_session_id: result.opencode_session_id,
+            phase: SessionPhase::Fix,
+        })
+    }
+
+    /// Start fix phase with user-provided review comments
+    pub async fn start_fix_with_comments(
+        &self,
+        task: &Task,
+        comments: &[crate::prompts::UserReviewComment],
+    ) -> Result<StartedExecution> {
+        info!(
+            task_id = %task.id,
+            comment_count = comments.len(),
+            "Starting fix with user comments"
+        );
+
+        // Determine working directory
+        let working_dir = task
+            .workspace_path
+            .as_ref()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| self.config.repo_path.clone());
+
+        // MCP should already be set up from review phase
+        let mcp_config = Some(crate::session_runner::McpConfig {
+            workspace_path: working_dir.clone(),
+            setup_success: true,
+        });
+
+        let prompt = PhasePrompts::fix_user_comments(task, comments);
 
         let config = SessionConfig {
             task_id: task.id,
@@ -1070,7 +1136,10 @@ impl TaskExecutor {
 
         debug!("Generating planning prompt");
         let prompt = PhasePrompts::planning(task);
-        debug!(prompt_length = prompt.len(), "Sending planning prompt to OpenCode");
+        debug!(
+            prompt_length = prompt.len(),
+            "Sending planning prompt to OpenCode"
+        );
 
         let response_content = self
             .send_opencode_message_with_activity(
@@ -1189,10 +1258,13 @@ impl TaskExecutor {
 
         if let Some(ref wm) = self.workspace_manager {
             debug!("Setting up VCS workspace for task");
-            let workspace = wm.setup_workspace(&task.id.to_string()).await.map_err(|e| {
-                error!(error = %e, "Failed to setup workspace");
-                OrchestratorError::ExecutionFailed(format!("Failed to setup workspace: {}", e))
-            })?;
+            let workspace = wm
+                .setup_workspace(&task.id.to_string())
+                .await
+                .map_err(|e| {
+                    error!(error = %e, "Failed to setup workspace");
+                    OrchestratorError::ExecutionFailed(format!("Failed to setup workspace: {}", e))
+                })?;
             task.workspace_path = Some(workspace.path.to_string_lossy().to_string());
 
             info!(
@@ -1210,7 +1282,8 @@ impl TaskExecutor {
         }
 
         // Determine working directory - use workspace if available, otherwise root
-        let working_dir = task.workspace_path
+        let working_dir = task
+            .workspace_path
             .as_ref()
             .map(PathBuf::from)
             .unwrap_or_else(|| self.config.repo_path.clone());
@@ -1256,7 +1329,10 @@ impl TaskExecutor {
             "Generating implementation prompt"
         );
         let prompt = PhasePrompts::implementation_with_plan(task, plan.as_deref());
-        debug!(prompt_length = prompt.len(), "Sending implementation prompt to OpenCode");
+        debug!(
+            prompt_length = prompt.len(),
+            "Sending implementation prompt to OpenCode"
+        );
 
         let response = self
             .send_opencode_message_in_dir(
@@ -1327,10 +1403,16 @@ impl TaskExecutor {
         // Setup workspace if not already done
         if task.workspace_path.is_none() {
             if let Some(ref wm) = self.workspace_manager {
-                let workspace = wm.setup_workspace(&task.id.to_string()).await.map_err(|e| {
-                    error!(error = %e, "Failed to setup workspace");
-                    OrchestratorError::ExecutionFailed(format!("Failed to setup workspace: {}", e))
-                })?;
+                let workspace = wm
+                    .setup_workspace(&task.id.to_string())
+                    .await
+                    .map_err(|e| {
+                        error!(error = %e, "Failed to setup workspace");
+                        OrchestratorError::ExecutionFailed(format!(
+                            "Failed to setup workspace: {}",
+                            e
+                        ))
+                    })?;
                 task.workspace_path = Some(workspace.path.to_string_lossy().to_string());
 
                 self.emit_event(Event::WorkspaceCreated {
@@ -1548,11 +1630,8 @@ impl TaskExecutor {
         let opencode_session = self.create_opencode_session_in_dir(&working_dir).await?;
         let opencode_session_id = opencode_session.id.to_string();
 
-        let mut session = Session::new_implementation_phase(
-            task.id,
-            context.phase_number,
-            &current_phase.title,
-        );
+        let mut session =
+            Session::new_implementation_phase(task.id, context.phase_number, &current_phase.title);
         session.start(opencode_session_id.clone());
         self.persist_session(&session).await?;
 
@@ -1580,7 +1659,8 @@ impl TaskExecutor {
         let opencode_config = Arc::clone(&self.opencode_config);
         let provider_id = self.provider_id.clone();
         let model_id = self.model_id.clone();
-        let base_url = self.opencode_config
+        let base_url = self
+            .opencode_config
             .base_path
             .trim_end_matches("/api")
             .to_string();
@@ -1602,7 +1682,9 @@ impl TaskExecutor {
                 provider_id,
                 model_id,
                 base_url,
-            ).await {
+            )
+            .await
+            {
                 Ok(_) => {
                     info!(task_id = %task_id, "Phased implementation completed successfully");
                 }
@@ -1672,10 +1754,9 @@ impl TaskExecutor {
                 (first_session_id, first_opencode_session_id.clone())
             } else {
                 // Create new session for subsequent phases
-                let opencode_session = Self::create_opencode_session_static(
-                    &opencode_config,
-                    working_dir.to_str(),
-                ).await?;
+                let opencode_session =
+                    Self::create_opencode_session_static(&opencode_config, working_dir.to_str())
+                        .await?;
                 let new_opencode_session_id = opencode_session.id.to_string();
 
                 let mut session = Session::new_implementation_phase(
@@ -1687,7 +1768,10 @@ impl TaskExecutor {
 
                 if let Some(ref repo) = session_repo {
                     repo.create(&session).await.map_err(|e| {
-                        OrchestratorError::ExecutionFailed(format!("Failed to persist session: {}", e))
+                        OrchestratorError::ExecutionFailed(format!(
+                            "Failed to persist session: {}",
+                            e
+                        ))
                     })?;
                 }
 
@@ -1736,12 +1820,14 @@ impl TaskExecutor {
                 deps,
                 session_id,
                 opencode_session_id_clone,
-            ).await;
+            )
+            .await;
 
             if !success {
-                return Err(OrchestratorError::ExecutionFailed(
-                    format!("Phase {} failed", context.phase_number)
-                ));
+                return Err(OrchestratorError::ExecutionFailed(format!(
+                    "Phase {} failed",
+                    context.phase_number
+                )));
             }
 
             // Extract phase summary - with retry if missing
@@ -1752,10 +1838,13 @@ impl TaskExecutor {
                 &opencode_config,
                 &opencode_session_id,
                 working_dir.to_str(),
-            ).await;
+            )
+            .await;
 
             file_manager.write_phase_summary(task.id, &summary).await?;
-            file_manager.mark_phase_complete_in_plan(task.id, context.phase_number).await?;
+            file_manager
+                .mark_phase_complete_in_plan(task.id, context.phase_number)
+                .await?;
 
             // Emit phase completed event
             if let Some(ref bus) = event_bus {
@@ -1875,14 +1964,19 @@ impl TaskExecutor {
             opencode_session_id,
             directory,
             Some(request),
-        ).await {
+        )
+        .await
+        {
             Ok(response) => {
                 // Response is a single assistant message with parts
                 let response_text = Self::extract_text_from_parts(&response.parts);
 
                 // Try to extract summary from follow-up response
                 if let Some(extracted) = extract_phase_summary(&response_text) {
-                    info!(phase = phase_number, "Phase summary obtained via follow-up prompt");
+                    info!(
+                        phase = phase_number,
+                        "Phase summary obtained via follow-up prompt"
+                    );
                     return PhaseSummary::new(
                         phase_number,
                         phase_title,
@@ -1909,13 +2003,7 @@ impl TaskExecutor {
             response.to_string()
         };
 
-        PhaseSummary::new(
-            phase_number,
-            phase_title,
-            summary,
-            Vec::new(),
-            None,
-        )
+        PhaseSummary::new(phase_number, phase_title, summary, Vec::new(), None)
     }
 
     /// Static version of extract_or_create_phase_summary (legacy - still used by non-phased implementation)
@@ -1948,13 +2036,7 @@ impl TaskExecutor {
             response.to_string()
         };
 
-        PhaseSummary::new(
-            phase_number,
-            phase_title,
-            summary,
-            Vec::new(),
-            None,
-        )
+        PhaseSummary::new(phase_number, phase_title, summary, Vec::new(), None)
     }
 
     /// Static version of create_opencode_session
@@ -1971,7 +2053,9 @@ impl TaskExecutor {
 
         default_api::session_create(config, directory, Some(request))
             .await
-            .map_err(|e| OrchestratorError::OpenCodeError(format!("Failed to create session: {}", e)))
+            .map_err(|e| {
+                OrchestratorError::OpenCodeError(format!("Failed to create session: {}", e))
+            })
     }
 
     #[instrument(skip(self, task), fields(task_id = %task.id, iteration = iteration))]
@@ -2022,7 +2106,15 @@ impl TaskExecutor {
         {
             warn!(error = %e, "Failed to add MCP server, falling back to JSON parsing");
             // Fall back to non-MCP review if MCP server fails to start
-            return self.run_ai_review_json_fallback(task, session, session_id_str, activity_store, iteration).await;
+            return self
+                .run_ai_review_json_fallback(
+                    task,
+                    session,
+                    session_id_str,
+                    activity_store,
+                    iteration,
+                )
+                .await;
         }
 
         debug!("Getting workspace diff for review");
@@ -2031,7 +2123,10 @@ impl TaskExecutor {
 
         // Use MCP-based prompt
         let prompt = PhasePrompts::review_with_mcp(task, &diff);
-        debug!(prompt_length = prompt.len(), "Sending MCP review prompt to OpenCode");
+        debug!(
+            prompt_length = prompt.len(),
+            "Sending MCP review prompt to OpenCode"
+        );
 
         let response_content = self
             .send_opencode_message_with_activity(
@@ -2148,7 +2243,10 @@ impl TaskExecutor {
                 // Stay in ai_review state - user must choose to fix or skip
                 Ok(PhaseResult::ReviewFailed {
                     session_id: session_id_str,
-                    feedback: format!("{} issues found. Review findings and choose to fix or skip.", count),
+                    feedback: format!(
+                        "{} issues found. Review findings and choose to fix or skip.",
+                        count
+                    ),
                     iteration,
                 })
             }
@@ -2231,7 +2329,10 @@ impl TaskExecutor {
 
         // Use fix prompt with MCP
         let prompt = PhasePrompts::fix_with_mcp(task);
-        debug!(prompt_length = prompt.len(), "Sending fix prompt to OpenCode");
+        debug!(
+            prompt_length = prompt.len(),
+            "Sending fix prompt to OpenCode"
+        );
 
         let response_content = self
             .send_opencode_message_with_activity(
@@ -2295,7 +2396,10 @@ impl TaskExecutor {
         debug!(diff_length = diff.len(), "Workspace diff retrieved");
 
         let prompt = PhasePrompts::review(task, &diff);
-        debug!(prompt_length = prompt.len(), "Sending review prompt to OpenCode");
+        debug!(
+            prompt_length = prompt.len(),
+            "Sending review prompt to OpenCode"
+        );
 
         let response_content = self
             .send_opencode_message_with_activity(
@@ -2362,13 +2466,14 @@ impl TaskExecutor {
                     session_id: session_id_str,
                 })
             }
-            ReviewResult::FindingsDetected(count) => {
-                Ok(PhaseResult::ReviewFailed {
-                    session_id: session_id_str,
-                    feedback: format!("{} issues found. Review findings and choose to fix or skip.", count),
-                    iteration,
-                })
-            }
+            ReviewResult::FindingsDetected(count) => Ok(PhaseResult::ReviewFailed {
+                session_id: session_id_str,
+                feedback: format!(
+                    "{} issues found. Review findings and choose to fix or skip.",
+                    count
+                ),
+                iteration,
+            }),
             ReviewResult::ChangesRequested(feedback) => {
                 self.transition(task, TaskStatus::InProgress)?;
                 Ok(PhaseResult::ReviewFailed {
@@ -2398,11 +2503,7 @@ impl TaskExecutor {
     }
 
     /// Parse JSON review response and create ReviewFindings
-    fn parse_review_json(
-        content: &str,
-        task_id: Uuid,
-        session_id: Uuid,
-    ) -> Result<ReviewFindings> {
+    fn parse_review_json(content: &str, task_id: Uuid, session_id: Uuid) -> Result<ReviewFindings> {
         // Try to extract JSON from markdown code blocks or raw content
         let json_str = Self::extract_json_from_response(content);
 
@@ -2448,7 +2549,10 @@ impl TaskExecutor {
     fn extract_json_from_response(content: &str) -> String {
         // Try to find JSON in ```json ... ``` blocks
         if let Some(start) = content.find("```json") {
-            if let Some(end) = content[start..].find("```\n").or(content[start..].rfind("```")) {
+            if let Some(end) = content[start..]
+                .find("```\n")
+                .or(content[start..].rfind("```"))
+            {
                 let json_start = start + 7; // length of "```json"
                 let json_content = &content[json_start..start + end];
                 return json_content.trim().to_string();
@@ -2545,7 +2649,10 @@ impl TaskExecutor {
         });
 
         let prompt = PhasePrompts::fix_issues(task, feedback);
-        debug!(prompt_length = prompt.len(), "Sending fix prompt to OpenCode");
+        debug!(
+            prompt_length = prompt.len(),
+            "Sending fix prompt to OpenCode"
+        );
 
         let response = self
             .send_opencode_message_with_activity(

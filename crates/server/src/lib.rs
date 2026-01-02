@@ -57,6 +57,10 @@ use state::AppState;
         routes::delete_workspace,
         routes::get_viewed_files,
         routes::set_file_viewed,
+        routes::list_comments,
+        routes::create_comment,
+        routes::delete_comment,
+        routes::send_comments_to_fix,
         routes::filesystem::browse_directory,
     ),
     components(schemas(
@@ -91,6 +95,11 @@ use state::AppState;
         routes::MergeResponse,
         routes::ViewedFilesResponse,
         routes::SetViewedRequest,
+        routes::ReviewCommentResponse,
+        routes::CommentsListResponse,
+        routes::CreateCommentRequest,
+        routes::SendToFixRequest,
+        routes::SendToFixResponse,
         routes::filesystem::BrowseQuery,
         routes::filesystem::BrowseResponse,
         routes::filesystem::DirectoryEntry,
@@ -110,6 +119,7 @@ use state::AppState;
         (name = "sessions", description = "Session management endpoints"),
         (name = "events", description = "Real-time event streaming (SSE)"),
         (name = "workspaces", description = "Workspace management endpoints"),
+        (name = "comments", description = "Review comments endpoints"),
         (name = "filesystem", description = "Filesystem browsing endpoints"),
     )
 )]
@@ -124,11 +134,26 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/project", get(routes::project::get_project_info))
         .route("/api/projects/open", post(routes::projects::open_project))
         .route("/api/projects/init", post(routes::projects::init_project))
-        .route("/api/projects/current", get(routes::projects::get_current_project))
-        .route("/api/projects/recent", get(routes::projects::get_recent_projects))
-        .route("/api/projects/recent/remove", post(routes::projects::remove_recent_project))
-        .route("/api/projects/recent/clear", post(routes::projects::clear_recent_projects))
-        .route("/api/projects/validate", post(routes::projects::validate_project_path))
+        .route(
+            "/api/projects/current",
+            get(routes::projects::get_current_project),
+        )
+        .route(
+            "/api/projects/recent",
+            get(routes::projects::get_recent_projects),
+        )
+        .route(
+            "/api/projects/recent/remove",
+            post(routes::projects::remove_recent_project),
+        )
+        .route(
+            "/api/projects/recent/clear",
+            post(routes::projects::clear_recent_projects),
+        )
+        .route(
+            "/api/projects/validate",
+            post(routes::projects::validate_project_path),
+        )
         .route(
             "/api/tasks",
             get(routes::list_tasks).post(routes::create_task),
@@ -149,6 +174,18 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/tasks/{id}/diff/viewed",
             get(routes::get_viewed_files).post(routes::set_file_viewed),
+        )
+        .route(
+            "/api/tasks/{id}/comments",
+            get(routes::list_comments).post(routes::create_comment),
+        )
+        .route(
+            "/api/tasks/{id}/comments/{comment_id}",
+            axum::routing::delete(routes::delete_comment),
+        )
+        .route(
+            "/api/tasks/{id}/comments/send-to-fix",
+            post(routes::send_comments_to_fix),
         )
         .route(
             "/api/tasks/{id}/sessions",
@@ -175,7 +212,10 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route("/api/workspaces/{id}/diff", get(routes::get_workspace_diff))
         .route("/api/workspaces/{id}/merge", post(routes::merge_workspace))
-        .route("/api/filesystem/browse", get(routes::filesystem::browse_directory))
+        .route(
+            "/api/filesystem/browse",
+            get(routes::filesystem::browse_directory),
+        )
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())
         .with_state(state);

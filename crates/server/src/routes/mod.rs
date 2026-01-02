@@ -1,3 +1,4 @@
+mod comments;
 pub mod filesystem;
 mod health;
 pub mod project;
@@ -7,6 +8,7 @@ pub mod sse;
 mod tasks;
 mod workspaces;
 
+pub use comments::*;
 pub use filesystem::*;
 pub use health::*;
 pub use project::*;

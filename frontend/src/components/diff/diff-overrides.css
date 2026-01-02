@@ -80,8 +80,8 @@
    ======================================== */
 .d2h-diff-table {
     font-family: inherit !important;
-    font-size: 13px !important;
-    line-height: 20px !important;
+    font-size: 11px !important;
+    line-height: 16px !important;
     border-collapse: collapse !important;
     width: 100% !important;
 }
@@ -101,15 +101,15 @@
    ======================================== */
 .d2h-code-side-linenumber,
 .d2h-code-linenumber {
-    width: 50px !important;
-    min-width: 50px !important;
-    max-width: 50px !important;
-    padding: 0 12px 0 8px !important;
+    width: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
+    padding: 0 8px 0 6px !important;
     text-align: right !important;
     color: var(--diff-line-number) !important;
     background: var(--diff-bg-subtle) !important;
     user-select: none !important;
-    font-size: 12px !important;
+    font-size: 10px !important;
     border: none !important;
     border-left: none !important;
     border-right: none !important;
@@ -127,7 +127,7 @@
 }
 
 .d2h-code-line-ctn {
-    padding: 0 16px !important;
+    padding: 0 10px !important;
     white-space: pre !important;
     color: var(--diff-text) !important;
     background: transparent !important;
@@ -345,4 +345,60 @@ td.d2h-info {
 .d2h-ins .d2h-code-line-ctn .d2h-ins,
 .d2h-del .d2h-code-line-ctn .d2h-del {
     display: inline !important;
+}
+
+/* ========================================
+   Line Selection - for comments (right/new side only)
+   ======================================== */
+
+/* Make entire row clickable on the right (new) side */
+.d2h-file-side-diff:last-child tr {
+    cursor: pointer !important;
+    transition: background 0.1s ease !important;
+}
+
+.d2h-file-side-diff:last-child tr:hover td {
+    background: rgba(88, 166, 255, 0.08) !important;
+}
+
+.d2h-file-side-diff:last-child tr:hover td.d2h-code-side-linenumber {
+    background: rgba(88, 166, 255, 0.15) !important;
+}
+
+/* Line number positioning for comment indicator */
+.d2h-code-side-linenumber {
+    position: relative !important;
+}
+
+/* Selected line highlight */
+tr.line-selected td {
+    background: rgba(88, 166, 255, 0.12) !important;
+}
+
+tr.line-selected td.d2h-code-side-linenumber {
+    background: rgba(88, 166, 255, 0.25) !important;
+    color: #58a6ff !important;
+}
+
+/* Preserve add/del colors when selected */
+tr.line-selected.d2h-ins td.d2h-code-side-line {
+    background: rgba(46, 160, 67, 0.25) !important;
+}
+
+tr.line-selected.d2h-del td.d2h-code-side-line {
+    background: rgba(248, 81, 73, 0.25) !important;
+}
+
+/* Comment indicator dot */
+.d2h-code-side-linenumber.has-comment::after {
+    content: "";
+    position: absolute;
+    right: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #f0883e;
+    box-shadow: 0 0 4px rgba(240, 136, 62, 0.5);
 }

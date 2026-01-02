@@ -1,18 +1,30 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   useGetWorkspaceDiff,
   useGetViewedFiles,
   useSetFileViewed,
 } from "@/api/generated/workspaces/workspaces";
+import {
+  useCreateComment,
+  useListComments,
+  getListCommentsQueryKey,
+} from "@/api/generated/comments/comments";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader } from "@/components/ui/loader";
-import { DiffContent } from "./DiffContent";
+import { DiffContent, type LineSelection } from "./DiffContent";
+import { CommentsSidebar } from "./CommentsSidebar";
+import { LineSelectionPopup } from "./LineSelectionPopup";
 import {
   useDiffParser,
   getFileDisplayName,
   getFileExtension,
 } from "./useDiffParser";
 import { cn } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
+
+interface FileLineSelection extends LineSelection {
+  fileIndex: number;
+}
 
 interface DiffOverlayProps {
   taskId: string;
@@ -22,6 +34,11 @@ interface DiffOverlayProps {
 
 export function DiffOverlay({ taskId, isOpen, onClose }: DiffOverlayProps) {
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
+  const [lineSelection, setLineSelection] = useState<FileLineSelection | null>(
+    null,
+  );
+  const [isAddingComment, setIsAddingComment] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data: diffData, isLoading: isDiffLoading } = useGetWorkspaceDiff(
     taskId,
@@ -36,6 +53,22 @@ export function DiffOverlay({ taskId, isOpen, onClose }: DiffOverlayProps) {
 
   const { mutate: setViewed } = useSetFileViewed();
 
+  const { data: commentsData } = useListComments(taskId, {
+    query: { staleTime: 5000, enabled: isOpen },
+  });
+
+  const { mutate: createComment } = useCreateComment({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: getListCommentsQueryKey(taskId),
+        });
+        setLineSelection(null);
+        setIsAddingComment(false);
+      },
+    },
+  });
+
   const parsedDiff = useDiffParser(diffData?.data?.diff);
   const viewedFiles = viewedData?.data?.viewed_files ?? [];
 
@@ -44,6 +77,87 @@ export function DiffOverlay({ taskId, isOpen, onClose }: DiffOverlayProps) {
   const handleToggleViewed = (filePath: string, viewed: boolean) => {
     setViewed({ taskId, data: { file_path: filePath, viewed } });
   };
+
+  // Line selection handler
+  const handleLineClick = useCallback(
+    (lineNumber: number, side: "old" | "new", shiftKey: boolean) => {
+      if (
+        shiftKey &&
+        lineSelection &&
+        lineSelection.fileIndex === selectedFileIndex
+      ) {
+        // Extend selection with shift+click
+        setLineSelection({
+          fileIndex: selectedFileIndex,
+          startLine: lineSelection.startLine,
+          endLine: lineNumber,
+          side: lineSelection.side,
+        });
+        // Don't show popup yet - wait for user to click add comment button
+      } else {
+        // New selection - single line
+        setLineSelection({
+          fileIndex: selectedFileIndex,
+          startLine: lineNumber,
+          endLine: lineNumber,
+          side,
+        });
+      }
+      // Don't show popup immediately - user needs to click the add comment button
+      setIsAddingComment(false);
+    },
+    [lineSelection, selectedFileIndex],
+  );
+
+  // Open comment popup for current selection
+  const handleOpenCommentPopup = useCallback(() => {
+    if (lineSelection) {
+      setIsAddingComment(true);
+    }
+  }, [lineSelection]);
+
+  // Clear selection when clicking outside or changing files
+  const handleClearSelection = useCallback(() => {
+    setLineSelection(null);
+    setIsAddingComment(false);
+  }, []);
+
+  // Get current selection for the selected file only
+  const currentSelection =
+    lineSelection?.fileIndex === selectedFileIndex ? lineSelection : null;
+
+  // Handle saving a new comment
+  const handleSaveComment = useCallback(
+    (content: string) => {
+      if (!lineSelection || !selectedFile) return;
+
+      const filePath = getFileDisplayName(selectedFile);
+      createComment({
+        taskId,
+        data: {
+          file_path: filePath,
+          line_start: Math.min(lineSelection.startLine, lineSelection.endLine),
+          line_end: Math.max(lineSelection.startLine, lineSelection.endLine),
+          side: lineSelection.side,
+          content,
+        },
+      });
+    },
+    [lineSelection, selectedFile, taskId, createComment],
+  );
+
+  // Get commented lines for the current file
+  const comments = commentsData?.data?.comments ?? [];
+  const currentFileComments = selectedFile
+    ? comments.filter((c) => c.file_path === getFileDisplayName(selectedFile))
+    : [];
+  const commentedLines = currentFileComments.flatMap((c) => {
+    const lines: Array<{ line: number; side: "old" | "new" }> = [];
+    for (let i = c.line_start; i <= c.line_end; i++) {
+      lines.push({ line: i, side: c.side as "old" | "new" });
+    }
+    return lines;
+  });
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
@@ -276,13 +390,91 @@ export function DiffOverlay({ taskId, isOpen, onClose }: DiffOverlayProps) {
                   </label>
                 </div>
                 {/* Diff view */}
-                <ScrollArea className="flex-1">
-                  <DiffContent file={selectedFile} />
-                </ScrollArea>
+                <div className="flex-1 relative">
+                  <ScrollArea className="h-full">
+                    <DiffContent
+                      file={selectedFile}
+                      selection={currentSelection}
+                      onLineClick={handleLineClick}
+                      commentedLines={commentedLines}
+                    />
+                  </ScrollArea>
+
+                  {/* Floating add comment button when lines are selected */}
+                  {currentSelection && !isAddingComment && (
+                    <div className="absolute bottom-4 right-4 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleClearSelection}
+                        className="px-2.5 py-1.5 text-xs text-white/50 hover:text-white/70 bg-[#1a1a24] border border-white/10 rounded-md transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleOpenCommentPopup}
+                        className="px-3 py-1.5 text-xs font-medium text-white bg-blue-500/80 hover:bg-blue-500 rounded-md flex items-center gap-1.5 transition-colors"
+                      >
+                        <svg
+                          className="w-3.5 h-3.5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                        Add comment
+                        {currentSelection.startLine !==
+                          currentSelection.endLine && (
+                          <span className="text-white/60">
+                            (L
+                            {Math.min(
+                              currentSelection.startLine,
+                              currentSelection.endLine,
+                            )}
+                            -
+                            {Math.max(
+                              currentSelection.startLine,
+                              currentSelection.endLine,
+                            )}
+                            )
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </main>
+
+          {/* Comments sidebar */}
+          <CommentsSidebar
+            taskId={taskId}
+            onCommentClick={(comment) => {
+              // Find the file index and scroll to it
+              const fileIdx = parsedDiff?.files.findIndex(
+                (f) => getFileDisplayName(f) === comment.file_path,
+              );
+              if (fileIdx !== undefined && fileIdx >= 0) {
+                setSelectedFileIndex(fileIdx);
+              }
+            }}
+          />
         </div>
+      )}
+
+      {/* Line selection popup */}
+      {isAddingComment && lineSelection && selectedFile && (
+        <LineSelectionPopup
+          filePath={getFileDisplayName(selectedFile)}
+          startLine={lineSelection.startLine}
+          endLine={lineSelection.endLine}
+          side={lineSelection.side}
+          onSave={handleSaveComment}
+          onCancel={handleClearSelection}
+        />
       )}
     </div>
   );

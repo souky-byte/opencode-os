@@ -1,5 +1,15 @@
 use opencode_core::Task;
 
+/// User review comment for fix prompts
+#[derive(Debug, Clone)]
+pub struct UserReviewComment {
+    pub file_path: String,
+    pub line_start: i64,
+    pub line_end: i64,
+    pub side: String,
+    pub content: String,
+}
+
 pub struct PhasePrompts;
 
 impl PhasePrompts {
@@ -357,21 +367,73 @@ Fix the issues now."#,
         )
     }
 
+    /// Generate prompt for fixing user-provided review comments
+    pub fn fix_user_comments(task: &Task, comments: &[UserReviewComment]) -> String {
+        let comments_text = comments
+            .iter()
+            .enumerate()
+            .map(|(i, c)| {
+                let line_info = if c.line_start == c.line_end {
+                    format!("line {}", c.line_start)
+                } else {
+                    format!("lines {}-{}", c.line_start, c.line_end)
+                };
+                format!(
+                    "{}. **{}** ({}, {} side)\n   {}\n",
+                    i + 1,
+                    c.file_path,
+                    line_info,
+                    c.side,
+                    c.content
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        format!(
+            r#"Fix the issues identified by the user during code review for task: {title}
+
+## Task Description
+{description}
+
+## User Review Comments
+The user has reviewed your changes and provided the following feedback:
+
+{comments_text}
+
+## Instructions
+1. Carefully read each comment and understand what the user is asking for
+2. Navigate to each file and line mentioned
+3. Make the necessary changes to address the feedback
+4. Keep changes minimal - only fix what the user requested
+5. Ensure the fixes are complete and correct
+
+Start fixing the issues now."#,
+            title = task.title,
+            description = task.description,
+            comments_text = comments_text
+        )
+    }
+
     /// Generate prompt for a single implementation phase
     pub fn implementation_phase(
         task: &Task,
         phase: &crate::files::PlanPhase,
         context: &crate::files::PhaseContext,
     ) -> String {
-        let prev_context = context.previous_summary.as_ref().map(|s| {
-            let files_list = s.files_changed
-                .iter()
-                .map(|f| format!("- {}", f))
-                .collect::<Vec<_>>()
-                .join("\n");
+        let prev_context = context
+            .previous_summary
+            .as_ref()
+            .map(|s| {
+                let files_list = s
+                    .files_changed
+                    .iter()
+                    .map(|f| format!("- {}", f))
+                    .collect::<Vec<_>>()
+                    .join("\n");
 
-            format!(
-                r#"## Summary of Previous Phase (Phase {})
+                format!(
+                    r#"## Summary of Previous Phase (Phase {})
 
 {}
 
@@ -380,12 +442,17 @@ Fix the issues now."#,
 
 ### Notes for This Phase
 {}"#,
-                s.phase_number,
-                s.summary,
-                if files_list.is_empty() { "(none)".to_string() } else { files_list },
-                s.notes.as_deref().unwrap_or("(none)")
-            )
-        }).unwrap_or_default();
+                    s.phase_number,
+                    s.summary,
+                    if files_list.is_empty() {
+                        "(none)".to_string()
+                    } else {
+                        files_list
+                    },
+                    s.notes.as_deref().unwrap_or("(none)")
+                )
+            })
+            .unwrap_or_default();
 
         format!(
             r#"You are implementing Phase {phase_num} of {total_phases} for this task.
