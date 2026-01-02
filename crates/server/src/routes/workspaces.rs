@@ -54,13 +54,14 @@ pub async fn create_workspace_for_task(
     State(state): State<AppState>,
     Path(task_id): Path<Uuid>,
 ) -> Result<(StatusCode, Json<WorkspaceResponse>), AppError> {
-    let task = state.task_repository.find_by_id(task_id).await?;
+    let project = state.project().await?;
+    let task = project.task_repository.find_by_id(task_id).await?;
 
     let Some(_task) = task else {
         return Err(AppError::NotFound(format!("Task not found: {}", task_id)));
     };
 
-    let workspace = state
+    let workspace = project
         .workspace_manager
         .setup_workspace(&task_id.to_string())
         .await?;
@@ -79,7 +80,8 @@ pub async fn create_workspace_for_task(
 pub async fn list_workspaces(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<WorkspaceResponse>>, AppError> {
-    let workspaces = state.workspace_manager.list_workspaces().await?;
+    let project = state.project().await?;
+    let workspaces = project.workspace_manager.list_workspaces().await?;
     Ok(Json(workspaces.into_iter().map(Into::into).collect()))
 }
 
@@ -107,14 +109,15 @@ pub async fn get_workspace_diff(
     State(state): State<AppState>,
     Path(task_id): Path<String>,
 ) -> Result<Json<DiffResponse>, AppError> {
-    let workspaces = state.workspace_manager.list_workspaces().await?;
+    let project = state.project().await?;
+    let workspaces = project.workspace_manager.list_workspaces().await?;
 
     let workspace = workspaces
         .into_iter()
         .find(|ws| ws.task_id == task_id)
         .ok_or_else(|| AppError::NotFound(format!("Workspace not found: {}", task_id)))?;
 
-    let diff = state.workspace_manager.get_diff(&workspace).await?;
+    let diff = project.workspace_manager.get_diff(&workspace).await?;
 
     Ok(Json(DiffResponse {
         task_id: workspace.task_id,
@@ -138,14 +141,15 @@ pub async fn get_workspace_status(
     State(state): State<AppState>,
     Path(task_id): Path<String>,
 ) -> Result<Json<WorkspaceStatusResponse>, AppError> {
-    let workspaces = state.workspace_manager.list_workspaces().await?;
+    let project = state.project().await?;
+    let workspaces = project.workspace_manager.list_workspaces().await?;
 
     let workspace = workspaces
         .into_iter()
         .find(|ws| ws.task_id == task_id)
         .ok_or_else(|| AppError::NotFound(format!("Workspace not found: {}", task_id)))?;
 
-    let status = state.workspace_manager.get_status(&workspace).await?;
+    let status = project.workspace_manager.get_status(&workspace).await?;
 
     Ok(Json(WorkspaceStatusResponse {
         task_id: workspace.task_id,
@@ -201,14 +205,15 @@ pub async fn merge_workspace(
     Path(task_id): Path<String>,
     Json(payload): Json<MergeRequest>,
 ) -> Result<Json<MergeResponse>, AppError> {
-    let workspaces = state.workspace_manager.list_workspaces().await?;
+    let project = state.project().await?;
+    let workspaces = project.workspace_manager.list_workspaces().await?;
 
     let workspace = workspaces
         .into_iter()
         .find(|ws| ws.task_id == task_id)
         .ok_or_else(|| AppError::NotFound(format!("Workspace not found: {}", task_id)))?;
 
-    let result = state
+    let result = project
         .workspace_manager
         .merge_workspace(&workspace, &payload.message)
         .await?;
@@ -232,14 +237,15 @@ pub async fn delete_workspace(
     State(state): State<AppState>,
     Path(task_id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    let workspaces = state.workspace_manager.list_workspaces().await?;
+    let project = state.project().await?;
+    let workspaces = project.workspace_manager.list_workspaces().await?;
 
     let workspace = workspaces
         .into_iter()
         .find(|ws| ws.task_id == task_id)
         .ok_or_else(|| AppError::NotFound(format!("Workspace not found: {}", task_id)))?;
 
-    state
+    project
         .workspace_manager
         .cleanup_workspace(&workspace)
         .await?;

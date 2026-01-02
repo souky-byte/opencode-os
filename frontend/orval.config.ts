@@ -7,14 +7,15 @@ export default defineConfig({
 		},
 		output: {
 			mode: "tags-split",
-			target: "src/api/generated",
-			schemas: "src/api/generated/model",
+			target: "./src/api/generated",
+			schemas: "./src/api/generated/model",
 			client: "react-query",
-			clean: true,
+			httpClient: "fetch",
+			baseUrl: "",
 			override: {
 				mutator: {
-					path: "src/api/mutator/custom-instance.ts",
-					name: "customInstance",
+					path: "./src/lib/api-fetcher.ts",
+					name: "customFetch",
 				},
 				query: {
 					useQuery: true,

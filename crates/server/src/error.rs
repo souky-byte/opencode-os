@@ -3,6 +3,8 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::Serialize;
 
+use crate::project_manager::ProjectError;
+
 #[derive(Debug)]
 #[allow(dead_code)]
 pub enum AppError {
@@ -12,6 +14,7 @@ pub enum AppError {
     Internal(String),
     Database(db::DbError),
     Vcs(vcs::VcsError),
+    Project(ProjectError),
 }
 
 #[derive(Serialize)]
@@ -70,6 +73,31 @@ impl IntoResponse for AppError {
                     ),
                 }
             }
+            AppError::Project(err) => {
+                tracing::warn!("Project error: {:?}", err);
+                match &err {
+                    ProjectError::NoProjectOpen => (
+                        StatusCode::BAD_REQUEST,
+                        "no_project_open",
+                        "No project is currently open".to_string(),
+                    ),
+                    ProjectError::PathNotFound(path) => (
+                        StatusCode::BAD_REQUEST,
+                        "path_not_found",
+                        format!("Path not found: {}", path.display()),
+                    ),
+                    ProjectError::NotVcsRepo(path) => (
+                        StatusCode::BAD_REQUEST,
+                        "not_vcs_repo",
+                        format!("Not a git or jujutsu repository: {}", path.display()),
+                    ),
+                    _ => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "project_error",
+                        err.to_string(),
+                    ),
+                }
+            }
         };
 
         let body = Json(ErrorResponse {
@@ -90,5 +118,11 @@ impl From<db::DbError> for AppError {
 impl From<vcs::VcsError> for AppError {
     fn from(err: vcs::VcsError) -> Self {
         AppError::Vcs(err)
+    }
+}
+
+impl From<ProjectError> for AppError {
+    fn from(err: ProjectError) -> Self {
+        AppError::Project(err)
     }
 }

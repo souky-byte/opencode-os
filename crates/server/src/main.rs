@@ -1,4 +1,5 @@
 use server::{create_router, state::AppState};
+use std::path::PathBuf;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -11,20 +12,41 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let database_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./studio.db".to_string());
     let opencode_url =
         std::env::var("OPENCODE_URL").unwrap_or_else(|_| "http://localhost:4096".to_string());
 
-    tracing::info!("Connecting to database: {}", database_url);
     tracing::info!("OpenCode server URL: {}", opencode_url);
 
-    let pool = db::create_pool(&database_url).await?;
-    db::run_migrations(&pool).await?;
+    let state = AppState::new(&opencode_url);
 
-    tracing::info!("Database migrations completed");
+    if let Some(project_path) = std::env::var("PROJECT_PATH").ok().map(PathBuf::from) {
+        tracing::info!("Opening project from PROJECT_PATH: {:?}", project_path);
+        state.open_project(&project_path).await?;
+    } else if let Ok(database_url) = std::env::var("DATABASE_URL") {
+        if database_url.starts_with("sqlite:") {
+            let db_path = database_url.strip_prefix("sqlite:").unwrap_or(&database_url);
+            let db_path = PathBuf::from(db_path);
 
-    let state = AppState::new(pool, &opencode_url);
+            if let Some(studio_dir) = db_path.parent() {
+                if let Some(project_path) = studio_dir.parent() {
+                    if project_path.join(".git").exists() || project_path.join(".jj").exists() {
+                        tracing::info!(
+                            "Opening project from DATABASE_URL: {:?}",
+                            project_path
+                        );
+                        state.open_project(project_path).await?;
+                    }
+                }
+            }
+        }
+    } else {
+        match state.auto_open_last_project().await {
+            Ok(true) => tracing::info!("Auto-opened last project"),
+            Ok(false) => tracing::info!("No project to auto-open"),
+            Err(e) => tracing::warn!("Failed to auto-open last project: {}", e),
+        }
+    }
+
     let app = create_router(state);
 
     let port = std::env::var("PORT")

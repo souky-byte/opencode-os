@@ -113,15 +113,187 @@ Start implementation now."#,
 4. Security concerns
 5. Breaking changes
 
-## Output
-Save your review to: `.opencode-studio/kanban/reviews/{id}.md`
+## Output Format
+You MUST respond with a JSON object in this exact format:
 
-If approved, respond with: APPROVED
-If changes needed, respond with: CHANGES_REQUESTED and explain what needs fixing."#,
+```json
+{{
+  "approved": true,
+  "summary": "Overall assessment of the changes...",
+  "findings": []
+}}
+```
+
+If there are issues, include them in the findings array:
+
+```json
+{{
+  "approved": false,
+  "summary": "Overall assessment...",
+  "findings": [
+    {{
+      "file_path": "src/main.rs",
+      "line_start": 42,
+      "line_end": 45,
+      "title": "Missing error handling",
+      "description": "The function does not handle the case when the input is invalid. This could lead to a panic at runtime.",
+      "severity": "error"
+    }},
+    {{
+      "file_path": "src/utils.rs",
+      "line_start": 10,
+      "title": "Consider using const",
+      "description": "This value could be a const instead of a let binding for better optimization.",
+      "severity": "info"
+    }}
+  ]
+}}
+```
+
+Severity levels:
+- "error" - Must be fixed before merge
+- "warning" - Should be fixed but not blocking
+- "info" - Suggestion for improvement
+
+Respond ONLY with the JSON object, no additional text."#,
             title = task.title,
             description = task.description,
-            diff = diff,
-            id = task.id
+            diff = diff
+        )
+    }
+
+    /// Generate prompt for AI review using MCP tools
+    pub fn review_with_mcp(task: &Task, diff: &str) -> String {
+        format!(
+            r#"Review the following code changes for task: {title}
+
+## Task Description
+{description}
+
+## Diff
+```
+{diff}
+```
+
+## Review Criteria
+1. Code quality and style
+2. Correctness - does it solve the task?
+3. Tests - are they adequate?
+4. Security concerns
+5. Breaking changes
+
+## How to Report Findings
+
+You have access to the "opencode-findings" MCP server with the following tools:
+
+1. **create_finding** - Use this to report each issue you find:
+   - `file_path`: The file where the issue is located (optional)
+   - `line_start`: Starting line number (optional)
+   - `line_end`: Ending line number (optional)
+   - `title`: Short description of the issue (max 100 chars)
+   - `description`: Detailed explanation of the issue
+   - `severity`: "error" (must fix), "warning" (should fix), or "info" (suggestion)
+
+2. **list_findings** - Use this to see all findings you've created
+
+3. **approve_review** - Use this when the code has NO issues or only info-level suggestions
+   - `summary`: Overall assessment of the changes
+   - `approved`: true
+
+4. **complete_review** - Use this when there ARE issues that need to be fixed
+   - `summary`: Overall assessment of the changes
+   - `approved`: false (if there are error-level issues)
+
+## Instructions
+
+1. Analyze the diff carefully
+2. For each issue found, call `create_finding` with the appropriate details
+3. After reviewing all changes:
+   - If no issues or only info-level issues: call `approve_review`
+   - If there are error/warning issues: call `complete_review` with approved=false
+
+Start reviewing now."#,
+            title = task.title,
+            description = task.description,
+            diff = diff
+        )
+    }
+
+    /// Generate prompt for fixing specific findings
+    pub fn fix_findings(task: &Task, findings: &[crate::files::ReviewFinding]) -> String {
+        let findings_text = findings
+            .iter()
+            .enumerate()
+            .map(|(i, f)| {
+                let location = match (&f.file_path, f.line_start) {
+                    (Some(path), Some(line)) => format!("{path}:{line}"),
+                    (Some(path), None) => path.clone(),
+                    _ => "Unknown location".to_string(),
+                };
+                format!(
+                    "{}. [{:?}] {} ({})\n   {}\n",
+                    i + 1,
+                    f.severity,
+                    f.title,
+                    location,
+                    f.description
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        format!(
+            r#"Fix the following issues identified in the code review for task: {title}
+
+## Issues to Fix
+{findings_text}
+
+## Instructions
+1. Address each issue mentioned above
+2. Make minimal changes - only fix what's needed
+3. Ensure the fix is complete and correct
+4. Update tests if the fix requires it
+
+Fix the issues now."#,
+            title = task.title,
+            findings_text = findings_text
+        )
+    }
+
+    /// Generate prompt for fix phase using MCP tools
+    pub fn fix_with_mcp(task: &Task) -> String {
+        format!(
+            r#"Fix the issues identified in the code review for task: {title}
+
+## Task Description
+{description}
+
+## How to Use MCP Tools
+
+You have access to the "opencode-findings" MCP server with the following tools:
+
+1. **list_findings** - First, use this to see all findings that need to be fixed
+   - Returns a list of findings with their IDs, locations, and descriptions
+
+2. **get_finding** - Get details about a specific finding
+   - `finding_id`: The ID of the finding
+
+3. **mark_fixed** - After fixing an issue, mark it as fixed
+   - `finding_id`: The ID of the finding you fixed
+
+## Instructions
+
+1. Call `list_findings` to see all issues that need fixing
+2. For each finding:
+   - Read the finding details
+   - Navigate to the file and line mentioned
+   - Fix the issue
+   - Call `mark_fixed` with the finding ID
+3. After fixing all issues, the review will be re-run automatically
+
+Start by listing the findings and fixing them one by one."#,
+            title = task.title,
+            description = task.description
         )
     }
 

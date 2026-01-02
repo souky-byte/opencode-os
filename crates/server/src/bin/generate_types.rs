@@ -23,8 +23,7 @@ fn main() {
             .expect("Failed to export CreateTaskRequest");
         opencode_core::UpdateTaskRequest::export_all_to(out_dir)
             .expect("Failed to export UpdateTaskRequest");
-        opencode_core::SessionPhase::export_all_to(out_dir)
-            .expect("Failed to export SessionPhase");
+        opencode_core::SessionPhase::export_all_to(out_dir).expect("Failed to export SessionPhase");
         opencode_core::SessionStatus::export_all_to(out_dir)
             .expect("Failed to export SessionStatus");
         opencode_core::Session::export_all_to(out_dir).expect("Failed to export Session");
@@ -42,19 +41,12 @@ fn main() {
         vcs::ConflictFile::export_all_to(out_dir).expect("Failed to export ConflictFile");
         vcs::ConflictType::export_all_to(out_dir).expect("Failed to export ConflictType");
 
-        websocket::ClientMessage::export_all_to(out_dir).expect("Failed to export ClientMessage");
-        websocket::ServerMessage::export_all_to(out_dir).expect("Failed to export ServerMessage");
-        websocket::SubscriptionFilter::export_all_to(out_dir)
-            .expect("Failed to export SubscriptionFilter");
-
         server::routes::TransitionRequest::export_all_to(out_dir)
             .expect("Failed to export TransitionRequest");
         server::routes::TransitionResponse::export_all_to(out_dir)
             .expect("Failed to export TransitionResponse");
         server::routes::ExecuteResponse::export_all_to(out_dir)
             .expect("Failed to export ExecuteResponse");
-        server::routes::PhaseResultDto::export_all_to(out_dir)
-            .expect("Failed to export PhaseResultDto");
         server::routes::WorkspaceResponse::export_all_to(out_dir)
             .expect("Failed to export WorkspaceResponse");
         server::routes::DiffResponse::export_all_to(out_dir)
@@ -64,6 +56,9 @@ fn main() {
         server::routes::MergeResponse::export_all_to(out_dir)
             .expect("Failed to export MergeResponse");
 
+        orchestrator::SessionActivityMsg::export_all_to(out_dir)
+            .expect("Failed to export SessionActivityMsg");
+
         println!("Types exported to {}", out_dir.display());
 
         generate_index(out_dir);
@@ -72,7 +67,9 @@ fn main() {
     #[cfg(not(feature = "typescript"))]
     {
         eprintln!("Error: typescript feature is not enabled");
-        eprintln!("Run with: cargo run --package server --bin generate-types --features typescript");
+        eprintln!(
+            "Run with: cargo run --package server --bin generate-types --features typescript"
+        );
         std::process::exit(1);
     }
 }
@@ -105,18 +102,15 @@ export * from './MergeResult';
 export * from './ConflictFile';
 export * from './ConflictType';
 
-export * from './ClientMessage';
-export * from './ServerMessage';
-export * from './SubscriptionFilter';
-
 export * from './TransitionRequest';
 export * from './TransitionResponse';
 export * from './ExecuteResponse';
-export * from './PhaseResultDto';
 export * from './WorkspaceResponse';
 export * from './DiffResponse';
 export * from './MergeRequest';
 export * from './MergeResponse';
+
+export * from './SessionActivityMsg';
 "#;
 
     file.write_all(exports.as_bytes())

@@ -5,19 +5,21 @@ edition.workspace = true
 
 [features]
 default = []
-typescript = ["ts-rs", "opencode_core/typescript", "events/typescript", "vcs/typescript", "websocket/typescript"]
+typescript = ["ts-rs", "opencode_core/typescript", "events/typescript", "vcs/typescript", "orchestrator/typescript"]
 
 [dependencies]
 opencode_core = { workspace = true }
-opencode = { workspace = true }
-orchestrator = { workspace = true }
+opencode_client = { workspace = true }
+orchestrator = { workspace = true, features = ["openapi"] }
 db = { workspace = true }
 vcs = { workspace = true }
 events = { workspace = true }
-websocket = { workspace = true }
+
 github = { workspace = true }
 sqlx = { workspace = true }
 tokio = { workspace = true }
+tokio-stream = "0.1"
+futures = { workspace = true }
 axum = { workspace = true }
 tower-http = { workspace = true }
 serde = { workspace = true }
@@ -32,6 +34,8 @@ chrono = { workspace = true }
 utoipa = { workspace = true }
 utoipa-axum = { workspace = true }
 utoipa-swagger-ui = { workspace = true }
+dirs = "5"
+toml = "0.8"
 
 [[bin]]
 name = "generate-types"
@@ -45,3 +49,5 @@ wiremock = "0.6"
 tempfile = "3.14"
 uuid = { workspace = true }
 serde_json = { workspace = true }
+futures-util = "0.3"
+orchestrator = { workspace = true }

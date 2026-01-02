@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo check:*)",
+      "Bash(curl:*)",
+      "Bash(cargo build:*)",
+      "Bash(pkill:*)",
+      "Bash(jq:*)",
+      "Bash(timeout 10 curl:*)",
+      "Bash(cat:*)",
+      "Bash(timeout 35 curl:*)",
+      "Bash(npm run build:*)",
+      "WebFetch(domain:localhost)",
+      "Bash(cargo test:*)"
+    ]
+  }
+}

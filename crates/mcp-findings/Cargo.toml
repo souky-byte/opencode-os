@@ -1,0 +1,37 @@
+[package]
+name = "mcp-findings"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "opencode-mcp-findings"
+path = "src/main.rs"
+
+[dependencies]
+# MCP SDK
+rmcp = { version = "0.3", features = ["server", "transport-io"] }
+
+# Internal crates
+orchestrator = { path = "../orchestrator" }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+schemars = "1.0"
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Utils
+uuid = { workspace = true }
+chrono = { workspace = true }
+async-trait = { workspace = true }
