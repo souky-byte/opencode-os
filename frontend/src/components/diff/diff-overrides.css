@@ -1,302 +1,348 @@
-/* diff2html Graphite-style dark theme overrides */
+/*
+ * Diff viewer - Refined dark theme
+ * Inspired by GitHub dark mode with cleaner aesthetics
+ */
 @import "diff2html/bundles/css/diff2html.min.css";
 
 /* ========================================
-   Base styles
+   CSS Custom Properties
    ======================================== */
+:root {
+    --diff-bg: #0d1117;
+    --diff-bg-subtle: #161b22;
+    --diff-border: rgba(255, 255, 255, 0.08);
+    --diff-text: #e6edf3;
+    --diff-text-muted: rgba(255, 255, 255, 0.4);
+    --diff-line-number: rgba(255, 255, 255, 0.35);
 
-.d2h-wrapper {
-  background: transparent;
-  font-family: "JetBrains Mono", ui-monospace, monospace;
+    /* Additions - soft green */
+    --diff-add-bg: rgba(46, 160, 67, 0.15);
+    --diff-add-bg-highlight: rgba(46, 160, 67, 0.4);
+    --diff-add-gutter: rgba(46, 160, 67, 0.25);
+    --diff-add-text: #3fb950;
+
+    /* Deletions - soft red */
+    --diff-del-bg: rgba(248, 81, 73, 0.15);
+    --diff-del-bg-highlight: rgba(248, 81, 73, 0.4);
+    --diff-del-gutter: rgba(248, 81, 73, 0.25);
+    --diff-del-text: #f85149;
+
+    /* Hunk header */
+    --diff-hunk-bg: rgba(56, 139, 253, 0.1);
+    --diff-hunk-text: rgba(136, 192, 208, 0.7);
 }
 
-/* Hide default file header - we use our own */
+/* ========================================
+   Base container
+   ======================================== */
+.diff-content {
+    background: var(--diff-bg);
+}
+
+.d2h-wrapper {
+    background: transparent !important;
+    font-family:
+        "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo,
+        Monaco, Consolas, monospace;
+}
+
 .d2h-file-header {
-  display: none !important;
+    display: none !important;
 }
 
 .d2h-file-wrapper {
-  border: none;
-  border-radius: 0;
-  margin-bottom: 0;
-  background: transparent;
+    border: none !important;
+    border-radius: 0 !important;
+    margin-bottom: 0 !important;
+    background: transparent !important;
 }
 
 .d2h-files-diff {
-  display: flex;
-  width: 100%;
+    display: flex !important;
+    width: 100% !important;
 }
 
 /* ========================================
-   Side-by-side layout
+   Side-by-side panels
    ======================================== */
-
 .d2h-file-side-diff {
-  width: 50%;
-  overflow-x: auto;
-  background: #1e1e2e;
+    width: 50% !important;
+    overflow-x: auto !important;
+    background: var(--diff-bg) !important;
 }
 
-/* Left side (old) */
 .d2h-file-side-diff:first-child {
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
+    border-right: 1px solid var(--diff-border) !important;
 }
 
 /* ========================================
-   Table and rows
+   Table structure
    ======================================== */
-
 .d2h-diff-table {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 13px;
-  line-height: 20px;
-  border-collapse: collapse;
-  width: 100%;
+    font-family: inherit !important;
+    font-size: 13px !important;
+    line-height: 20px !important;
+    border-collapse: collapse !important;
+    width: 100% !important;
 }
 
 .d2h-diff-tbody tr {
-  border: none;
+    border: none !important;
 }
 
 .d2h-diff-tbody td {
-  border: none;
-  vertical-align: top;
+    border: none !important;
+    vertical-align: top !important;
+    padding: 0 !important;
 }
 
 /* ========================================
-   Line numbers - Clean Graphite style
+   Line numbers
    ======================================== */
-
-.d2h-code-side-linenumber {
-  width: 48px;
-  min-width: 48px;
-  padding: 0 8px;
-  text-align: right;
-  color: rgba(255, 255, 255, 0.35);
-  background: #181825;
-  user-select: none;
-  font-size: 12px;
-  border: none !important;
+.d2h-code-side-linenumber,
+.d2h-code-linenumber {
+    width: 50px !important;
+    min-width: 50px !important;
+    max-width: 50px !important;
+    padding: 0 12px 0 8px !important;
+    text-align: right !important;
+    color: var(--diff-line-number) !important;
+    background: var(--diff-bg-subtle) !important;
+    user-select: none !important;
+    font-size: 12px !important;
+    border: none !important;
+    border-left: none !important;
+    border-right: none !important;
 }
 
 /* ========================================
-   Code content
+   Code content - base
    ======================================== */
-
-.d2h-code-side-line {
-  padding: 0;
-  background: #1e1e2e;
-  border: none !important;
+.d2h-code-side-line,
+.d2h-code-line {
+    padding: 0 !important;
+    background: var(--diff-bg) !important;
+    border: none !important;
+    border-left: none !important;
 }
 
 .d2h-code-line-ctn {
-  padding: 0 16px;
-  white-space: pre;
-  color: #cdd6f4;
-  background: transparent;
-}
-
-.d2h-code-line {
-  padding: 0;
-  white-space: pre;
+    padding: 0 16px !important;
+    white-space: pre !important;
+    color: var(--diff-text) !important;
+    background: transparent !important;
 }
 
 /* ========================================
    Context lines (unchanged)
    ======================================== */
-
-.d2h-cntx .d2h-code-side-linenumber {
-  background: #181825;
-  color: rgba(255, 255, 255, 0.35);
+.d2h-cntx .d2h-code-side-linenumber,
+.d2h-cntx .d2h-code-linenumber {
+    background: var(--diff-bg-subtle) !important;
+    color: var(--diff-line-number) !important;
 }
 
 .d2h-cntx .d2h-code-side-line,
+.d2h-cntx .d2h-code-line,
 .d2h-cntx .d2h-code-line-ctn {
-  background: #1e1e2e;
+    background: var(--diff-bg) !important;
 }
 
 /* ========================================
-   Additions (teal/cyan) - Graphite style
+   ADDITIONS - Clean green
    ======================================== */
-
-/* Line number gutter */
-.d2h-ins .d2h-code-side-linenumber {
-  background: #034148;
-  color: #5eead4;
+.d2h-ins.d2h-change,
+.d2h-ins {
+    background: transparent !important;
 }
 
-/* Code background - subtle teal */
-.d2h-ins .d2h-code-side-line {
-  background: #044B53;
+.d2h-ins .d2h-code-side-linenumber,
+.d2h-ins .d2h-code-linenumber {
+    background: var(--diff-add-gutter) !important;
+    color: var(--diff-add-text) !important;
+    border-left: none !important;
+}
+
+.d2h-ins .d2h-code-side-line,
+.d2h-ins .d2h-code-line {
+    background: var(--diff-add-bg) !important;
+    border-left: none !important;
 }
 
 .d2h-ins .d2h-code-line-ctn {
-  background: transparent;
+    background: transparent !important;
 }
 
-/* Word-level highlight - more visible teal */
+/* Word-level additions */
 .d2h-ins ins,
-.d2h-code-side-line ins {
-  background: #0d9488;
-  text-decoration: none;
-  border-radius: 2px;
-  padding: 1px 2px;
-  color: #ffffff;
+.d2h-code-side-line ins,
+.d2h-code-line ins,
+ins.d2h-change {
+    background: var(--diff-add-bg-highlight) !important;
+    text-decoration: none !important;
+    border-radius: 3px !important;
+    padding: 1px 4px !important;
+    margin: 0 1px !important;
+    color: inherit !important;
 }
 
 /* ========================================
-   Deletions (burgundy/maroon) - Graphite style
+   DELETIONS - Clean red
    ======================================== */
-
-/* Line number gutter */
-.d2h-del .d2h-code-side-linenumber {
-  background: #632b30;
-  color: #fca5a5;
+.d2h-del.d2h-change,
+.d2h-del {
+    background: transparent !important;
 }
 
-/* Code background - subtle burgundy */
-.d2h-del .d2h-code-side-line {
-  background: #632F34;
+.d2h-del .d2h-code-side-linenumber,
+.d2h-del .d2h-code-linenumber {
+    background: var(--diff-del-gutter) !important;
+    color: var(--diff-del-text) !important;
+    border-left: none !important;
+}
+
+.d2h-del .d2h-code-side-line,
+.d2h-del .d2h-code-line {
+    background: var(--diff-del-bg) !important;
+    border-left: none !important;
 }
 
 .d2h-del .d2h-code-line-ctn {
-  background: transparent;
+    background: transparent !important;
 }
 
-/* Word-level highlight - more visible burgundy */
+/* Word-level deletions */
 .d2h-del del,
-.d2h-code-side-line del {
-  background: #b91c1c;
-  text-decoration: none;
-  border-radius: 2px;
-  padding: 1px 2px;
-  color: #ffffff;
+.d2h-code-side-line del,
+.d2h-code-line del,
+del.d2h-change {
+    background: var(--diff-del-bg-highlight) !important;
+    text-decoration: none !important;
+    border-radius: 3px !important;
+    padding: 1px 4px !important;
+    margin: 0 1px !important;
+    color: inherit !important;
 }
 
 /* ========================================
    Hunk headers (@@ -1,5 +1,7 @@)
    ======================================== */
-
 .d2h-info,
-.d2h-code-side-linenumber.d2h-info {
-  background: #21232b !important;
-  color: #6c7086 !important;
-  font-style: normal;
-  font-size: 12px;
-  padding: 4px 8px;
+.d2h-code-side-linenumber.d2h-info,
+.d2h-code-linenumber.d2h-info,
+td.d2h-info {
+    background: var(--diff-hunk-bg) !important;
+    color: var(--diff-hunk-text) !important;
+    font-style: normal !important;
+    font-size: 12px !important;
+    padding: 6px 12px !important;
+    border: none !important;
 }
 
 /* ========================================
-   Empty placeholders - Diagonal stripes
+   Empty placeholders
    ======================================== */
-
 .d2h-code-side-emptyplaceholder,
 .d2h-emptyplaceholder {
-  background: repeating-linear-gradient(
-    -45deg,
-    #1e1e2e,
-    #1e1e2e 4px,
-    #262637 4px,
-    #262637 8px
-  );
-  border: none;
+    background: repeating-linear-gradient(
+        -45deg,
+        var(--diff-bg),
+        var(--diff-bg) 4px,
+        var(--diff-bg-subtle) 4px,
+        var(--diff-bg-subtle) 8px
+    ) !important;
+    border: none !important;
 }
 
-/* Empty line number placeholder */
 .d2h-code-side-linenumber.d2h-code-side-emptyplaceholder {
-  background: repeating-linear-gradient(
-    -45deg,
-    #181825,
-    #181825 4px,
-    #1e1e2e 4px,
-    #1e1e2e 8px
-  );
+    background: repeating-linear-gradient(
+        -45deg,
+        var(--diff-bg-subtle),
+        var(--diff-bg-subtle) 4px,
+        rgba(255, 255, 255, 0.03) 4px,
+        rgba(255, 255, 255, 0.03) 8px
+    ) !important;
 }
 
 /* ========================================
-   Scrollbar styling
+   Line prefixes (+/-)
    ======================================== */
-
-.d2h-file-side-diff::-webkit-scrollbar {
-  height: 8px;
-  width: 8px;
+.d2h-code-line-prefix {
+    display: inline !important;
+    user-select: none !important;
+    color: var(--diff-text-muted) !important;
+    margin-right: 8px !important;
+    font-weight: 500 !important;
 }
 
-.d2h-file-side-diff::-webkit-scrollbar-track {
-  background: #181825;
+.d2h-ins .d2h-code-line-prefix {
+    color: var(--diff-add-text) !important;
 }
 
-.d2h-file-side-diff::-webkit-scrollbar-thumb {
-  background: #45475a;
-  border-radius: 4px;
-}
-
-.d2h-file-side-diff::-webkit-scrollbar-thumb:hover {
-  background: #585b70;
+.d2h-del .d2h-code-line-prefix {
+    color: var(--diff-del-text) !important;
 }
 
 /* ========================================
-   Remove all default diff2html borders
+   Remove ALL borders - nuclear option
    ======================================== */
-
-.d2h-file-diff {
-  border: none;
-}
-
-.d2h-code-linenumber {
-  border: none !important;
-}
-
-/* Remove ALL colored left borders/bars */
+.d2h-file-diff,
+.d2h-code-linenumber,
 .d2h-diff-tbody td,
 .d2h-ins,
 .d2h-del,
 .d2h-cntx,
-.d2h-code-side-line {
-  border-left: none !important;
-  border-right: none !important;
-}
-
+.d2h-code-side-line,
+.d2h-code-line,
 [class*="d2h-"] {
-  border-left-color: transparent !important;
-}
-
-/* Line prefix (+/-) - subtle */
-.d2h-code-line-prefix {
-  display: inline;
-  user-select: none;
-  color: rgba(255, 255, 255, 0.25);
-  margin-right: 4px;
-}
-
-/* Addition prefix */
-.d2h-ins .d2h-code-line-prefix {
-  color: #5eead4;
-}
-
-/* Deletion prefix */
-.d2h-del .d2h-code-line-prefix {
-  color: #fca5a5;
+    border: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-top: none !important;
+    border-bottom: none !important;
+    border-left-color: transparent !important;
+    border-right-color: transparent !important;
 }
 
 /* ========================================
-   Additional tweaks for cleaner look
+   Scrollbar
    ======================================== */
+.d2h-file-side-diff::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+}
 
-/* Remove any box shadows */
+.d2h-file-side-diff::-webkit-scrollbar-track {
+    background: var(--diff-bg-subtle);
+}
+
+.d2h-file-side-diff::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+
+.d2h-file-side-diff::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+/* ========================================
+   Remove shadows & box effects
+   ======================================== */
 .d2h-file-wrapper,
 .d2h-file-side-diff,
 .d2h-diff-table {
-  box-shadow: none;
+    box-shadow: none !important;
 }
 
-/* Ensure text doesn't wrap awkwardly */
+/* ========================================
+   Ensure proper overflow
+   ======================================== */
 .d2h-code-line-ctn {
-  overflow-x: visible;
+    overflow-x: visible !important;
 }
 
-/* Make sure word-level diffs are visible */
+/* Make sure highlighted diffs are visible */
 .d2h-ins .d2h-code-line-ctn .d2h-ins,
 .d2h-del .d2h-code-line-ctn .d2h-del {
-  display: inline;
+    display: inline !important;
 }

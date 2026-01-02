@@ -2,280 +2,251 @@ import { useState } from "react";
 import type { PhaseInfo, PhaseStatus } from "@/api/generated/model";
 import { useGetTaskPhases } from "@/api/generated/phases/phases";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
-import { Badge } from "@/components/ui/badge";
 import { Loader } from "@/components/ui/loader";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSessionActivitySSE } from "@/hooks/useSessionActivitySSE";
 import { cn } from "@/lib/utils";
 import {
-	CheckCircle2,
-	Circle,
-	Loader2,
-	ChevronDown,
-	ChevronRight,
+  Check,
+  Circle,
+  Loader2,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 interface PhasesListProps {
-	taskId: string;
-	className?: string;
+  taskId: string;
+  className?: string;
 }
 
-const PHASE_STATUS_CONFIG: Record<PhaseStatus, {
-	icon: React.ElementType;
-	label: string;
-	color: string;
-	bgColor: string;
-}> = {
-	pending: {
-		icon: Circle,
-		label: "Pending",
-		color: "text-muted-foreground",
-		bgColor: "bg-muted",
-	},
-	running: {
-		icon: Loader2,
-		label: "Running",
-		color: "text-blue-500",
-		bgColor: "bg-blue-500/10",
-	},
-	completed: {
-		icon: CheckCircle2,
-		label: "Completed",
-		color: "text-green-500",
-		bgColor: "bg-green-500/10",
-	},
+const PHASE_STATUS_CONFIG: Record<
+  PhaseStatus,
+  {
+    icon: React.ElementType;
+    iconClass: string;
+    lineClass: string;
+  }
+> = {
+  pending: {
+    icon: Circle,
+    iconClass: "text-muted-foreground/40",
+    lineClass: "bg-border/50",
+  },
+  running: {
+    icon: Loader2,
+    iconClass: "text-primary/70 animate-spin",
+    lineClass: "bg-primary/30",
+  },
+  completed: {
+    icon: Check,
+    iconClass: "text-emerald-500/70",
+    lineClass: "bg-emerald-500/30",
+  },
 };
 
 function PhaseItem({
-	phase,
-	isFirst,
-	isLast,
-	isExpanded,
-	onToggle,
+  phase,
+  isLast,
+  isExpanded,
+  onToggle,
 }: {
-	phase: PhaseInfo;
-	isFirst: boolean;
-	isLast: boolean;
-	isExpanded: boolean;
-	onToggle: () => void;
+  phase: PhaseInfo;
+  isLast: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
 }) {
-	const config = PHASE_STATUS_CONFIG[phase.status];
-	const Icon = config.icon;
-	const hasSession = !!phase.session_id;
+  const config = PHASE_STATUS_CONFIG[phase.status];
+  const Icon = config.icon;
+  const hasSession = !!phase.session_id;
 
-	// Subscribe to activity stream for this phase's session
-	const {
-		activities,
-		isConnected,
-		isFinished,
-		error: activityError,
-	} = useSessionActivitySSE(isExpanded && hasSession ? (phase.session_id ?? null) : null, {
-		enabled: isExpanded && hasSession,
-	});
+  const { activities, isConnected } = useSessionActivitySSE(
+    isExpanded && hasSession ? (phase.session_id ?? null) : null,
+    { enabled: isExpanded && hasSession },
+  );
 
-	return (
-		<div className="relative">
-			{/* Vertical line connecting phases */}
-			{!isFirst && (
-				<div
-					className={cn(
-						"absolute left-3 -top-3 w-0.5 h-3",
-						phase.status === "completed" ? "bg-green-500/50" : "bg-border"
-					)}
-				/>
-			)}
-			{!isLast && (
-				<div
-					className={cn(
-						"absolute left-3 top-6 w-0.5 bottom-0",
-						phase.status === "completed" ? "bg-green-500/50" : "bg-border"
-					)}
-				/>
-			)}
+  return (
+    <div className="relative flex gap-3">
+      {/* Timeline column */}
+      <div className="flex flex-col items-center">
+        {/* Icon */}
+        <div className="w-5 h-5 flex items-center justify-center shrink-0">
+          <Icon className={cn("w-4 h-4", config.iconClass)} />
+        </div>
+        {/* Connecting line */}
+        {!isLast && (
+          <div className={cn("w-px flex-1 mt-1", config.lineClass)} />
+        )}
+      </div>
 
-			<div className="relative">
-				{/* Phase header - clickable */}
-				<button
-					type="button"
-					onClick={onToggle}
-					className={cn(
-						"w-full flex items-start gap-3 p-2 rounded-lg text-left transition-colors",
-						"hover:bg-accent/50",
-						isExpanded && "bg-accent/30"
-					)}
-				>
-					{/* Status icon */}
-					<div className={cn(
-						"shrink-0 w-6 h-6 rounded-full flex items-center justify-center",
-						config.bgColor
-					)}>
-						<Icon
-							className={cn(
-								"w-4 h-4",
-								config.color,
-								phase.status === "running" && "animate-spin"
-							)}
-						/>
-					</div>
+      {/* Content column */}
+      <div className="flex-1 min-w-0 pb-4">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="w-full flex items-start gap-2 text-left group"
+        >
+          <div className="flex-1 min-w-0">
+            {/* Phase title - compact */}
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "text-sm font-medium",
+                  phase.status === "completed" && "text-muted-foreground",
+                  phase.status === "running" && "text-foreground",
+                  phase.status === "pending" && "text-muted-foreground/60",
+                )}
+              >
+                {phase.number}. {phase.title}
+              </span>
+              {phase.status === "completed" && (
+                <span className="text-[10px] text-emerald-500/60">✓</span>
+              )}
+            </div>
 
-					{/* Phase info */}
-					<div className="flex-1 min-w-0">
-						<div className="flex items-center gap-2">
-							<span className="font-medium truncate">
-								Phase {phase.number}: {phase.title}
-							</span>
-							<Badge
-								variant="outline"
-								className={cn("text-xs shrink-0", config.color)}
-							>
-								{config.label}
-							</Badge>
-						</div>
+            {/* Summary - only for completed */}
+            {phase.summary && (
+              <p className="mt-0.5 text-xs text-muted-foreground/60 line-clamp-1">
+                {phase.summary.summary}
+              </p>
+            )}
 
-						{/* Summary for completed phases */}
-						{phase.summary && (
-							<p className="mt-1 text-sm text-muted-foreground line-clamp-2">
-								{phase.summary.summary}
-							</p>
-						)}
+            {/* Changed files - compact pills */}
+            {phase.summary?.files_changed &&
+              phase.summary.files_changed.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {phase.summary.files_changed
+                    .slice(0, 2)
+                    .map((file: string) => (
+                      <span
+                        key={file}
+                        className="text-[10px] text-muted-foreground/50 bg-muted/50 px-1.5 py-0.5 rounded font-mono"
+                      >
+                        {file.split("/").pop()}
+                      </span>
+                    ))}
+                  {phase.summary.files_changed.length > 2 && (
+                    <span className="text-[10px] text-muted-foreground/40">
+                      +{phase.summary.files_changed.length - 2}
+                    </span>
+                  )}
+                </div>
+              )}
+          </div>
 
-						{/* Changed files for completed phases */}
-						{phase.summary?.files_changed && phase.summary.files_changed.length > 0 && (
-							<div className="mt-1 flex flex-wrap gap-1">
-								{phase.summary.files_changed.slice(0, 3).map((file: string) => (
-									<span
-										key={file}
-										className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono"
-									>
-										{file.split('/').pop()}
-									</span>
-								))}
-								{phase.summary.files_changed.length > 3 && (
-									<span className="text-xs text-muted-foreground">
-										+{phase.summary.files_changed.length - 3} more
-									</span>
-								)}
-							</div>
-						)}
-					</div>
+          {/* Expand indicator */}
+          {hasSession && (
+            <div className="text-muted-foreground/40 group-hover:text-muted-foreground/60 transition-colors">
+              {isExpanded ? (
+                <ChevronDown className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronRight className="w-3.5 h-3.5" />
+              )}
+            </div>
+          )}
+        </button>
 
-					{/* Expand/collapse indicator */}
-					{hasSession && (
-						<div className="shrink-0 text-muted-foreground">
-							{isExpanded ? (
-								<ChevronDown className="w-4 h-4" />
-							) : (
-								<ChevronRight className="w-4 h-4" />
-							)}
-						</div>
-					)}
-				</button>
-
-				{/* Expanded activity feed */}
-				{isExpanded && hasSession && (
-					<div className="mt-2 ml-9 border rounded-lg overflow-hidden">
-						<div className="bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground border-b">
-							Session: <span className="font-mono">{phase.session_id?.slice(0, 8)}...</span>
-							{isConnected && phase.status === "running" && (
-								<span className="ml-2 inline-flex items-center gap-1">
-									<span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-									Live
-								</span>
-							)}
-						</div>
-						<ScrollArea className="h-[300px]">
-							<ActivityFeed
-								activities={activities}
-								isConnected={isConnected}
-								isFinished={isFinished}
-								error={activityError}
-								className="p-2"
-							/>
-						</ScrollArea>
-					</div>
-				)}
-			</div>
-		</div>
-	);
+        {/* Expanded activity feed */}
+        {isExpanded && hasSession && (
+          <div className="mt-2 border border-border/50 rounded-md overflow-hidden bg-card/30">
+            <div className="px-2 py-1 text-[10px] text-muted-foreground/50 border-b border-border/30 flex items-center gap-2">
+              <span className="font-mono">
+                {phase.session_id?.slice(0, 8)}…
+              </span>
+              {isConnected && phase.status === "running" && (
+                <span className="w-1 h-1 rounded-full bg-emerald-500/60 animate-pulse" />
+              )}
+            </div>
+            <ScrollArea className="h-[250px]">
+              <ActivityFeed
+                activities={activities}
+                isConnected={isConnected}
+                className="p-2"
+              />
+            </ScrollArea>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function PhasesList({ taskId, className }: PhasesListProps) {
-	const [expandedPhase, setExpandedPhase] = useState<number | null>(null);
+  const [expandedPhase, setExpandedPhase] = useState<number | null>(null);
 
-	const { data: phasesData, isLoading, error } = useGetTaskPhases(taskId, {
-		query: {
-			staleTime: 10000,
-			refetchInterval: (query) => {
-				// Refetch more frequently when there's a running phase
-				const data = query.state.data;
-				if (data?.status === 200 && data.data.current_phase !== null) {
-					return 5000;
-				}
-				return 30000;
-			},
-		},
-	});
+  const {
+    data: phasesData,
+    isLoading,
+    error,
+  } = useGetTaskPhases(taskId, {
+    query: {
+      staleTime: 10000,
+      refetchInterval: (query) => {
+        const data = query.state.data;
+        if (data?.status === 200 && data.data.current_phase !== null) {
+          return 5000;
+        }
+        return 30000;
+      },
+    },
+  });
 
-	if (isLoading) {
-		return (
-			<div className={cn("flex items-center justify-center p-8", className)}>
-				<Loader size="sm" message="Loading phases..." />
-			</div>
-		);
-	}
+  if (isLoading) {
+    return (
+      <div className={cn("flex items-center justify-center py-6", className)}>
+        <Loader size="sm" />
+      </div>
+    );
+  }
 
-	if (error) {
-		return (
-			<div className={cn("p-4 text-sm text-destructive", className)}>
-				Failed to load phases
-			</div>
-		);
-	}
+  if (error) {
+    return (
+      <div className={cn("py-4 text-xs text-muted-foreground/60", className)}>
+        Failed to load phases
+      </div>
+    );
+  }
 
-	const phases = phasesData?.status === 200 ? phasesData.data : null;
+  const phases = phasesData?.status === 200 ? phasesData.data : null;
 
-	if (!phases || phases.phases.length === 0) {
-		return (
-			<div className={cn("p-4 text-sm text-muted-foreground", className)}>
-				No implementation phases detected
-			</div>
-		);
-	}
+  if (!phases || phases.phases.length === 0) {
+    return (
+      <div className={cn("py-4 text-xs text-muted-foreground/60", className)}>
+        No phases
+      </div>
+    );
+  }
 
-	// Auto-expand running phase if none selected
-	const effectiveExpanded = expandedPhase ?? (phases.current_phase ?? null);
+  const effectiveExpanded = expandedPhase ?? phases.current_phase ?? null;
 
-	return (
-		<div className={cn("space-y-1", className)}>
-			{/* Header */}
-			<div className="flex items-center justify-between mb-3">
-				<h4 className="text-sm font-medium text-muted-foreground">
-					Implementation Phases
-				</h4>
-				{phases.current_phase && (
-					<Badge variant="outline" className="text-xs">
-						{phases.current_phase} / {phases.total_phases}
-					</Badge>
-				)}
-			</div>
+  return (
+    <div className={cn(className)}>
+      {/* Header - minimal */}
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wider">
+          Phases
+        </span>
+        <span className="text-[10px] text-muted-foreground/40 tabular-nums">
+          {phases.phases.filter((p) => p.status === "completed").length}/
+          {phases.total_phases}
+        </span>
+      </div>
 
-			{/* Phases list */}
-			<div className="space-y-1">
-				{phases.phases.map((phase: PhaseInfo, index: number) => (
-					<PhaseItem
-						key={phase.number}
-						phase={phase}
-						isFirst={index === 0}
-						isLast={index === phases.phases.length - 1}
-						isExpanded={effectiveExpanded === phase.number}
-						onToggle={() => {
-							setExpandedPhase(
-								effectiveExpanded === phase.number ? null : phase.number
-							);
-						}}
-					/>
-				))}
-			</div>
-		</div>
-	);
+      {/* Timeline */}
+      <div>
+        {phases.phases.map((phase: PhaseInfo, index: number) => (
+          <PhaseItem
+            key={phase.number}
+            phase={phase}
+            isLast={index === phases.phases.length - 1}
+            isExpanded={effectiveExpanded === phase.number}
+            onToggle={() => {
+              setExpandedPhase(
+                effectiveExpanded === phase.number ? null : phase.number,
+              );
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
 }

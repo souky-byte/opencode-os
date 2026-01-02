@@ -1,422 +1,271 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { SessionActivityMsg } from "@/types/generated/SessionActivityMsg";
-import { Icon, getToolIcon, getToolStatus } from "@/components/ui/icon";
+import { Icon, getToolIcon } from "@/components/ui/icon";
 import { Markdown } from "@/components/ui/markdown";
-import { Collapsible } from "@/components/ui/collapsible";
 
 interface ActivityItemProps {
-	activity: SessionActivityMsg;
+  activity: SessionActivityMsg;
 }
 
 function formatTime(timestamp: string): string {
-	return new Date(timestamp).toLocaleTimeString([], {
-		hour: "2-digit",
-		minute: "2-digit",
-		second: "2-digit",
-	});
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
-function truncateString(str: string, maxLen: number): string {
-	if (str.length <= maxLen) {
-		return str;
-	}
-	return `${str.slice(0, maxLen)}...`;
+function truncate(str: string, max: number): string {
+  return str.length <= max ? str : `${str.slice(0, max)}…`;
 }
 
 function getFilename(path: string | undefined): string {
-	if (!path) return "";
-	const parts = path.split("/");
-	return parts[parts.length - 1] || path;
-}
-
-
-function formatToolArgs(
-	args: Record<string, unknown> | null,
-): { summary: string; full: string } | null {
-	if (!args || Object.keys(args).length === 0) return null;
-
-	const entries = Object.entries(args);
-	const summary = entries
-		.slice(0, 2)
-		.map(([k, v]) => {
-			const val = typeof v === "string" ? v : JSON.stringify(v);
-			return `${k}: ${truncateString(val, 30)}`;
-		})
-		.join(", ");
-
-	return {
-		summary:
-			entries.length > 2 ? `${summary} (+${entries.length - 2} more)` : summary,
-		full: JSON.stringify(args, null, 2),
-	};
+  if (!path) return "";
+  return path.split("/").pop() || path;
 }
 
 function getToolSubtitle(
-	toolName: string,
-	args: Record<string, unknown> | null,
+  toolName: string,
+  args: Record<string, unknown> | null,
 ): string | undefined {
-	if (!args) return undefined;
+  if (!args) return undefined;
+  const tool = toolName.toLowerCase();
 
-	const tool = toolName.toLowerCase();
-
-	if (tool === "read" || tool === "edit" || tool === "write") {
-		const path = args.filePath as string | undefined;
-		return path ? getFilename(path) : undefined;
-	}
-
-	if (tool === "bash" || tool === "shell") {
-		return (
-			(args.description as string) ||
-			truncateString((args.command as string) || "", 50)
-		);
-	}
-
-	if (tool === "glob" || tool === "grep") {
-		return (args.pattern as string) || (args.path as string);
-	}
-
-	if (tool === "webfetch" || tool === "web_fetch") {
-		const url = args.url as string;
-		return url ? truncateString(url, 40) : undefined;
-	}
-
-	if (tool === "task") {
-		return (args.description as string) || (args.subagent_type as string);
-	}
-
-	return undefined;
+  if (tool === "read" || tool === "edit" || tool === "write") {
+    return getFilename(args.filePath as string | undefined);
+  }
+  if (tool === "bash" || tool === "shell") {
+    return (
+      (args.description as string) ||
+      truncate((args.command as string) || "", 60)
+    );
+  }
+  if (tool === "glob" || tool === "grep") {
+    return (args.pattern as string) || (args.path as string);
+  }
+  if (tool === "webfetch" || tool === "web_fetch") {
+    return truncate((args.url as string) || "", 50);
+  }
+  if (tool === "task") {
+    return (args.description as string) || (args.subagent_type as string);
+  }
+  return undefined;
 }
 
+// Compact row for tool calls (pending state)
 function ToolCallItem({
-	activity,
+  activity,
 }: {
-	activity: Extract<SessionActivityMsg, { type: "tool_call" }>;
+  activity: Extract<SessionActivityMsg, { type: "tool_call" }>;
 }) {
-	const [isExpanded, setIsExpanded] = useState(false);
-	const argsFormatted = formatToolArgs(activity.args);
-	const subtitle = getToolSubtitle(activity.tool_name, activity.args);
-	const statusText = getToolStatus(activity.tool_name);
+  const subtitle = getToolSubtitle(activity.tool_name, activity.args);
 
-	return (
-		<Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-			<div className="rounded-lg bg-primary/5 border border-primary/20">
-				<Collapsible.Trigger>
-					<div className="flex items-center gap-3 p-3">
-						<div className="shrink-0 p-1.5 rounded-md bg-primary/10">
-							<Icon name="loading" size="sm" spin className="text-primary" />
-						</div>
-
-						<div className="flex-1 min-w-0 flex items-center gap-2">
-							<span className="text-sm font-medium text-foreground">
-								{activity.tool_name}
-							</span>
-							{subtitle && (
-								<span className="text-sm text-muted-foreground truncate">
-									{subtitle}
-								</span>
-							)}
-						</div>
-
-						<div className="flex items-center gap-2 shrink-0">
-							<span className="text-xs text-primary/70">{statusText}</span>
-							<span className="text-xs text-muted-foreground">
-								{formatTime(activity.timestamp)}
-							</span>
-							{argsFormatted && <Collapsible.Arrow />}
-						</div>
-					</div>
-				</Collapsible.Trigger>
-
-				{argsFormatted && (
-					<Collapsible.Content>
-						<div className="px-3 pb-3 pt-0">
-							<pre className="text-xs text-muted-foreground overflow-x-auto p-3 bg-muted/30 rounded-md font-mono">
-								{argsFormatted.full}
-							</pre>
-						</div>
-					</Collapsible.Content>
-				)}
-			</div>
-		</Collapsible>
-	);
+  return (
+    <div className="group flex items-center gap-2 py-1 px-2 -mx-2 rounded hover:bg-muted/30 transition-colors">
+      <Icon
+        name="loading"
+        size="xs"
+        spin
+        className="text-muted-foreground/60 shrink-0"
+      />
+      <span className="text-xs font-medium text-muted-foreground">
+        {activity.tool_name}
+      </span>
+      {subtitle && (
+        <span className="text-xs text-muted-foreground/60 truncate">
+          {subtitle}
+        </span>
+      )}
+      <span className="text-[10px] text-muted-foreground/40 ml-auto tabular-nums shrink-0">
+        {formatTime(activity.timestamp)}
+      </span>
+    </div>
+  );
 }
 
+// Compact row for tool results
 function ToolResultItem({
-	activity,
+  activity,
 }: {
-	activity: Extract<SessionActivityMsg, { type: "tool_result" }>;
+  activity: Extract<SessionActivityMsg, { type: "tool_result" }>;
 }) {
-	const [isExpanded, setIsExpanded] = useState(false);
-	const hasResult = activity.result && activity.result.length > 0;
-	const hasLongResult = activity.result && activity.result.length > 150;
-	const subtitle = getToolSubtitle(activity.tool_name, activity.args);
-	const iconName = getToolIcon(activity.tool_name);
+  const [expanded, setExpanded] = useState(false);
+  const subtitle = getToolSubtitle(activity.tool_name, activity.args);
+  const iconName = getToolIcon(activity.tool_name);
+  const hasResult = activity.result && activity.result.length > 0;
 
-	return (
-		<Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-			<div
-				className={cn(
-					"rounded-lg border",
-					activity.success
-						? "bg-emerald-500/5 border-emerald-500/20"
-						: "bg-red-500/5 border-red-500/20",
-				)}
-			>
-				<Collapsible.Trigger>
-					<div className="flex items-center gap-3 p-3">
-						<div
-							className={cn(
-								"shrink-0 p-1.5 rounded-md",
-								activity.success ? "bg-emerald-500/10" : "bg-red-500/10",
-							)}
-						>
-							<Icon
-								name={activity.success ? "check" : "error"}
-								size="sm"
-								className={
-									activity.success ? "text-emerald-400" : "text-red-400"
-								}
-							/>
-						</div>
-
-						<div className="flex-1 min-w-0 flex items-center gap-2">
-							<Icon
-								name={iconName}
-								size="xs"
-								className="text-muted-foreground shrink-0"
-							/>
-							<span className="text-sm font-medium text-foreground">
-								{activity.tool_name}
-							</span>
-							{subtitle && (
-								<span className="text-sm text-muted-foreground truncate">
-									{subtitle}
-								</span>
-							)}
-						</div>
-
-						<div className="flex items-center gap-2 shrink-0">
-							<span
-								className={cn(
-									"text-[10px] px-2 py-0.5 rounded-full font-medium",
-									activity.success
-										? "bg-emerald-500/20 text-emerald-400"
-										: "bg-red-500/20 text-red-400",
-								)}
-							>
-								{activity.success ? "done" : "failed"}
-							</span>
-							<span className="text-xs text-muted-foreground">
-								{formatTime(activity.timestamp)}
-							</span>
-							{hasResult && <Collapsible.Arrow />}
-						</div>
-					</div>
-				</Collapsible.Trigger>
-
-				{hasResult && (
-					<Collapsible.Content>
-						<div className="px-3 pb-3 pt-0">
-							<pre
-								className={cn(
-									"text-xs text-muted-foreground overflow-x-auto p-3 bg-muted/30 rounded-md font-mono whitespace-pre-wrap",
-									hasLongResult && "max-h-64 overflow-y-auto",
-								)}
-							>
-								{activity.result}
-							</pre>
-						</div>
-					</Collapsible.Content>
-				)}
-			</div>
-		</Collapsible>
-	);
+  return (
+    <div className="group">
+      <button
+        type="button"
+        onClick={() => hasResult && setExpanded(!expanded)}
+        disabled={!hasResult}
+        className={cn(
+          "w-full flex items-center gap-2 py-1 px-2 -mx-2 rounded transition-colors text-left",
+          hasResult && "hover:bg-muted/30 cursor-pointer",
+          !hasResult && "cursor-default",
+        )}
+      >
+        <Icon
+          name={activity.success ? "check" : "error"}
+          size="xs"
+          className={cn(
+            "shrink-0",
+            activity.success ? "text-emerald-500/70" : "text-red-500/70",
+          )}
+        />
+        <Icon
+          name={iconName}
+          size="xs"
+          className="text-muted-foreground/50 shrink-0"
+        />
+        <span className="text-xs font-medium text-foreground/80">
+          {activity.tool_name}
+        </span>
+        {subtitle && (
+          <span className="text-xs text-muted-foreground/60 truncate">
+            {subtitle}
+          </span>
+        )}
+        <span className="text-[10px] text-muted-foreground/40 ml-auto tabular-nums shrink-0">
+          {formatTime(activity.timestamp)}
+        </span>
+        {hasResult && (
+          <Icon
+            name={expanded ? "chevron-down" : "chevron-right"}
+            size="xs"
+            className="text-muted-foreground/40 shrink-0"
+          />
+        )}
+      </button>
+      {expanded && hasResult && (
+        <pre className="mt-1 ml-4 text-[11px] text-muted-foreground/70 bg-muted/20 rounded px-2 py-1.5 overflow-x-auto max-h-48 overflow-y-auto font-mono whitespace-pre-wrap">
+          {activity.result}
+        </pre>
+      )}
+    </div>
+  );
 }
 
+// Agent message - slightly more prominent but still compact
 function AgentMessageItem({
-	activity,
+  activity,
 }: {
-	activity: Extract<SessionActivityMsg, { type: "agent_message" }>;
+  activity: Extract<SessionActivityMsg, { type: "agent_message" }>;
 }) {
-	return (
-		<div className="rounded-lg bg-card border border-border/50 p-4">
-			<div className="flex items-start gap-3">
-				<div className="shrink-0 mt-0.5 p-1.5 rounded-md bg-primary/10">
-					<Icon name="agent" size="sm" className="text-primary" />
-				</div>
-				<div className="flex-1 min-w-0">
-					<div className="flex items-center gap-2 mb-2">
-						<span className="text-sm font-medium text-foreground">
-							Assistant
-						</span>
-						{activity.is_partial && (
-							<span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-medium flex items-center gap-1">
-								<span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-								typing
-							</span>
-						)}
-						<span className="text-xs text-muted-foreground ml-auto">
-							{formatTime(activity.timestamp)}
-						</span>
-					</div>
-					<Markdown
-						text={activity.content}
-						className="text-sm text-foreground/90"
-					/>
-				</div>
-			</div>
-		</div>
-	);
+  return (
+    <div className="py-2 border-l-2 border-primary/30 pl-3 my-1">
+      <div className="flex items-center gap-2 mb-1">
+        <Icon name="agent" size="xs" className="text-primary/60" />
+        <span className="text-xs font-medium text-primary/80">Assistant</span>
+        {activity.is_partial && (
+          <span className="w-1 h-1 rounded-full bg-amber-400 animate-pulse" />
+        )}
+        <span className="text-[10px] text-muted-foreground/40 ml-auto tabular-nums">
+          {formatTime(activity.timestamp)}
+        </span>
+      </div>
+      <Markdown
+        text={activity.content}
+        className="text-sm text-foreground/90 leading-relaxed"
+      />
+    </div>
+  );
 }
 
+// Reasoning/thinking - subtle and collapsible
 function ReasoningItem({
-	activity,
+  activity,
 }: {
-	activity: Extract<SessionActivityMsg, { type: "reasoning" }>;
+  activity: Extract<SessionActivityMsg, { type: "reasoning" }>;
 }) {
-	const [isExpanded, setIsExpanded] = useState(false);
-	const isLong = activity.content.length > 200;
+  const [expanded, setExpanded] = useState(false);
+  const preview = truncate(activity.content.replace(/\*\*/g, "").trim(), 80);
 
-	// Extract first bold section as title if present
-	const match = activity.content.trimStart().match(/^\*\*(.+?)\*\*/);
-	const title = match ? match[1].trim() : null;
-
-	return (
-		<Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-			<div className="rounded-lg bg-purple-500/5 border border-purple-500/20">
-				<Collapsible.Trigger>
-					<div className="flex items-center gap-3 p-3">
-						<div className="shrink-0 p-1.5 rounded-md bg-purple-500/10">
-							<Icon name="reasoning" size="sm" className="text-purple-400" />
-						</div>
-
-						<div className="flex-1 min-w-0">
-							<span className="text-sm font-medium text-purple-300">
-								Thinking
-								{title && (
-									<span className="text-muted-foreground font-normal">
-										{" "}
-										· {title}
-									</span>
-								)}
-							</span>
-						</div>
-
-						<div className="flex items-center gap-2 shrink-0">
-							<span className="text-xs text-muted-foreground">
-								{formatTime(activity.timestamp)}
-							</span>
-							{isLong && <Collapsible.Arrow />}
-						</div>
-					</div>
-				</Collapsible.Trigger>
-
-				<Collapsible.Content>
-					<div className="px-3 pb-3 pt-0">
-						<p className="text-sm text-muted-foreground/80 italic whitespace-pre-wrap leading-relaxed">
-							{activity.content}
-						</p>
-					</div>
-				</Collapsible.Content>
-
-				{!isLong && !isExpanded && (
-					<div className="px-3 pb-3 pt-0">
-						<p className="text-sm text-muted-foreground/80 italic whitespace-pre-wrap leading-relaxed">
-							{activity.content}
-						</p>
-					</div>
-				)}
-			</div>
-		</Collapsible>
-	);
+  return (
+    <button
+      type="button"
+      onClick={() => setExpanded(!expanded)}
+      className="w-full group flex items-start gap-2 py-1 px-2 -mx-2 rounded hover:bg-muted/30 transition-colors text-left"
+    >
+      <Icon
+        name="reasoning"
+        size="xs"
+        className="text-violet-400/60 mt-0.5 shrink-0"
+      />
+      <div className="flex-1 min-w-0">
+        {expanded ? (
+          <p className="text-xs text-muted-foreground/70 italic whitespace-pre-wrap leading-relaxed">
+            {activity.content}
+          </p>
+        ) : (
+          <span className="text-xs text-muted-foreground/60 italic truncate block">
+            {preview}
+          </span>
+        )}
+      </div>
+      <span className="text-[10px] text-muted-foreground/40 tabular-nums shrink-0">
+        {formatTime(activity.timestamp)}
+      </span>
+    </button>
+  );
 }
 
-function StepStartItem({
-	activity,
-}: {
-	activity: Extract<SessionActivityMsg, { type: "step_start" }>;
-}) {
-	return (
-		<div className="flex items-center gap-3 py-2">
-			<div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-border" />
-			<div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 border border-border/50">
-				<Icon name="play" size="xs" className="text-muted-foreground" />
-				<span className="text-xs font-medium text-muted-foreground">
-					{activity.step_name ?? "Step"}
-				</span>
-			</div>
-			<span className="text-[11px] text-muted-foreground">
-				{formatTime(activity.timestamp)}
-			</span>
-			<div className="flex-1 h-px bg-gradient-to-l from-transparent via-border to-border" />
-		</div>
-	);
-}
-
+// Finished state - compact but clear
 function FinishedItem({
-	activity,
+  activity,
 }: {
-	activity: Extract<SessionActivityMsg, { type: "finished" }>;
+  activity: Extract<SessionActivityMsg, { type: "finished" }>;
 }) {
-	return (
-		<div
-			className={cn(
-				"flex items-center gap-4 p-4 rounded-lg border",
-				activity.success
-					? "bg-emerald-500/5 border-emerald-500/20"
-					: "bg-red-500/5 border-red-500/20",
-			)}
-		>
-			<div
-				className={cn(
-					"w-10 h-10 rounded-lg flex items-center justify-center",
-					activity.success ? "bg-emerald-500/15" : "bg-red-500/15",
-				)}
-			>
-				<Icon
-					name={activity.success ? "check-circle" : "error"}
-					size="lg"
-					className={activity.success ? "text-emerald-400" : "text-red-400"}
-				/>
-			</div>
-			<div className="flex-1">
-				<span
-					className={cn(
-						"text-sm font-semibold",
-						activity.success ? "text-emerald-300" : "text-red-300",
-					)}
-				>
-					Session {activity.success ? "completed" : "failed"}
-				</span>
-				{activity.error && (
-					<p className="mt-1 text-sm text-red-400">{activity.error}</p>
-				)}
-			</div>
-			<span className="text-xs text-muted-foreground">
-				{formatTime(activity.timestamp)}
-			</span>
-		</div>
-	);
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 py-2 px-3 -mx-2 rounded mt-2",
+        activity.success ? "bg-emerald-500/10" : "bg-red-500/10",
+      )}
+    >
+      <Icon
+        name={activity.success ? "check-circle" : "error"}
+        size="sm"
+        className={activity.success ? "text-emerald-500" : "text-red-500"}
+      />
+      <span
+        className={cn(
+          "text-xs font-medium",
+          activity.success ? "text-emerald-500" : "text-red-500",
+        )}
+      >
+        {activity.success ? "Completed" : "Failed"}
+      </span>
+      {activity.error && (
+        <span className="text-xs text-red-400/80 truncate flex-1">
+          {activity.error}
+        </span>
+      )}
+      <span className="text-[10px] text-muted-foreground/40 tabular-nums ml-auto">
+        {formatTime(activity.timestamp)}
+      </span>
+    </div>
+  );
 }
 
 export function ActivityItem({ activity }: ActivityItemProps) {
-	switch (activity.type) {
-		case "tool_call":
-			return <ToolCallItem activity={activity} />;
-		case "tool_result":
-			return <ToolResultItem activity={activity} />;
-		case "agent_message":
-			return <AgentMessageItem activity={activity} />;
-		case "reasoning":
-			return <ReasoningItem activity={activity} />;
-		case "step_start":
-			return <StepStartItem activity={activity} />;
-		case "finished":
-			return <FinishedItem activity={activity} />;
-		case "json_patch":
-			return null;
-		default:
-			return null;
-	}
+  switch (activity.type) {
+    case "tool_call":
+      return <ToolCallItem activity={activity} />;
+    case "tool_result":
+      return <ToolResultItem activity={activity} />;
+    case "agent_message":
+      return <AgentMessageItem activity={activity} />;
+    case "reasoning":
+      return <ReasoningItem activity={activity} />;
+    case "finished":
+      return <FinishedItem activity={activity} />;
+    case "step_start":
+    case "json_patch":
+      return null;
+    default:
+      return null;
+  }
 }
