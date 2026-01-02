@@ -34,6 +34,12 @@ const STATUS_CONFIG: Record<TaskStatus, { label: string; headerBg: string; dotCo
 		dotColor: "bg-purple-400",
 		borderColor: "border-purple-500/30"
 	},
+	fix: {
+		label: "Fix Issues",
+		headerBg: "bg-red-500/10",
+		dotColor: "bg-red-400",
+		borderColor: "border-red-500/30"
+	},
 	review: {
 		label: "Review",
 		headerBg: "bg-orange-500/10",

@@ -13,7 +13,6 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 const STUDIO_DIR: &str = ".opencode-studio";
 const CONFIG_FILE: &str = "config.toml";
 const GLOBAL_CONFIG_FILE: &str = "global.toml";
-const DEFAULT_DB_NAME: &str = "studio.db";
 const DEFAULT_PORT: u16 = 3001;
 const MAX_RECENT_PROJECTS: usize = 10;
 
@@ -403,7 +402,12 @@ async fn init_project_internal(cwd: &std::path::Path, silent: bool) -> Result<St
     let config_content = toml::to_string_pretty(&config)?;
     tokio::fs::write(&config_path, config_content).await?;
 
-    let db_path = studio_dir.join(DEFAULT_DB_NAME);
+    // Database is stored in global location (~/.opencode-studio/data/{hash}/)
+    let db_path = server::project_manager::get_db_path(cwd)
+        .map_err(|e| anyhow::anyhow!("Failed to get database path: {}", e))?;
+    if let Some(parent) = db_path.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
     let database_url = format!("sqlite:{}", db_path.display());
     let pool = db::create_pool(&database_url).await?;
     db::run_migrations(&pool).await?;
@@ -428,10 +432,11 @@ fn print_init_success(project_name: &str) {
     println!("  {}", "Created:".dimmed());
     println!("    {}/ ", STUDIO_DIR.yellow());
     println!("    ├── {} ", CONFIG_FILE.dimmed());
-    println!("    ├── {} ", DEFAULT_DB_NAME.dimmed());
     println!("    └── {}/", "kanban".dimmed());
     println!("        ├── {}/", "plans".dimmed());
     println!("        └── {}/", "reviews".dimmed());
+    println!();
+    println!("  {} Database stored in {}", "ℹ".blue(), "~/.opencode-studio/data/".dimmed());
     println!();
 }
 
@@ -624,7 +629,21 @@ async fn status(path: Option<PathBuf>) -> Result<()> {
     }
 
     let config = load_studio_config(&studio_dir).await?;
-    let db_path = studio_dir.join(DEFAULT_DB_NAME);
+
+    // Try to migrate old DB if exists, then use global path
+    let _ = server::project_manager::migrate_db_if_needed(&cwd).await;
+    let db_path = match server::project_manager::get_db_path(&cwd) {
+        Ok(p) => p,
+        Err(e) => {
+            println!();
+            println!(
+                "  {} Failed to determine database path: {}",
+                "✗".red(),
+                e
+            );
+            return Ok(());
+        }
+    };
 
     if !db_path.exists() {
         println!();

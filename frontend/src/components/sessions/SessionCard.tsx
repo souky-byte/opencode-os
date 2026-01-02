@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 const PHASE_COLORS: Record<SessionPhase, string> = {
 	planning: "bg-blue-500/10 text-blue-500 border-blue-500/20",
 	implementation: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+	fix: "bg-red-500/10 text-red-500 border-red-500/20",
 	review: "bg-amber-500/10 text-amber-500 border-amber-500/20",
 };
 

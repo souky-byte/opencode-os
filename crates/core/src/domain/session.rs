@@ -85,6 +85,12 @@ pub struct Session {
     pub started_at: Option<DateTime<Utc>>,
     pub completed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    /// For multi-phase implementation: current phase number (1-indexed)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub implementation_phase_number: Option<u32>,
+    /// For multi-phase implementation: current phase title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub implementation_phase_title: Option<String>,
 }
 
 impl Session {
@@ -98,6 +104,28 @@ impl Session {
             started_at: None,
             completed_at: None,
             created_at: Utc::now(),
+            implementation_phase_number: None,
+            implementation_phase_title: None,
+        }
+    }
+
+    /// Create a new implementation session for a specific phase
+    pub fn new_implementation_phase(
+        task_id: Uuid,
+        phase_number: u32,
+        phase_title: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            task_id,
+            opencode_session_id: None,
+            phase: SessionPhase::Implementation,
+            status: SessionStatus::default(),
+            started_at: None,
+            completed_at: None,
+            created_at: Utc::now(),
+            implementation_phase_number: Some(phase_number),
+            implementation_phase_title: Some(phase_title.into()),
         }
     }
 

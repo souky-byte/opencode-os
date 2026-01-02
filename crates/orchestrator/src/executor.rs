@@ -17,10 +17,13 @@ use vcs::{Workspace, WorkspaceManager};
 use crate::activity_store::{SessionActivityMsg, SessionActivityRegistry, SessionActivityStore};
 use crate::error::{OrchestratorError, Result};
 use crate::files::{
-    FileManager, FindingSeverity, FindingStatus, ReviewFinding, ReviewFindings,
+    FileManager, FindingSeverity, FindingStatus, PhaseContext, PhaseSummary, ReviewFinding,
+    ReviewFindings,
 };
-use crate::opencode_events::{ExecutorEvent, OpenCodeEventSubscriber};
+// Note: ExecutorEvent and OpenCodeEventSubscriber are now used internally by SessionRunner
+use crate::plan_parser::{extract_phase_summary, parse_plan_phases};
 use crate::prompts::PhasePrompts;
+use crate::session_runner::{SessionConfig, SessionDependencies, SessionRunner};
 use crate::state_machine::TaskStateMachine;
 
 /// Raw JSON response from AI review
@@ -221,7 +224,7 @@ impl TaskExecutor {
         Ok(())
     }
 
-    fn extract_text_from_parts(parts: &[Part]) -> String {
+    pub fn extract_text_from_parts(parts: &[Part]) -> String {
         parts
             .iter()
             .filter_map(|part| {
@@ -337,7 +340,7 @@ impl TaskExecutor {
     /// Parse SSE part format (different from HTTP response Part struct)
     /// SSE parts have: id, messageID, sessionID, text, time.start/end, type
     /// Tool parts have: callID, tool, state.status/input/output/error
-    fn parse_sse_part(part: &serde_json::Value) -> Option<SessionActivityMsg> {
+    pub fn parse_sse_part(part: &serde_json::Value) -> Option<SessionActivityMsg> {
         let part_type = part.get("type")?.as_str()?;
         let id = part.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
 
@@ -750,8 +753,21 @@ impl TaskExecutor {
             self.transition(task, TaskStatus::Planning)?;
         }
 
-        // For implementation phase, create workspace if not already created
-        if phase == SessionPhase::Implementation && task.workspace_path.is_none() {
+        // Route to phase-specific handlers using SessionRunner
+        match phase {
+            SessionPhase::Planning => self.start_planning_with_runner(task).await,
+            SessionPhase::Implementation => self.start_implementation_with_runner(task).await,
+            SessionPhase::Review => self.start_review_with_runner(task).await,
+            SessionPhase::Fix => self.start_fix_with_runner(task).await,
+        }
+    }
+
+    /// Start implementation phase using SessionRunner abstraction
+    async fn start_implementation_with_runner(&self, task: &mut Task) -> Result<StartedExecution> {
+        info!(task_id = %task.id, "Starting implementation with SessionRunner");
+
+        // Setup workspace if not already created
+        if task.workspace_path.is_none() {
             if let Some(ref wm) = self.workspace_manager {
                 debug!("Setting up VCS workspace for async task execution");
                 match wm.setup_workspace(&task.id.to_string()).await {
@@ -789,415 +805,234 @@ impl TaskExecutor {
             }
         }
 
-        // Determine working directory - use workspace if available, otherwise root
+        // Determine working directory
         let working_dir = task.workspace_path
             .as_ref()
             .map(PathBuf::from)
             .unwrap_or_else(|| self.config.repo_path.clone());
 
-        let opencode_session = self.create_opencode_session_in_dir(&working_dir).await?;
-        let opencode_session_id = opencode_session.id.to_string();
+        // Check for multi-phase plan
+        if self.file_manager.plan_exists(task.id).await {
+            let plan_content = self.file_manager.read_plan(task.id).await?;
+            let parsed = parse_plan_phases(&plan_content);
 
-        let mut session = Session::new(task.id, phase);
-        session.start(opencode_session_id.clone());
-        self.persist_session(&session).await?;
+            info!(
+                task_id = %task.id,
+                phases_count = parsed.phases.len(),
+                is_single_phase = parsed.is_single_phase(),
+                "Checking plan for phased implementation"
+            );
 
-        self.emit_event(Event::SessionStarted {
-            session_id: session.id,
+            if !parsed.is_single_phase() {
+                info!(
+                    task_id = %task.id,
+                    total_phases = parsed.total_phases(),
+                    "Using phased implementation for multi-phase plan"
+                );
+                return self.start_phased_implementation_async(task, parsed, working_dir).await;
+            }
+        }
+
+        // Single-phase implementation
+        let plan = if self.file_manager.plan_exists(task.id).await {
+            self.file_manager.read_plan(task.id).await.ok()
+        } else {
+            None
+        };
+        let prompt = PhasePrompts::implementation_with_plan(task, plan.as_deref());
+
+        let config = SessionConfig {
             task_id: task.id,
-            phase: session.phase.as_str().to_string(),
-            status: session.status.as_str().to_string(),
-            opencode_session_id: session.opencode_session_id.clone(),
-            created_at: session.created_at,
-        });
+            task_status: task.status,
+            phase: SessionPhase::Implementation,
+            prompt,
+            working_dir,
+            provider_id: self.provider_id.clone(),
+            model_id: self.model_id.clone(),
+            mcp_config: None,
+            implementation_phase: None,
+            skip_task_status_update: false,
+        };
 
-        // For review phase, set up MCP server before spawning background task
-        let mcp_setup_success = if phase == SessionPhase::Review && task.status == TaskStatus::AiReview {
-            match self
-                .add_mcp_findings_server(task.id, session.id, &working_dir)
-                .await
-            {
+        let deps = SessionDependencies::new(
+            Arc::clone(&self.opencode_config),
+            self.session_repo.clone(),
+            self.task_repo.clone(),
+            self.event_bus.clone(),
+            self.activity_registry.clone(),
+            self.file_manager.clone(),
+        );
+
+        let result = SessionRunner::start(config, deps).await?;
+
+        Ok(StartedExecution {
+            session_id: result.session_id,
+            opencode_session_id: result.opencode_session_id,
+            phase: SessionPhase::Implementation,
+        })
+    }
+
+    /// Start review phase using SessionRunner abstraction
+    async fn start_review_with_runner(&self, task: &Task) -> Result<StartedExecution> {
+        info!(task_id = %task.id, "Starting review with SessionRunner");
+
+        // Determine working directory
+        let working_dir = task.workspace_path
+            .as_ref()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| self.config.repo_path.clone());
+
+        // Setup MCP server for AI review
+        let mcp_config = if task.status == TaskStatus::AiReview {
+            // Create a temporary session ID for MCP setup
+            let temp_session_id = Uuid::new_v4();
+            match self.add_mcp_findings_server(task.id, temp_session_id, &working_dir).await {
                 Ok(_) => {
-                    info!(task_id = %task.id, "MCP findings server added for async review");
-                    true
+                    info!(task_id = %task.id, "MCP findings server added for review");
+                    Some(crate::session_runner::McpConfig {
+                        workspace_path: working_dir.clone(),
+                        setup_success: true,
+                    })
                 }
                 Err(e) => {
                     warn!(error = %e, "Failed to add MCP server, falling back to JSON parsing");
-                    false
-                }
-            }
-        } else {
-            false
-        };
-
-        let prompt = match phase {
-            SessionPhase::Planning => PhasePrompts::planning(task),
-            SessionPhase::Implementation => {
-                let plan = if self.file_manager.plan_exists(task.id).await {
-                    self.file_manager.read_plan(task.id).await.ok()
-                } else {
                     None
-                };
-                PhasePrompts::implementation_with_plan(task, plan.as_deref())
-            }
-            SessionPhase::Review => {
-                let diff = self.get_workspace_diff(task).await.unwrap_or_default();
-                if mcp_setup_success {
-                    PhasePrompts::review_with_mcp(task, &diff)
-                } else {
-                    PhasePrompts::review(task, &diff)
                 }
             }
-            SessionPhase::Fix => {
-                // Fix phase uses MCP to read findings and fix them
-                PhasePrompts::fix_with_mcp(task)
-            }
-        };
-
-        let task_id = task.id;
-        let task_status = task.status;
-        let studio_session_id = session.id;
-        let opencode_session_id_clone = opencode_session_id.clone();
-        let opencode_config = Arc::clone(&self.opencode_config);
-        let session_repo = self.session_repo.clone();
-        let task_repo = self.task_repo.clone();
-        let event_bus = self.event_bus.clone();
-        let activity_registry = self.activity_registry.clone();
-        let file_manager = self.file_manager.clone();
-        let provider_id = self.provider_id.clone();
-        let model_id = self.model_id.clone();
-        let base_url = opencode_config
-            .base_path
-            .trim_end_matches("/api")
-            .to_string();
-        // Use working_dir (workspace if available, otherwise root)
-        let execution_dir = working_dir.clone();
-
-        let mcp_workspace = if mcp_setup_success {
-            Some(working_dir.clone())
         } else {
             None
         };
 
-        tokio::spawn(async move {
-            Self::run_background_execution(
-                opencode_config,
-                opencode_session_id_clone,
-                studio_session_id,
-                task_id,
-                task_status,
-                phase,
-                prompt,
-                session_repo,
-                task_repo,
-                event_bus,
-                activity_registry,
-                file_manager,
-                provider_id,
-                model_id,
-                base_url,
-                execution_dir,
-                mcp_workspace,
-            )
-            .await
-        });
+        // Get diff for review
+        let diff = self.get_workspace_diff(task).await.unwrap_or_default();
+        let prompt = if mcp_config.is_some() {
+            PhasePrompts::review_with_mcp(task, &diff)
+        } else {
+            PhasePrompts::review(task, &diff)
+        };
 
-        info!(
-            task_id = %task.id,
-            session_id = %session.id,
-            opencode_session_id = %opencode_session_id,
-            "Async execution started, returning immediately"
+        let config = SessionConfig {
+            task_id: task.id,
+            task_status: task.status,
+            phase: SessionPhase::Review,
+            prompt,
+            working_dir,
+            provider_id: self.provider_id.clone(),
+            model_id: self.model_id.clone(),
+            mcp_config,
+            implementation_phase: None,
+            skip_task_status_update: false,
+        };
+
+        let deps = SessionDependencies::new(
+            Arc::clone(&self.opencode_config),
+            self.session_repo.clone(),
+            self.task_repo.clone(),
+            self.event_bus.clone(),
+            self.activity_registry.clone(),
+            self.file_manager.clone(),
         );
 
+        let result = SessionRunner::start(config, deps).await?;
+
         Ok(StartedExecution {
-            session_id: session.id,
-            opencode_session_id,
-            phase,
+            session_id: result.session_id,
+            opencode_session_id: result.opencode_session_id,
+            phase: SessionPhase::Review,
         })
     }
 
-    #[allow(clippy::too_many_arguments)]
-    async fn run_background_execution(
-        opencode_config: Arc<Configuration>,
-        opencode_session_id: String,
-        studio_session_id: Uuid,
-        task_id: Uuid,
-        initial_task_status: TaskStatus,
-        phase: SessionPhase,
-        prompt: String,
-        session_repo: Option<Arc<SessionRepository>>,
-        task_repo: Option<Arc<TaskRepository>>,
-        event_bus: Option<EventBus>,
-        activity_registry: Option<SessionActivityRegistry>,
-        file_manager: FileManager,
-        provider_id: String,
-        model_id: String,
-        base_url: String,
-        repo_path: PathBuf,
-        mcp_workspace: Option<PathBuf>,
-    ) {
-        info!(
-            task_id = %task_id,
-            opencode_session_id = %opencode_session_id,
-            phase = %phase.as_str(),
-            "Background execution started"
-        );
+    /// Start fix phase using SessionRunner abstraction
+    async fn start_fix_with_runner(&self, task: &Task) -> Result<StartedExecution> {
+        info!(task_id = %task.id, "Starting fix with SessionRunner");
 
-        let activity_store = activity_registry
+        // Determine working directory
+        let working_dir = task.workspace_path
             .as_ref()
-            .map(|reg| reg.get_or_create(studio_session_id));
+            .map(PathBuf::from)
+            .unwrap_or_else(|| self.config.repo_path.clone());
 
-        let subscriber = OpenCodeEventSubscriber::new(
-            &base_url,
-            &opencode_session_id,
-            repo_path.to_string_lossy().to_string(),
-        );
-        let mut event_rx = subscriber.subscribe();
-
-        let model = opencode_client::models::SessionPromptRequestModel {
-            provider_id,
-            model_id,
-        };
-
-        let request = SessionPromptRequest {
-            parts: vec![Self::create_text_part(&prompt)],
-            model: Some(Box::new(model)),
-            message_id: None,
-            agent: None,
-            no_reply: None,
-            tools: None,
-            system: None,
-            variant: None,
-        };
-
-        info!(
-            task_id = %task_id,
-            opencode_session_id = %opencode_session_id,
-            "Sending prompt to OpenCode (this may take a while)..."
-        );
-
-        // Spawn a task to process SSE events
-        // We use session_prompt_async which returns immediately, then wait for
-        // SSE to signal completion via session.idle event
-        let activity_store_for_sse = activity_store.clone();
-        let opencode_session_id_for_sse = opencode_session_id.clone();
-        let task_id_for_sse = task_id;
-        let sse_task = tokio::spawn(async move {
-            debug!("SSE event processor started");
-            while let Some(event) = event_rx.recv().await {
-                match event {
-                    ExecutorEvent::SessionIdle { .. } => {
-                        info!(
-                            task_id = %task_id_for_sse,
-                            opencode_session_id = %opencode_session_id_for_sse,
-                            "OpenCode session completed (idle via SSE)"
-                        );
-                        break;
-                    }
-                    ExecutorEvent::MessagePartUpdated { session_id: event_session_id, part, .. } => {
-                        debug!(
-                            event_session_id = %event_session_id,
-                            our_session_id = %opencode_session_id_for_sse,
-                            "Received MessagePartUpdated event"
-                        );
-                        if let Some(ref store) = activity_store_for_sse {
-                            // Parse SSE part format directly (different from HTTP response Part struct)
-                            if let Some(activity) = TaskExecutor::parse_sse_part(&part) {
-                                debug!("Parsed activity from SSE part");
-                                store.push(activity);
-                            }
-                        } else {
-                            warn!("activity_store is None, cannot store activity");
-                        }
-                    }
-                    ExecutorEvent::Error { message } => {
-                        error!(error = %message, "SSE error during execution");
-                        break;
-                    }
-                    ExecutorEvent::Disconnected => {
-                        debug!("SSE disconnected");
-                        break;
-                    }
-                    ExecutorEvent::DirectActivity { activity } => {
-                        debug!(activity_type = ?std::mem::discriminant(&activity), "Received direct activity event");
-                        if let Some(ref store) = activity_store_for_sse {
-                            store.push(activity);
-                        } else {
-                            warn!("activity_store is None, cannot store direct activity");
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            debug!("SSE event processor finished");
+        // MCP should already be set up from review phase
+        let mcp_config = Some(crate::session_runner::McpConfig {
+            workspace_path: working_dir.clone(),
+            setup_success: true,
         });
 
-        // Use session_prompt_async which returns immediately
-        // We rely on SSE to monitor progress and detect completion
-        // Pass the project directory so OpenCode works in the correct context
-        let directory = repo_path.to_str();
-        let send_result = default_api::session_prompt_async(
-            &opencode_config,
-            &opencode_session_id,
-            directory,
-            Some(request),
-        )
-        .await;
+        let prompt = PhasePrompts::fix_with_mcp(task);
 
-        let mut success = true;
-        let mut error_msg = None;
+        let config = SessionConfig {
+            task_id: task.id,
+            task_status: task.status,
+            phase: SessionPhase::Fix,
+            prompt,
+            working_dir,
+            provider_id: self.provider_id.clone(),
+            model_id: self.model_id.clone(),
+            mcp_config,
+            implementation_phase: None,
+            skip_task_status_update: false,
+        };
 
-        match send_result {
-            Ok(()) => {
-                info!(
-                    task_id = %task_id,
-                    opencode_session_id = %opencode_session_id,
-                    "OpenCode prompt sent, waiting for completion via SSE"
-                );
+        let deps = SessionDependencies::new(
+            Arc::clone(&self.opencode_config),
+            self.session_repo.clone(),
+            self.task_repo.clone(),
+            self.event_bus.clone(),
+            self.activity_registry.clone(),
+            self.file_manager.clone(),
+        );
 
-                // Wait for SSE task to finish (it will receive idle event when done)
-                let _ = sse_task.await;
-                info!(task_id = %task_id, "Background execution completed successfully");
+        let result = SessionRunner::start(config, deps).await?;
 
-                // After completion, fetch messages and save artifacts (plan, review) if needed
-                if phase == SessionPhase::Planning {
-                    match default_api::session_messages(
-                        &opencode_config,
-                        &opencode_session_id,
-                        directory,
-                        None,
-                    )
-                    .await
-                    {
-                        Ok(messages) => {
-                            // Find the last assistant message and extract text
-                            if let Some(last_msg) = messages.iter().rev().find(|m| {
-                                matches!(
-                                    m.info.role,
-                                    opencode_client::models::message::Role::Assistant
-                                )
-                            }) {
-                                let plan_content = Self::extract_text_from_messages_inner(last_msg);
-                                if !plan_content.is_empty() {
-                                    match file_manager.write_plan(task_id, &plan_content).await {
-                                        Ok(path) => {
-                                            info!(
-                                                task_id = %task_id,
-                                                plan_path = %path.display(),
-                                                "Plan saved successfully"
-                                            );
-                                        }
-                                        Err(e) => {
-                                            error!(
-                                                task_id = %task_id,
-                                                error = %e,
-                                                "Failed to save plan file"
-                                            );
-                                        }
-                                    }
-                                } else {
-                                    warn!(task_id = %task_id, "No text content found in assistant message");
-                                }
-                            } else {
-                                warn!(task_id = %task_id, "No assistant message found in session");
-                            }
-                        }
-                        Err(e) => {
-                            error!(
-                                task_id = %task_id,
-                                error = %e,
-                                "Failed to fetch session messages for plan extraction"
-                            );
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                error!(task_id = %task_id, error = %e, "Failed to send prompt to OpenCode");
-                success = false;
-                error_msg = Some(e.to_string());
-            }
-        }
+        Ok(StartedExecution {
+            session_id: result.session_id,
+            opencode_session_id: result.opencode_session_id,
+            phase: SessionPhase::Fix,
+        })
+    }
 
-        if let Some(ref store) = activity_store {
-            store.push_finished(success, error_msg.clone());
-        }
+    /// Start planning phase using SessionRunner abstraction
+    async fn start_planning_with_runner(&self, task: &Task) -> Result<StartedExecution> {
+        info!(task_id = %task.id, "Starting planning with SessionRunner");
 
-        if let Some(ref repo) = session_repo {
-            let mut session = Session::new(task_id, phase);
-            session.id = studio_session_id;
-            session.opencode_session_id = Some(opencode_session_id.clone());
-            session.status = if success {
-                opencode_core::SessionStatus::Completed
-            } else {
-                opencode_core::SessionStatus::Failed
-            };
-            if let Err(e) = repo.update(&session).await {
-                error!(error = %e, "Failed to update session status");
-            }
-        }
+        let prompt = PhasePrompts::planning(task);
 
-        if success {
-            let next_status = match phase {
-                SessionPhase::Planning => TaskStatus::PlanningReview,
-                SessionPhase::Implementation => TaskStatus::AiReview,
-                SessionPhase::Review => {
-                    if initial_task_status == TaskStatus::AiReview {
-                        TaskStatus::Review
-                    } else {
-                        TaskStatus::Done
-                    }
-                }
-                // Fix phase transitions back to AiReview for re-evaluation
-                SessionPhase::Fix => TaskStatus::AiReview,
-            };
+        let config = SessionConfig {
+            task_id: task.id,
+            task_status: task.status,
+            phase: SessionPhase::Planning,
+            prompt,
+            working_dir: self.config.repo_path.clone(),
+            provider_id: self.provider_id.clone(),
+            model_id: self.model_id.clone(),
+            mcp_config: None,
+            implementation_phase: None,
+            skip_task_status_update: false,
+        };
 
-            if let Some(ref repo) = task_repo {
-                let update = UpdateTaskRequest {
-                    status: Some(next_status),
-                    ..Default::default()
-                };
-                if let Err(e) = repo.update(task_id, &update).await {
-                    error!(error = %e, "Failed to update task status");
-                } else {
-                    info!(
-                        task_id = %task_id,
-                        new_status = %next_status.as_str(),
-                        "Task status updated after background execution"
-                    );
-                }
-            }
+        let deps = SessionDependencies::new(
+            Arc::clone(&self.opencode_config),
+            self.session_repo.clone(),
+            self.task_repo.clone(),
+            self.event_bus.clone(),
+            self.activity_registry.clone(),
+            self.file_manager.clone(),
+        );
 
-            if let Some(ref bus) = event_bus {
-                bus.publish(EventEnvelope::new(Event::TaskStatusChanged {
-                    task_id,
-                    from_status: initial_task_status.as_str().to_string(),
-                    to_status: next_status.as_str().to_string(),
-                }));
-            }
-        }
+        let result = SessionRunner::start(config, deps).await?;
 
-        if let Some(ref bus) = event_bus {
-            bus.publish(EventEnvelope::new(Event::SessionEnded {
-                session_id: studio_session_id,
-                task_id,
-                success,
-            }));
-        }
+        info!(
+            task_id = %task.id,
+            session_id = %result.session_id,
+            opencode_session_id = %result.opencode_session_id,
+            "Planning started via SessionRunner"
+        );
 
-        // Cleanup MCP server if it was set up
-        if let Some(workspace_path) = mcp_workspace {
-            debug!("Cleaning up MCP findings server");
-            if let Err(e) = default_api::mcp_disconnect(
-                &opencode_config,
-                "opencode-findings",
-                workspace_path.to_str(),
-            )
-            .await
-            {
-                warn!(error = %e, "Failed to disconnect MCP findings server");
-            }
-        }
+        Ok(StartedExecution {
+            session_id: result.session_id,
+            opencode_session_id: result.opencode_session_id,
+            phase: SessionPhase::Planning,
+        })
     }
 
     #[instrument(skip(self, task), fields(task_id = %task.id))]
@@ -1302,6 +1137,54 @@ impl TaskExecutor {
             "Starting IMPLEMENTATION session"
         );
 
+        // Check if plan has multiple phases
+        if self.file_manager.plan_exists(task.id).await {
+            let plan_content = self.file_manager.read_plan(task.id).await?;
+
+            debug!(
+                task_id = %task.id,
+                plan_length = plan_content.len(),
+                plan_preview = %plan_content.chars().take(500).collect::<String>(),
+                "Read plan content for phase detection"
+            );
+
+            let parsed = parse_plan_phases(&plan_content);
+
+            info!(
+                task_id = %task.id,
+                phases_count = parsed.phases.len(),
+                is_single_phase = parsed.is_single_phase(),
+                total_phases = parsed.total_phases(),
+                phase_titles = ?parsed.phases.iter().map(|p| &p.title).collect::<Vec<_>>(),
+                "Plan parsed for implementation"
+            );
+
+            if !parsed.is_single_phase() {
+                info!(
+                    task_id = %task.id,
+                    total_phases = parsed.total_phases(),
+                    "Plan has multiple phases, using phased implementation"
+                );
+                return self.run_phased_implementation(task, parsed).await;
+            } else {
+                info!(
+                    task_id = %task.id,
+                    "Plan has single phase, using single implementation session"
+                );
+            }
+        } else {
+            warn!(
+                task_id = %task.id,
+                "No plan file found for task"
+            );
+        }
+
+        // Single phase - use the original implementation
+        self.run_single_implementation_session(task).await
+    }
+
+    /// Run a single (non-phased) implementation session
+    async fn run_single_implementation_session(&self, task: &mut Task) -> Result<PhaseResult> {
         let mut session = Session::new(task.id, SessionPhase::Implementation);
 
         if let Some(ref wm) = self.workspace_manager {
@@ -1419,6 +1302,676 @@ impl TaskExecutor {
         Ok(PhaseResult::SessionCreated {
             session_id: session_id_str,
         })
+    }
+
+    /// Run phased implementation - each phase in a separate session
+    async fn run_phased_implementation(
+        &self,
+        task: &mut Task,
+        parsed_plan: crate::files::ParsedPlan,
+    ) -> Result<PhaseResult> {
+        // Load or create phase context
+        let mut context = self
+            .file_manager
+            .read_phase_context(task.id)
+            .await?
+            .unwrap_or_else(|| PhaseContext::new(parsed_plan.total_phases()));
+
+        info!(
+            task_id = %task.id,
+            current_phase = context.phase_number,
+            total_phases = context.total_phases,
+            "Running phased implementation"
+        );
+
+        // Setup workspace if not already done
+        if task.workspace_path.is_none() {
+            if let Some(ref wm) = self.workspace_manager {
+                let workspace = wm.setup_workspace(&task.id.to_string()).await.map_err(|e| {
+                    error!(error = %e, "Failed to setup workspace");
+                    OrchestratorError::ExecutionFailed(format!("Failed to setup workspace: {}", e))
+                })?;
+                task.workspace_path = Some(workspace.path.to_string_lossy().to_string());
+
+                self.emit_event(Event::WorkspaceCreated {
+                    task_id: task.id,
+                    path: workspace.path.to_string_lossy().to_string(),
+                });
+            }
+        }
+
+        let working_dir = task
+            .workspace_path
+            .as_ref()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| self.config.repo_path.clone());
+
+        // Run phases until all complete
+        while !context.is_complete() {
+            let phase_idx = (context.phase_number - 1) as usize;
+            if phase_idx >= parsed_plan.phases.len() {
+                break;
+            }
+
+            let current_phase = &parsed_plan.phases[phase_idx];
+
+            info!(
+                task_id = %task.id,
+                phase = context.phase_number,
+                total = context.total_phases,
+                phase_title = %current_phase.title,
+                "Starting implementation phase"
+            );
+
+            // Create session for this phase
+            let mut session = Session::new_implementation_phase(
+                task.id,
+                context.phase_number,
+                &current_phase.title,
+            );
+
+            let opencode_session = self.create_opencode_session_in_dir(&working_dir).await?;
+            let session_id_str = opencode_session.id.to_string();
+
+            session.start(session_id_str.clone());
+            self.persist_session(&session).await?;
+
+            let activity_store = self.get_activity_store(session.id);
+
+            self.emit_event(Event::SessionStarted {
+                session_id: session.id,
+                task_id: task.id,
+                phase: session.phase.as_str().to_string(),
+                status: session.status.as_str().to_string(),
+                opencode_session_id: session.opencode_session_id.clone(),
+                created_at: session.created_at,
+            });
+
+            // Generate phase-specific prompt
+            let prompt = PhasePrompts::implementation_phase(task, current_phase, &context);
+
+            // Send prompt and get response
+            let response = self
+                .send_opencode_message_in_dir(
+                    &session_id_str,
+                    &prompt,
+                    activity_store.as_deref(),
+                    &working_dir,
+                )
+                .await;
+
+            let response_text = match response {
+                Ok(text) => {
+                    if let Some(ref store) = activity_store {
+                        store.push_finished(true, None);
+                    }
+                    text
+                }
+                Err(e) => {
+                    if let Some(ref store) = activity_store {
+                        store.push_finished(false, Some(e.to_string()));
+                    }
+                    session.fail();
+                    self.update_session(&session).await?;
+                    return Err(e);
+                }
+            };
+
+            // Extract summary from response
+            let summary = self.extract_or_create_phase_summary(
+                &response_text,
+                context.phase_number,
+                &current_phase.title,
+            );
+
+            // Save phase summary
+            self.file_manager
+                .write_phase_summary(task.id, &summary)
+                .await?;
+
+            // Mark phase complete in plan
+            self.file_manager
+                .mark_phase_complete_in_plan(task.id, context.phase_number)
+                .await?;
+
+            // Emit phase completed event
+            self.emit_event(Event::PhaseCompleted {
+                task_id: task.id,
+                session_id: session.id,
+                phase_number: context.phase_number,
+                total_phases: context.total_phases,
+                phase_title: current_phase.title.clone(),
+            });
+
+            session.complete();
+            self.update_session(&session).await?;
+
+            self.emit_event(Event::SessionEnded {
+                session_id: session.id,
+                task_id: task.id,
+                success: true,
+            });
+
+            // Advance to next phase
+            context.advance(summary);
+            self.file_manager
+                .write_phase_context(task.id, &context)
+                .await?;
+
+            if !context.is_complete() {
+                self.emit_event(Event::PhaseContinuing {
+                    task_id: task.id,
+                    next_phase_number: context.phase_number,
+                    total_phases: context.total_phases,
+                });
+            }
+        }
+
+        // All phases complete, transition to AI review
+        self.transition(task, TaskStatus::AiReview)?;
+
+        info!(
+            task_id = %task.id,
+            total_phases = context.total_phases,
+            "All implementation phases completed, proceeding to AI review"
+        );
+
+        Ok(PhaseResult::PhasedImplementationComplete {
+            total_phases: context.total_phases,
+        })
+    }
+
+    /// Extract phase summary from AI response or create a basic one from git diff
+    fn extract_or_create_phase_summary(
+        &self,
+        response: &str,
+        phase_number: u32,
+        phase_title: &str,
+    ) -> PhaseSummary {
+        // Try to extract structured summary from response
+        if let Some(extracted) = extract_phase_summary(response) {
+            return PhaseSummary::new(
+                phase_number,
+                phase_title,
+                extracted.summary,
+                extracted.files_changed,
+                extracted.notes,
+            );
+        }
+
+        // Fallback: create basic summary
+        info!(
+            phase = phase_number,
+            "No structured summary found in response, creating basic summary"
+        );
+
+        // Get a truncated version of the response as summary
+        let summary = if response.len() > 500 {
+            format!("{}...", &response[..497])
+        } else {
+            response.to_string()
+        };
+
+        PhaseSummary::new(
+            phase_number,
+            phase_title,
+            summary,
+            Vec::new(), // Empty files list - could be improved by parsing git status
+            None,
+        )
+    }
+
+    /// Start phased implementation asynchronously
+    /// This spawns a background task that runs all phases sequentially
+    async fn start_phased_implementation_async(
+        &self,
+        task: &mut Task,
+        parsed_plan: crate::files::ParsedPlan,
+        working_dir: PathBuf,
+    ) -> Result<StartedExecution> {
+        // Load or create phase context
+        let context = self
+            .file_manager
+            .read_phase_context(task.id)
+            .await?
+            .unwrap_or_else(|| PhaseContext::new(parsed_plan.total_phases()));
+
+        let phase_idx = (context.phase_number - 1) as usize;
+        let current_phase = parsed_plan.phases.get(phase_idx).ok_or_else(|| {
+            OrchestratorError::ExecutionFailed(format!(
+                "Phase {} not found in plan",
+                context.phase_number
+            ))
+        })?;
+
+        // Create the first session for the current phase
+        let opencode_session = self.create_opencode_session_in_dir(&working_dir).await?;
+        let opencode_session_id = opencode_session.id.to_string();
+
+        let mut session = Session::new_implementation_phase(
+            task.id,
+            context.phase_number,
+            &current_phase.title,
+        );
+        session.start(opencode_session_id.clone());
+        self.persist_session(&session).await?;
+
+        self.emit_event(Event::SessionStarted {
+            session_id: session.id,
+            task_id: task.id,
+            phase: session.phase.as_str().to_string(),
+            status: session.status.as_str().to_string(),
+            opencode_session_id: session.opencode_session_id.clone(),
+            created_at: session.created_at,
+        });
+
+        let first_session_id = session.id;
+        let first_opencode_session_id = opencode_session_id.clone();
+        let return_opencode_session_id = first_opencode_session_id.clone();
+
+        // Capture all needed data for background task
+        let task_id = task.id;
+        let task_clone = task.clone();
+        let file_manager = self.file_manager.clone();
+        let session_repo = self.session_repo.clone();
+        let task_repo = self.task_repo.clone();
+        let event_bus = self.event_bus.clone();
+        let activity_registry = self.activity_registry.clone();
+        let opencode_config = Arc::clone(&self.opencode_config);
+        let provider_id = self.provider_id.clone();
+        let model_id = self.model_id.clone();
+        let base_url = self.opencode_config
+            .base_path
+            .trim_end_matches("/api")
+            .to_string();
+
+        tokio::spawn(async move {
+            let mut task = task_clone;
+            match Self::run_phased_implementation_background_static(
+                &mut task,
+                parsed_plan,
+                working_dir,
+                first_session_id,
+                first_opencode_session_id,
+                file_manager,
+                session_repo,
+                task_repo,
+                event_bus,
+                activity_registry,
+                opencode_config,
+                provider_id,
+                model_id,
+                base_url,
+            ).await {
+                Ok(_) => {
+                    info!(task_id = %task_id, "Phased implementation completed successfully");
+                }
+                Err(e) => {
+                    error!(task_id = %task_id, error = %e, "Phased implementation failed");
+                }
+            }
+        });
+
+        Ok(StartedExecution {
+            session_id: first_session_id,
+            opencode_session_id: return_opencode_session_id,
+            phase: SessionPhase::Implementation,
+        })
+    }
+
+    /// Run phased implementation in background using SessionRunner
+    async fn run_phased_implementation_background_static(
+        task: &mut Task,
+        parsed_plan: crate::files::ParsedPlan,
+        working_dir: PathBuf,
+        first_session_id: uuid::Uuid,
+        first_opencode_session_id: String,
+        file_manager: FileManager,
+        session_repo: Option<Arc<SessionRepository>>,
+        task_repo: Option<Arc<TaskRepository>>,
+        event_bus: Option<EventBus>,
+        activity_registry: Option<SessionActivityRegistry>,
+        opencode_config: Arc<Configuration>,
+        provider_id: String,
+        model_id: String,
+        _base_url: String,
+    ) -> Result<()> {
+        let mut context = file_manager
+            .read_phase_context(task.id)
+            .await?
+            .unwrap_or_else(|| PhaseContext::new(parsed_plan.total_phases()));
+
+        info!(
+            task_id = %task.id,
+            current_phase = context.phase_number,
+            total_phases = context.total_phases,
+            "Starting phased implementation"
+        );
+
+        let mut is_first_phase = true;
+
+        while !context.is_complete() {
+            let phase_idx = (context.phase_number - 1) as usize;
+            if phase_idx >= parsed_plan.phases.len() {
+                break;
+            }
+
+            let current_phase = &parsed_plan.phases[phase_idx];
+
+            info!(
+                task_id = %task.id,
+                phase = context.phase_number,
+                total = context.total_phases,
+                phase_title = %current_phase.title,
+                "Starting phase"
+            );
+
+            // Get or create session for this phase
+            let (session_id, opencode_session_id) = if is_first_phase {
+                is_first_phase = false;
+                (first_session_id, first_opencode_session_id.clone())
+            } else {
+                // Create new session for subsequent phases
+                let opencode_session = Self::create_opencode_session_static(
+                    &opencode_config,
+                    working_dir.to_str(),
+                ).await?;
+                let new_opencode_session_id = opencode_session.id.to_string();
+
+                let mut session = Session::new_implementation_phase(
+                    task.id,
+                    context.phase_number,
+                    &current_phase.title,
+                );
+                session.start(new_opencode_session_id.clone());
+
+                if let Some(ref repo) = session_repo {
+                    repo.create(&session).await.map_err(|e| {
+                        OrchestratorError::ExecutionFailed(format!("Failed to persist session: {}", e))
+                    })?;
+                }
+
+                if let Some(ref bus) = event_bus {
+                    bus.publish(EventEnvelope::new(Event::SessionStarted {
+                        session_id: session.id,
+                        task_id: task.id,
+                        phase: session.phase.as_str().to_string(),
+                        status: session.status.as_str().to_string(),
+                        opencode_session_id: session.opencode_session_id.clone(),
+                        created_at: session.created_at,
+                    }));
+                }
+
+                (session.id, new_opencode_session_id)
+            };
+
+            // Build config for this phase - skip task status update (we do it manually at the end)
+            let prompt = PhasePrompts::implementation_phase(task, current_phase, &context);
+            let config = SessionConfig {
+                task_id: task.id,
+                task_status: task.status,
+                phase: SessionPhase::Implementation,
+                prompt,
+                working_dir: working_dir.clone(),
+                provider_id: provider_id.clone(),
+                model_id: model_id.clone(),
+                mcp_config: None,
+                implementation_phase: Some((context.phase_number, current_phase.title.clone())),
+                skip_task_status_update: true,
+            };
+
+            let deps = SessionDependencies::new(
+                Arc::clone(&opencode_config),
+                session_repo.clone(),
+                task_repo.clone(),
+                event_bus.clone(),
+                activity_registry.clone(),
+                file_manager.clone(),
+            );
+
+            // Execute phase and wait for completion
+            let opencode_session_id_clone = opencode_session_id.clone();
+            let (success, response_text) = SessionRunner::execute_and_complete(
+                config,
+                deps,
+                session_id,
+                opencode_session_id_clone,
+            ).await;
+
+            if !success {
+                return Err(OrchestratorError::ExecutionFailed(
+                    format!("Phase {} failed", context.phase_number)
+                ));
+            }
+
+            // Extract phase summary - with retry if missing
+            let summary = Self::extract_or_request_phase_summary(
+                &response_text,
+                context.phase_number,
+                &current_phase.title,
+                &opencode_config,
+                &opencode_session_id,
+                working_dir.to_str(),
+            ).await;
+
+            file_manager.write_phase_summary(task.id, &summary).await?;
+            file_manager.mark_phase_complete_in_plan(task.id, context.phase_number).await?;
+
+            // Emit phase completed event
+            if let Some(ref bus) = event_bus {
+                bus.publish(EventEnvelope::new(Event::PhaseCompleted {
+                    task_id: task.id,
+                    session_id,
+                    phase_number: context.phase_number,
+                    total_phases: context.total_phases,
+                    phase_title: current_phase.title.clone(),
+                }));
+            }
+
+            // Advance to next phase
+            context.advance(summary);
+            file_manager.write_phase_context(task.id, &context).await?;
+
+            if !context.is_complete() {
+                if let Some(ref bus) = event_bus {
+                    bus.publish(EventEnvelope::new(Event::PhaseContinuing {
+                        task_id: task.id,
+                        next_phase_number: context.phase_number,
+                        total_phases: context.total_phases,
+                    }));
+                }
+            }
+        }
+
+        // All phases complete - now update task status to AiReview
+        task.status = TaskStatus::AiReview;
+
+        if let Some(ref repo) = task_repo {
+            let update = UpdateTaskRequest {
+                status: Some(TaskStatus::AiReview),
+                ..Default::default()
+            };
+            let _ = repo.update(task.id, &update).await;
+        }
+
+        if let Some(ref bus) = event_bus {
+            bus.publish(EventEnvelope::new(Event::TaskStatusChanged {
+                task_id: task.id,
+                from_status: TaskStatus::InProgress.as_str().to_string(),
+                to_status: TaskStatus::AiReview.as_str().to_string(),
+            }));
+        }
+
+        info!(
+            task_id = %task.id,
+            total_phases = context.total_phases,
+            "All phases completed, proceeding to AI review"
+        );
+
+        Ok(())
+    }
+
+    /// Extract phase summary from response, or request it via follow-up prompt if missing
+    async fn extract_or_request_phase_summary(
+        response: &str,
+        phase_number: u32,
+        phase_title: &str,
+        opencode_config: &Configuration,
+        opencode_session_id: &str,
+        directory: Option<&str>,
+    ) -> PhaseSummary {
+        // First try to extract from response
+        if let Some(extracted) = extract_phase_summary(response) {
+            info!(phase = phase_number, "Phase summary extracted successfully");
+            return PhaseSummary::new(
+                phase_number,
+                phase_title,
+                extracted.summary,
+                extracted.files_changed,
+                extracted.notes,
+            );
+        }
+
+        // Summary not found - send follow-up prompt to request it
+        warn!(
+            phase = phase_number,
+            "No PHASE_SUMMARY found in response, sending follow-up request"
+        );
+
+        let follow_up_prompt = PhasePrompts::request_phase_summary(phase_number, phase_title);
+
+        // Build and send the follow-up request
+        let request = SessionPromptRequest {
+            parts: vec![SessionPromptRequestPartsInner {
+                r#type: opencode_client::models::session_prompt_request_parts_inner::Type::Text,
+                text: follow_up_prompt,
+                id: None,
+                synthetic: None,
+                ignored: None,
+                time: None,
+                metadata: None,
+                mime: String::new(),
+                filename: None,
+                url: String::new(),
+                source: None,
+                name: String::new(),
+                prompt: String::new(),
+                description: String::new(),
+                agent: String::new(),
+                command: None,
+            }],
+            model: None, // Use same model as the session
+            message_id: None,
+            agent: None,
+            no_reply: None,
+            tools: None,
+            system: None,
+            variant: None,
+        };
+
+        // Send sync prompt and wait for response
+        match default_api::session_prompt(
+            opencode_config,
+            opencode_session_id,
+            directory,
+            Some(request),
+        ).await {
+            Ok(response) => {
+                // Response is a single assistant message with parts
+                let response_text = Self::extract_text_from_parts(&response.parts);
+
+                // Try to extract summary from follow-up response
+                if let Some(extracted) = extract_phase_summary(&response_text) {
+                    info!(phase = phase_number, "Phase summary obtained via follow-up prompt");
+                    return PhaseSummary::new(
+                        phase_number,
+                        phase_title,
+                        extracted.summary,
+                        extracted.files_changed,
+                        extracted.notes,
+                    );
+                }
+            }
+            Err(e) => {
+                error!(phase = phase_number, error = %e, "Failed to send follow-up prompt for summary");
+            }
+        }
+
+        // Fallback: create basic summary from original response
+        warn!(
+            phase = phase_number,
+            "Could not obtain structured summary, using fallback"
+        );
+
+        let summary = if response.len() > 500 {
+            format!("{}...", &response[..497])
+        } else {
+            response.to_string()
+        };
+
+        PhaseSummary::new(
+            phase_number,
+            phase_title,
+            summary,
+            Vec::new(),
+            None,
+        )
+    }
+
+    /// Static version of extract_or_create_phase_summary (legacy - still used by non-phased implementation)
+    #[allow(dead_code)]
+    fn extract_or_create_phase_summary_static(
+        response: &str,
+        phase_number: u32,
+        phase_title: &str,
+    ) -> PhaseSummary {
+        // Try to extract structured summary from response
+        if let Some(extracted) = extract_phase_summary(response) {
+            return PhaseSummary::new(
+                phase_number,
+                phase_title,
+                extracted.summary,
+                extracted.files_changed,
+                extracted.notes,
+            );
+        }
+
+        // Fallback: create basic summary
+        info!(
+            phase = phase_number,
+            "No structured summary found in response, creating basic summary"
+        );
+
+        let summary = if response.len() > 500 {
+            format!("{}...", &response[..497])
+        } else {
+            response.to_string()
+        };
+
+        PhaseSummary::new(
+            phase_number,
+            phase_title,
+            summary,
+            Vec::new(),
+            None,
+        )
+    }
+
+    /// Static version of create_opencode_session
+    async fn create_opencode_session_static(
+        config: &Configuration,
+        directory: Option<&str>,
+    ) -> Result<opencode_client::models::Session> {
+        use opencode_client::apis::default_api;
+
+        let request = opencode_client::models::SessionCreateRequest {
+            title: None,
+            parent_id: None,
+        };
+
+        default_api::session_create(config, directory, Some(request))
+            .await
+            .map_err(|e| OrchestratorError::OpenCodeError(format!("Failed to create session: {}", e)))
     }
 
     #[instrument(skip(self, task), fields(task_id = %task.id, iteration = iteration))]
@@ -2201,6 +2754,10 @@ pub enum PhaseResult {
     FixCompleted {
         session_id: String,
     },
+    /// Multi-phase implementation completed
+    PhasedImplementationComplete {
+        total_phases: u32,
+    },
     MaxIterationsExceeded {
         iterations: u32,
     },
@@ -2276,6 +2833,7 @@ mod tests {
         match result {
             ReviewResult::ChangesRequested(_) => {}
             ReviewResult::Approved => panic!("Should not be approved when NOT APPROVED is present"),
+            ReviewResult::FindingsDetected(_) => {}
         }
     }
 

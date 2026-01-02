@@ -7,6 +7,7 @@ import {
 	type listSessionsForTaskResponse,
 } from "@/api/generated/sessions/sessions";
 import { getListTasksQueryKey, type listTasksResponse } from "@/api/generated/tasks/tasks";
+import { getGetTaskPhasesQueryKey } from "@/api/generated/phases/phases";
 import { useExecutingTasksStore } from "@/stores/useExecutingTasksStore";
 import { toast } from "@/stores/useToastStore";
 import type { Event } from "@/types/generated/Event";
@@ -163,6 +164,20 @@ export function useEventStream(options: UseEventStreamOptions = {}) {
 				case "workspace.deleted":
 					void queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
 					break;
+				case "phase.completed": {
+					// Invalidate phases query to update the UI
+					void queryClient.invalidateQueries({ queryKey: getGetTaskPhasesQueryKey(event.task_id) });
+					// Also invalidate sessions as a new session may have been created
+					void queryClient.invalidateQueries({ queryKey: getListSessionsForTaskQueryKey(event.task_id) });
+					toast.success(`Phase ${event.phase_number}/${event.total_phases} completed: ${event.phase_title}`);
+					break;
+				}
+				case "phase.continuing": {
+					// Invalidate phases query
+					void queryClient.invalidateQueries({ queryKey: getGetTaskPhasesQueryKey(event.task_id) });
+					toast.info(`Starting phase ${event.next_phase_number}/${event.total_phases}`);
+					break;
+				}
 			}
 		},
 		[queryClient, updateTaskInCache, addSessionToCache, updateSessionInCache, startExecuting, stopExecuting],
@@ -227,6 +242,8 @@ export function useEventStream(options: UseEventStreamOptions = {}) {
 				"task.status_changed",
 				"session.started",
 				"session.ended",
+				"phase.completed",
+				"phase.continuing",
 				"agent.message",
 				"tool.execution",
 				"workspace.created",

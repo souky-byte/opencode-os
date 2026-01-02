@@ -28,6 +28,8 @@ import type {
   DiffResponse,
   MergeRequest,
   MergeResponse,
+  SetViewedRequest,
+  ViewedFilesResponse,
   WorkspaceResponse,
   WorkspaceStatusResponse
 } from '.././model';
@@ -39,7 +41,191 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export type createWorkspaceForTaskResponse201 = {
+export type getViewedFilesResponse200 = {
+  data: ViewedFilesResponse
+  status: 200
+}
+    
+export type getViewedFilesResponseSuccess = (getViewedFilesResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getViewedFilesResponse = (getViewedFilesResponseSuccess)
+
+export const getGetViewedFilesUrl = (taskId: string,) => {
+
+
+  
+
+  return `/api/tasks/${taskId}/diff/viewed`
+}
+
+export const getViewedFiles = async (taskId: string, options?: RequestInit): Promise<getViewedFilesResponse> => {
+  
+  return customFetch<getViewedFilesResponse>(getGetViewedFilesUrl(taskId),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+
+
+export const getGetViewedFilesQueryKey = (taskId?: string,) => {
+    return [
+    `/api/tasks/${taskId}/diff/viewed`
+    ] as const;
+    }
+
+    
+export const getGetViewedFilesQueryOptions = <TData = Awaited<ReturnType<typeof getViewedFiles>>, TError = unknown>(taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getViewedFiles>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetViewedFilesQueryKey(taskId);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getViewedFiles>>> = ({ signal }) => getViewedFiles(taskId, { signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(taskId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getViewedFiles>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetViewedFilesQueryResult = NonNullable<Awaited<ReturnType<typeof getViewedFiles>>>
+export type GetViewedFilesQueryError = unknown
+
+
+export function useGetViewedFiles<TData = Awaited<ReturnType<typeof getViewedFiles>>, TError = unknown>(
+ taskId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getViewedFiles>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getViewedFiles>>,
+          TError,
+          Awaited<ReturnType<typeof getViewedFiles>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetViewedFiles<TData = Awaited<ReturnType<typeof getViewedFiles>>, TError = unknown>(
+ taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getViewedFiles>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getViewedFiles>>,
+          TError,
+          Awaited<ReturnType<typeof getViewedFiles>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetViewedFiles<TData = Awaited<ReturnType<typeof getViewedFiles>>, TError = unknown>(
+ taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getViewedFiles>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetViewedFiles<TData = Awaited<ReturnType<typeof getViewedFiles>>, TError = unknown>(
+ taskId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getViewedFiles>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetViewedFilesQueryOptions(taskId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+export type setFileViewedResponse204 = {
+  data: void
+  status: 204
+}
+    
+export type setFileViewedResponseSuccess = (setFileViewedResponse204) & {
+  headers: Headers;
+};
+;
+
+export type setFileViewedResponse = (setFileViewedResponseSuccess)
+
+export const getSetFileViewedUrl = (taskId: string,) => {
+
+
+  
+
+  return `/api/tasks/${taskId}/diff/viewed`
+}
+
+export const setFileViewed = async (taskId: string,
+    setViewedRequest: SetViewedRequest, options?: RequestInit): Promise<setFileViewedResponse> => {
+  
+  return customFetch<setFileViewedResponse>(getSetFileViewedUrl(taskId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      setViewedRequest,)
+  }
+);}
+
+
+
+
+export const getSetFileViewedMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setFileViewed>>, TError,{taskId: string;data: SetViewedRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setFileViewed>>, TError,{taskId: string;data: SetViewedRequest}, TContext> => {
+
+const mutationKey = ['setFileViewed'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setFileViewed>>, {taskId: string;data: SetViewedRequest}> = (props) => {
+          const {taskId,data} = props ?? {};
+
+          return  setFileViewed(taskId,data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetFileViewedMutationResult = NonNullable<Awaited<ReturnType<typeof setFileViewed>>>
+    export type SetFileViewedMutationBody = SetViewedRequest
+    export type SetFileViewedMutationError = unknown
+
+    export const useSetFileViewed = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setFileViewed>>, TError,{taskId: string;data: SetViewedRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setFileViewed>>,
+        TError,
+        {taskId: string;data: SetViewedRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getSetFileViewedMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    export type createWorkspaceForTaskResponse201 = {
   data: WorkspaceResponse
   status: 201
 }

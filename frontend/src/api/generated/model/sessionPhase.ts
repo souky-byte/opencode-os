@@ -14,4 +14,5 @@ export const SessionPhase = {
   planning: 'planning',
   implementation: 'implementation',
   review: 'review',
+  fix: 'fix',
 } as const;

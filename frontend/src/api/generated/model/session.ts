@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SessionCompletedAt } from './sessionCompletedAt';
+import type { SessionImplementationPhaseNumber } from './sessionImplementationPhaseNumber';
+import type { SessionImplementationPhaseTitle } from './sessionImplementationPhaseTitle';
 import type { SessionOpencodeSessionId } from './sessionOpencodeSessionId';
 import type { SessionPhase } from './sessionPhase';
 import type { SessionStartedAt } from './sessionStartedAt';
@@ -15,6 +17,13 @@ export interface Session {
   completed_at?: SessionCompletedAt;
   created_at: string;
   id: string;
+  /**
+   * For multi-phase implementation: current phase number (1-indexed)
+   * @minimum 0
+   */
+  implementation_phase_number?: SessionImplementationPhaseNumber;
+  /** For multi-phase implementation: current phase title */
+  implementation_phase_title?: SessionImplementationPhaseTitle;
   opencode_session_id?: SessionOpencodeSessionId;
   phase: SessionPhase;
   started_at?: SessionStartedAt;

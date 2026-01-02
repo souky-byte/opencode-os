@@ -2,4 +2,12 @@
 import type { SessionPhase } from "./SessionPhase";
 import type { SessionStatus } from "./SessionStatus";
 
-export type Session = { id: string, task_id: string, opencode_session_id: string | null, phase: SessionPhase, status: SessionStatus, started_at: string | null, completed_at: string | null, created_at: string, };
+export type Session = { id: string, task_id: string, opencode_session_id: string | null, phase: SessionPhase, status: SessionStatus, started_at: string | null, completed_at: string | null, created_at: string, 
+/**
+ * For multi-phase implementation: current phase number (1-indexed)
+ */
+implementation_phase_number: number | null, 
+/**
+ * For multi-phase implementation: current phase title
+ */
+implementation_phase_title: string | null, };

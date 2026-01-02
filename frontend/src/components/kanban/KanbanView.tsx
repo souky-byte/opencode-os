@@ -12,6 +12,7 @@ const COLUMN_ORDER: TaskStatus[] = [
 	"planning_review",
 	"in_progress",
 	"ai_review",
+	"fix",
 	"review",
 	"done",
 ];
@@ -33,6 +34,7 @@ function KanbanView({ selectedTaskId, onSelectTask, onAddTask }: KanbanViewProps
 			planning_review: [],
 			in_progress: [],
 			ai_review: [],
+			fix: [],
 			review: [],
 			done: [],
 		};

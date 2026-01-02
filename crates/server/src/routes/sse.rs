@@ -82,6 +82,8 @@ fn envelope_to_sse_event(envelope: &events::EventEnvelope) -> Result<Event, Infa
         events::Event::TaskStatusChanged { .. } => "task.status_changed",
         events::Event::SessionStarted { .. } => "session.started",
         events::Event::SessionEnded { .. } => "session.ended",
+        events::Event::PhaseCompleted { .. } => "phase.completed",
+        events::Event::PhaseContinuing { .. } => "phase.continuing",
         events::Event::AgentMessage { .. } => "agent.message",
         events::Event::ToolExecution { .. } => "tool.execution",
         events::Event::WorkspaceCreated { .. } => "workspace.created",

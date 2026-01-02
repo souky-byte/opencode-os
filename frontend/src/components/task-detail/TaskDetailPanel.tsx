@@ -10,6 +10,8 @@ import {
 import { getListSessionsForTaskQueryKey } from "@/api/generated/sessions/sessions";
 import { customFetch } from "@/lib/api-fetcher";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
+import { DiffViewer } from "@/components/diff";
+import { PhasesList } from "@/components/task-detail/PhasesList";
 import { STATUS_CONFIG } from "@/components/kanban/KanbanColumn";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -234,8 +236,8 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
 				)}
 			</div>
 
-			<Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-				<TabsList className="mx-4 mt-2 w-fit">
+			<Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+				<TabsList className="mx-4 mt-2 w-fit shrink-0">
 					<TabsTrigger value="details">Details</TabsTrigger>
 					<TabsTrigger value="activity" className="relative">
 						Activity
@@ -248,17 +250,18 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
 					<TabsTrigger value="sessions">Sessions</TabsTrigger>
 				</TabsList>
 
-				<TabsContent value="activity" className="flex-1 mt-0 relative">
+				{/* Activity tab - needs its own scroll handling */}
+				<TabsContent value="activity" className="flex-1 mt-0 min-h-0 flex flex-col">
 					{taskSessions.length === 0 ? (
-						<div className="flex items-center justify-center h-full p-4">
+						<div className="flex items-center justify-center flex-1 p-4">
 							<p className="text-sm text-muted-foreground">
 								No sessions yet. Execute a phase to start.
 							</p>
 						</div>
 					) : (
-						<div className="flex flex-col h-full">
+						<div className="flex flex-col flex-1 min-h-0">
 							{taskSessions.length > 1 && (
-								<div className="flex gap-1 px-4 py-2 border-b overflow-x-auto">
+								<div className="flex gap-1 px-4 py-2 border-b overflow-x-auto shrink-0">
 									{taskSessions.map((session: Session) => (
 										<button
 											key={session.id}
@@ -279,26 +282,37 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
 									))}
 								</div>
 							)}
-							<ActivityFeed
-								activities={activities}
-								isConnected={activityConnected}
-								isFinished={activityFinished}
-								error={activityError}
-								className="flex-1"
-							/>
+							<ScrollArea className="flex-1">
+								<ActivityFeed
+									activities={activities}
+									isConnected={activityConnected}
+									isFinished={activityFinished}
+									error={activityError}
+									className="p-4"
+								/>
+							</ScrollArea>
 						</div>
 					)}
 				</TabsContent>
 
-				<ScrollArea className="flex-1 p-4">
-					<TabsContent value="details" className="mt-0">
-						<div className="space-y-4">
+				{/* Details tab */}
+				<TabsContent value="details" className="flex-1 mt-0 min-h-0">
+					<ScrollArea className="h-full">
+						<div className="p-4 space-y-4">
 							<div>
 								<h3 className="text-sm font-medium text-muted-foreground">Description</h3>
 								<p className="mt-1 text-sm whitespace-pre-wrap">
 									{task.description || "No description provided"}
 								</p>
 							</div>
+
+							{/* Show phases for tasks in implementation or later stages */}
+							{["in_progress", "ai_review", "fix", "review", "done"].includes(task.status) && (
+								<>
+									<Separator />
+									<PhasesList taskId={task.id} />
+								</>
+							)}
 
 							<Separator />
 
@@ -327,67 +341,84 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
 								)}
 							</div>
 						</div>
-					</TabsContent>
+					</ScrollArea>
+				</TabsContent>
 
-					<TabsContent value="plan" className="mt-0">
-						{planLoading ? (
-							<Loader size="sm" message="Loading plan..." />
-						) : planData?.data?.exists && planData.data.content ? (
-							<div className="rounded-lg border bg-card p-4">
-								<Markdown text={planData.data.content} />
-							</div>
-						) : (
-							<div className="rounded-lg border bg-muted/30 p-4">
-								<p className="text-sm text-muted-foreground">
-									{task.status === "todo"
-										? "Plan will be generated when the task enters the Planning phase."
-										: task.status === "planning"
-											? "Plan is being generated..."
-											: "No plan available for this task."}
-								</p>
-							</div>
-						)}
-					</TabsContent>
-
-					<TabsContent value="diff" className="mt-0">
-						<div className="rounded-lg border bg-muted/30 p-4">
-							<p className="text-sm text-muted-foreground">
-								{task.workspace_path
-									? "Diff viewer will be implemented to show workspace changes."
-									: "No workspace associated with this task yet."}
-							</p>
+				{/* Plan tab */}
+				<TabsContent value="plan" className="flex-1 mt-0 min-h-0">
+					<ScrollArea className="h-full">
+						<div className="p-4">
+							{planLoading ? (
+								<Loader size="sm" message="Loading plan..." />
+							) : planData?.data?.exists && planData.data.content ? (
+								<div className="rounded-lg border bg-card p-4">
+									<Markdown text={planData.data.content} />
+								</div>
+							) : (
+								<div className="rounded-lg border bg-muted/30 p-4">
+									<p className="text-sm text-muted-foreground">
+										{task.status === "todo"
+											? "Plan will be generated when the task enters the Planning phase."
+											: task.status === "planning"
+												? "Plan is being generated..."
+												: "No plan available for this task."}
+									</p>
+								</div>
+							)}
 						</div>
-					</TabsContent>
+					</ScrollArea>
+				</TabsContent>
 
-					<TabsContent value="sessions" className="mt-0">
-						{sessionsLoading ? (
-							<Loader size="sm" message="Loading sessions..." />
-						) : taskSessions.length === 0 ? (
-							<div className="rounded-lg border bg-muted/30 p-4">
-								<p className="text-sm text-muted-foreground">No sessions found for this task.</p>
+				{/* Diff tab */}
+				<TabsContent value="diff" className="flex-1 mt-0 min-h-0">
+					{task.workspace_path ? (
+						<DiffViewer
+							taskId={task.id}
+							onClose={() => setActiveTab("details")}
+						/>
+					) : (
+						<div className="flex items-center justify-center h-full">
+							<div className="text-center text-muted-foreground">
+								<p>No workspace associated with this task</p>
+								<p className="text-sm mt-1">Start implementation to create a workspace</p>
 							</div>
-						) : (
-							<div className="space-y-2">
-								{taskSessions.map((session) => (
-									<div key={session.id} className="rounded-lg border p-3 text-sm">
-										<div className="flex items-center justify-between">
-											<span className="font-medium">{session.phase}</span>
-											<Badge variant="outline">{session.status}</Badge>
-										</div>
-										<p className="mt-1 text-xs text-muted-foreground font-mono">
-											{session.opencode_session_id || "No OpenCode session"}
-										</p>
-										{session.started_at && (
-											<p className="mt-1 text-xs text-muted-foreground">
-												Started: {new Date(session.started_at).toLocaleString()}
+						</div>
+					)}
+				</TabsContent>
+
+				{/* Sessions tab */}
+				<TabsContent value="sessions" className="flex-1 mt-0 min-h-0">
+					<ScrollArea className="h-full">
+						<div className="p-4">
+							{sessionsLoading ? (
+								<Loader size="sm" message="Loading sessions..." />
+							) : taskSessions.length === 0 ? (
+								<div className="rounded-lg border bg-muted/30 p-4">
+									<p className="text-sm text-muted-foreground">No sessions found for this task.</p>
+								</div>
+							) : (
+								<div className="space-y-2">
+									{taskSessions.map((session) => (
+										<div key={session.id} className="rounded-lg border p-3 text-sm">
+											<div className="flex items-center justify-between">
+												<span className="font-medium">{session.phase}</span>
+												<Badge variant="outline">{session.status}</Badge>
+											</div>
+											<p className="mt-1 text-xs text-muted-foreground font-mono">
+												{session.opencode_session_id || "No OpenCode session"}
 											</p>
-										)}
-									</div>
-								))}
-							</div>
-						)}
-					</TabsContent>
-				</ScrollArea>
+											{session.started_at && (
+												<p className="mt-1 text-xs text-muted-foreground">
+													Started: {new Date(session.started_at).toLocaleString()}
+												</p>
+											)}
+										</div>
+									))}
+								</div>
+							)}
+						</div>
+					</ScrollArea>
+				</TabsContent>
 			</Tabs>
 		</div>
 	);

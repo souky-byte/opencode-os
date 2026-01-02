@@ -27,6 +27,9 @@ import type {
 import type {
   CreateTaskRequest,
   ExecuteResponse,
+  FindingsResponse,
+  FixFindingsRequest,
+  PhasesResponse,
   PlanResponse,
   Task,
   TransitionRequest,
@@ -600,7 +603,411 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
       return useMutation(mutationOptions, queryClient);
     }
-    export type getTaskPlanResponse200 = {
+    export type getTaskFindingsResponse200 = {
+  data: FindingsResponse
+  status: 200
+}
+
+export type getTaskFindingsResponse404 = {
+  data: void
+  status: 404
+}
+    
+export type getTaskFindingsResponseSuccess = (getTaskFindingsResponse200) & {
+  headers: Headers;
+};
+export type getTaskFindingsResponseError = (getTaskFindingsResponse404) & {
+  headers: Headers;
+};
+
+export type getTaskFindingsResponse = (getTaskFindingsResponseSuccess | getTaskFindingsResponseError)
+
+export const getGetTaskFindingsUrl = (id: string,) => {
+
+
+  
+
+  return `/api/tasks/${id}/findings`
+}
+
+export const getTaskFindings = async (id: string, options?: RequestInit): Promise<getTaskFindingsResponse> => {
+  
+  return customFetch<getTaskFindingsResponse>(getGetTaskFindingsUrl(id),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+
+
+export const getGetTaskFindingsQueryKey = (id?: string,) => {
+    return [
+    `/api/tasks/${id}/findings`
+    ] as const;
+    }
+
+    
+export const getGetTaskFindingsQueryOptions = <TData = Awaited<ReturnType<typeof getTaskFindings>>, TError = void>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTaskFindings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTaskFindingsQueryKey(id);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTaskFindings>>> = ({ signal }) => getTaskFindings(id, { signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTaskFindings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTaskFindingsQueryResult = NonNullable<Awaited<ReturnType<typeof getTaskFindings>>>
+export type GetTaskFindingsQueryError = void
+
+
+export function useGetTaskFindings<TData = Awaited<ReturnType<typeof getTaskFindings>>, TError = void>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTaskFindings>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTaskFindings>>,
+          TError,
+          Awaited<ReturnType<typeof getTaskFindings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTaskFindings<TData = Awaited<ReturnType<typeof getTaskFindings>>, TError = void>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTaskFindings>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTaskFindings>>,
+          TError,
+          Awaited<ReturnType<typeof getTaskFindings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTaskFindings<TData = Awaited<ReturnType<typeof getTaskFindings>>, TError = void>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTaskFindings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetTaskFindings<TData = Awaited<ReturnType<typeof getTaskFindings>>, TError = void>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTaskFindings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetTaskFindingsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+export type fixFindingsResponse202 = {
+  data: ExecuteResponse
+  status: 202
+}
+
+export type fixFindingsResponse400 = {
+  data: void
+  status: 400
+}
+
+export type fixFindingsResponse404 = {
+  data: void
+  status: 404
+}
+    
+export type fixFindingsResponseSuccess = (fixFindingsResponse202) & {
+  headers: Headers;
+};
+export type fixFindingsResponseError = (fixFindingsResponse400 | fixFindingsResponse404) & {
+  headers: Headers;
+};
+
+export type fixFindingsResponse = (fixFindingsResponseSuccess | fixFindingsResponseError)
+
+export const getFixFindingsUrl = (id: string,) => {
+
+
+  
+
+  return `/api/tasks/${id}/findings/fix`
+}
+
+export const fixFindings = async (id: string,
+    fixFindingsRequest: FixFindingsRequest, options?: RequestInit): Promise<fixFindingsResponse> => {
+  
+  return customFetch<fixFindingsResponse>(getFixFindingsUrl(id),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      fixFindingsRequest,)
+  }
+);}
+
+
+
+
+export const getFixFindingsMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof fixFindings>>, TError,{id: string;data: FixFindingsRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof fixFindings>>, TError,{id: string;data: FixFindingsRequest}, TContext> => {
+
+const mutationKey = ['fixFindings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof fixFindings>>, {id: string;data: FixFindingsRequest}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  fixFindings(id,data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FixFindingsMutationResult = NonNullable<Awaited<ReturnType<typeof fixFindings>>>
+    export type FixFindingsMutationBody = FixFindingsRequest
+    export type FixFindingsMutationError = void
+
+    export const useFixFindings = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof fixFindings>>, TError,{id: string;data: FixFindingsRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof fixFindings>>,
+        TError,
+        {id: string;data: FixFindingsRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getFixFindingsMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    export type skipFindingsResponse200 = {
+  data: Task
+  status: 200
+}
+
+export type skipFindingsResponse400 = {
+  data: void
+  status: 400
+}
+
+export type skipFindingsResponse404 = {
+  data: void
+  status: 404
+}
+    
+export type skipFindingsResponseSuccess = (skipFindingsResponse200) & {
+  headers: Headers;
+};
+export type skipFindingsResponseError = (skipFindingsResponse400 | skipFindingsResponse404) & {
+  headers: Headers;
+};
+
+export type skipFindingsResponse = (skipFindingsResponseSuccess | skipFindingsResponseError)
+
+export const getSkipFindingsUrl = (id: string,) => {
+
+
+  
+
+  return `/api/tasks/${id}/findings/skip`
+}
+
+export const skipFindings = async (id: string, options?: RequestInit): Promise<skipFindingsResponse> => {
+  
+  return customFetch<skipFindingsResponse>(getSkipFindingsUrl(id),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
+  }
+);}
+
+
+
+
+export const getSkipFindingsMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof skipFindings>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof skipFindings>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['skipFindings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof skipFindings>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  skipFindings(id,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SkipFindingsMutationResult = NonNullable<Awaited<ReturnType<typeof skipFindings>>>
+    
+    export type SkipFindingsMutationError = void
+
+    export const useSkipFindings = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof skipFindings>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof skipFindings>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+
+      const mutationOptions = getSkipFindingsMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    export type getTaskPhasesResponse200 = {
+  data: PhasesResponse
+  status: 200
+}
+
+export type getTaskPhasesResponse404 = {
+  data: void
+  status: 404
+}
+    
+export type getTaskPhasesResponseSuccess = (getTaskPhasesResponse200) & {
+  headers: Headers;
+};
+export type getTaskPhasesResponseError = (getTaskPhasesResponse404) & {
+  headers: Headers;
+};
+
+export type getTaskPhasesResponse = (getTaskPhasesResponseSuccess | getTaskPhasesResponseError)
+
+export const getGetTaskPhasesUrl = (id: string,) => {
+
+
+  
+
+  return `/api/tasks/${id}/phases`
+}
+
+export const getTaskPhases = async (id: string, options?: RequestInit): Promise<getTaskPhasesResponse> => {
+  
+  return customFetch<getTaskPhasesResponse>(getGetTaskPhasesUrl(id),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+
+
+export const getGetTaskPhasesQueryKey = (id?: string,) => {
+    return [
+    `/api/tasks/${id}/phases`
+    ] as const;
+    }
+
+    
+export const getGetTaskPhasesQueryOptions = <TData = Awaited<ReturnType<typeof getTaskPhases>>, TError = void>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTaskPhases>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTaskPhasesQueryKey(id);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTaskPhases>>> = ({ signal }) => getTaskPhases(id, { signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTaskPhases>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTaskPhasesQueryResult = NonNullable<Awaited<ReturnType<typeof getTaskPhases>>>
+export type GetTaskPhasesQueryError = void
+
+
+export function useGetTaskPhases<TData = Awaited<ReturnType<typeof getTaskPhases>>, TError = void>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTaskPhases>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTaskPhases>>,
+          TError,
+          Awaited<ReturnType<typeof getTaskPhases>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTaskPhases<TData = Awaited<ReturnType<typeof getTaskPhases>>, TError = void>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTaskPhases>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTaskPhases>>,
+          TError,
+          Awaited<ReturnType<typeof getTaskPhases>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTaskPhases<TData = Awaited<ReturnType<typeof getTaskPhases>>, TError = void>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTaskPhases>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetTaskPhases<TData = Awaited<ReturnType<typeof getTaskPhases>>, TError = void>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTaskPhases>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetTaskPhasesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+export type getTaskPlanResponse200 = {
   data: PlanResponse
   status: 200
 }

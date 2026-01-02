@@ -1,0 +1,302 @@
+/* diff2html Graphite-style dark theme overrides */
+@import "diff2html/bundles/css/diff2html.min.css";
+
+/* ========================================
+   Base styles
+   ======================================== */
+
+.d2h-wrapper {
+  background: transparent;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Hide default file header - we use our own */
+.d2h-file-header {
+  display: none !important;
+}
+
+.d2h-file-wrapper {
+  border: none;
+  border-radius: 0;
+  margin-bottom: 0;
+  background: transparent;
+}
+
+.d2h-files-diff {
+  display: flex;
+  width: 100%;
+}
+
+/* ========================================
+   Side-by-side layout
+   ======================================== */
+
+.d2h-file-side-diff {
+  width: 50%;
+  overflow-x: auto;
+  background: #1e1e2e;
+}
+
+/* Left side (old) */
+.d2h-file-side-diff:first-child {
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ========================================
+   Table and rows
+   ======================================== */
+
+.d2h-diff-table {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 20px;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.d2h-diff-tbody tr {
+  border: none;
+}
+
+.d2h-diff-tbody td {
+  border: none;
+  vertical-align: top;
+}
+
+/* ========================================
+   Line numbers - Clean Graphite style
+   ======================================== */
+
+.d2h-code-side-linenumber {
+  width: 48px;
+  min-width: 48px;
+  padding: 0 8px;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.35);
+  background: #181825;
+  user-select: none;
+  font-size: 12px;
+  border: none !important;
+}
+
+/* ========================================
+   Code content
+   ======================================== */
+
+.d2h-code-side-line {
+  padding: 0;
+  background: #1e1e2e;
+  border: none !important;
+}
+
+.d2h-code-line-ctn {
+  padding: 0 16px;
+  white-space: pre;
+  color: #cdd6f4;
+  background: transparent;
+}
+
+.d2h-code-line {
+  padding: 0;
+  white-space: pre;
+}
+
+/* ========================================
+   Context lines (unchanged)
+   ======================================== */
+
+.d2h-cntx .d2h-code-side-linenumber {
+  background: #181825;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.d2h-cntx .d2h-code-side-line,
+.d2h-cntx .d2h-code-line-ctn {
+  background: #1e1e2e;
+}
+
+/* ========================================
+   Additions (teal/cyan) - Graphite style
+   ======================================== */
+
+/* Line number gutter */
+.d2h-ins .d2h-code-side-linenumber {
+  background: #034148;
+  color: #5eead4;
+}
+
+/* Code background - subtle teal */
+.d2h-ins .d2h-code-side-line {
+  background: #044B53;
+}
+
+.d2h-ins .d2h-code-line-ctn {
+  background: transparent;
+}
+
+/* Word-level highlight - more visible teal */
+.d2h-ins ins,
+.d2h-code-side-line ins {
+  background: #0d9488;
+  text-decoration: none;
+  border-radius: 2px;
+  padding: 1px 2px;
+  color: #ffffff;
+}
+
+/* ========================================
+   Deletions (burgundy/maroon) - Graphite style
+   ======================================== */
+
+/* Line number gutter */
+.d2h-del .d2h-code-side-linenumber {
+  background: #632b30;
+  color: #fca5a5;
+}
+
+/* Code background - subtle burgundy */
+.d2h-del .d2h-code-side-line {
+  background: #632F34;
+}
+
+.d2h-del .d2h-code-line-ctn {
+  background: transparent;
+}
+
+/* Word-level highlight - more visible burgundy */
+.d2h-del del,
+.d2h-code-side-line del {
+  background: #b91c1c;
+  text-decoration: none;
+  border-radius: 2px;
+  padding: 1px 2px;
+  color: #ffffff;
+}
+
+/* ========================================
+   Hunk headers (@@ -1,5 +1,7 @@)
+   ======================================== */
+
+.d2h-info,
+.d2h-code-side-linenumber.d2h-info {
+  background: #21232b !important;
+  color: #6c7086 !important;
+  font-style: normal;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+/* ========================================
+   Empty placeholders - Diagonal stripes
+   ======================================== */
+
+.d2h-code-side-emptyplaceholder,
+.d2h-emptyplaceholder {
+  background: repeating-linear-gradient(
+    -45deg,
+    #1e1e2e,
+    #1e1e2e 4px,
+    #262637 4px,
+    #262637 8px
+  );
+  border: none;
+}
+
+/* Empty line number placeholder */
+.d2h-code-side-linenumber.d2h-code-side-emptyplaceholder {
+  background: repeating-linear-gradient(
+    -45deg,
+    #181825,
+    #181825 4px,
+    #1e1e2e 4px,
+    #1e1e2e 8px
+  );
+}
+
+/* ========================================
+   Scrollbar styling
+   ======================================== */
+
+.d2h-file-side-diff::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.d2h-file-side-diff::-webkit-scrollbar-track {
+  background: #181825;
+}
+
+.d2h-file-side-diff::-webkit-scrollbar-thumb {
+  background: #45475a;
+  border-radius: 4px;
+}
+
+.d2h-file-side-diff::-webkit-scrollbar-thumb:hover {
+  background: #585b70;
+}
+
+/* ========================================
+   Remove all default diff2html borders
+   ======================================== */
+
+.d2h-file-diff {
+  border: none;
+}
+
+.d2h-code-linenumber {
+  border: none !important;
+}
+
+/* Remove ALL colored left borders/bars */
+.d2h-diff-tbody td,
+.d2h-ins,
+.d2h-del,
+.d2h-cntx,
+.d2h-code-side-line {
+  border-left: none !important;
+  border-right: none !important;
+}
+
+[class*="d2h-"] {
+  border-left-color: transparent !important;
+}
+
+/* Line prefix (+/-) - subtle */
+.d2h-code-line-prefix {
+  display: inline;
+  user-select: none;
+  color: rgba(255, 255, 255, 0.25);
+  margin-right: 4px;
+}
+
+/* Addition prefix */
+.d2h-ins .d2h-code-line-prefix {
+  color: #5eead4;
+}
+
+/* Deletion prefix */
+.d2h-del .d2h-code-line-prefix {
+  color: #fca5a5;
+}
+
+/* ========================================
+   Additional tweaks for cleaner look
+   ======================================== */
+
+/* Remove any box shadows */
+.d2h-file-wrapper,
+.d2h-file-side-diff,
+.d2h-diff-table {
+  box-shadow: none;
+}
+
+/* Ensure text doesn't wrap awkwardly */
+.d2h-code-line-ctn {
+  overflow-x: visible;
+}
+
+/* Make sure word-level diffs are visible */
+.d2h-ins .d2h-code-line-ctn .d2h-ins,
+.d2h-del .d2h-code-line-ctn .d2h-del {
+  display: inline;
+}

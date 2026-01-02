@@ -41,6 +41,7 @@ use state::AppState;
         routes::get_task_findings,
         routes::fix_findings,
         routes::skip_findings,
+        routes::get_task_phases,
         routes::list_sessions,
         routes::get_session,
         routes::list_sessions_for_task,
@@ -54,6 +55,8 @@ use state::AppState;
         routes::get_workspace_diff,
         routes::merge_workspace,
         routes::delete_workspace,
+        routes::get_viewed_files,
+        routes::set_file_viewed,
         routes::filesystem::browse_directory,
     ),
     components(schemas(
@@ -78,11 +81,16 @@ use state::AppState;
         routes::PlanResponse,
         routes::FindingsResponse,
         routes::FixFindingsRequest,
+        routes::PhasesResponse,
+        routes::PhaseInfo,
+        routes::PhaseStatus,
         routes::WorkspaceResponse,
         routes::WorkspaceStatusResponse,
         routes::DiffResponse,
         routes::MergeRequest,
         routes::MergeResponse,
+        routes::ViewedFilesResponse,
+        routes::SetViewedRequest,
         routes::filesystem::BrowseQuery,
         routes::filesystem::BrowseResponse,
         routes::filesystem::DirectoryEntry,
@@ -137,6 +145,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/tasks/{id}/findings", get(routes::get_task_findings))
         .route("/api/tasks/{id}/findings/fix", post(routes::fix_findings))
         .route("/api/tasks/{id}/findings/skip", post(routes::skip_findings))
+        .route("/api/tasks/{id}/phases", get(routes::get_task_phases))
+        .route(
+            "/api/tasks/{id}/diff/viewed",
+            get(routes::get_viewed_files).post(routes::set_file_viewed),
+        )
         .route(
             "/api/tasks/{id}/sessions",
             get(routes::list_sessions_for_task),

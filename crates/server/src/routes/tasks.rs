@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 use crate::state::AppState;
+use orchestrator::{parse_plan_phases, PhaseContext, PhaseSummary};
 
 #[utoipa::path(
     get,
@@ -630,4 +631,198 @@ pub async fn skip_findings(
     info!(task_id = %id, "API: Findings skipped, task moved to review");
 
     Ok(Json(task))
+}
+
+// ============================================================================
+// Phases API
+// ============================================================================
+
+/// Phase status for display
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum PhaseStatus {
+    Pending,
+    Running,
+    Completed,
+}
+
+/// Information about a single implementation phase
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+pub struct PhaseInfo {
+    /// Phase number (1-indexed)
+    pub number: u32,
+    /// Phase title
+    pub title: String,
+    /// Phase content from the plan
+    pub content: String,
+    /// Current status of this phase
+    pub status: PhaseStatus,
+    /// Associated session ID (if started)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    /// Summary of completed phase
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<PhaseSummary>,
+}
+
+/// Response for phases endpoint
+#[derive(Debug, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+pub struct PhasesResponse {
+    /// Whether this task has multiple phases
+    pub is_multi_phase: bool,
+    /// Total number of phases
+    pub total_phases: u32,
+    /// Current phase being executed (1-indexed), None if not started or completed
+    pub current_phase: Option<u32>,
+    /// List of all phases with their status
+    pub phases: Vec<PhaseInfo>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/tasks/{id}/phases",
+    params(
+        ("id" = Uuid, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 200, description = "Phases information", body = PhasesResponse),
+        (status = 404, description = "Task not found")
+    ),
+    tag = "tasks"
+)]
+pub async fn get_task_phases(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<PhasesResponse>, AppError> {
+    let project = state.project().await?;
+
+    // Verify task exists
+    let task = project.task_repository.find_by_id(id).await?;
+    if task.is_none() {
+        return Err(AppError::NotFound(format!("Task not found: {}", id)));
+    }
+
+    let file_manager = project.task_executor.file_manager();
+
+    // Check if plan exists
+    if !file_manager.plan_exists(id).await {
+        return Ok(Json(PhasesResponse {
+            is_multi_phase: false,
+            total_phases: 0,
+            current_phase: None,
+            phases: vec![],
+        }));
+    }
+
+    // Read and parse the plan
+    let plan_content = match file_manager.read_plan(id).await {
+        Ok(content) => content,
+        Err(e) => {
+            warn!(task_id = %id, error = %e, "Failed to read plan");
+            return Ok(Json(PhasesResponse {
+                is_multi_phase: false,
+                total_phases: 0,
+                current_phase: None,
+                phases: vec![],
+            }));
+        }
+    };
+
+    let parsed_plan = parse_plan_phases(&plan_content);
+
+    // Read phase context if it exists
+    let phase_context: Option<PhaseContext> = file_manager.read_phase_context(id).await.ok().flatten();
+
+    // Get sessions for this task to determine which phases have sessions
+    let sessions = project.session_repository.find_by_task_id(id).await.unwrap_or_default();
+
+    // Build session lookup by phase number
+    let session_by_phase: std::collections::HashMap<u32, &opencode_core::Session> = sessions
+        .iter()
+        .filter_map(|s| s.implementation_phase_number.map(|n| (n, s)))
+        .collect();
+
+    // Determine current phase
+    let current_phase = if let Some(ref ctx) = phase_context {
+        if ctx.is_complete() {
+            None
+        } else {
+            Some(ctx.phase_number)
+        }
+    } else if !parsed_plan.is_single_phase() {
+        // Multi-phase plan but no context yet - not started
+        None
+    } else {
+        // Single-phase plan - check if there's a running session
+        let running_session = sessions.iter().find(|s| s.status == opencode_core::SessionStatus::Running);
+        if running_session.is_some() {
+            Some(1)
+        } else {
+            None
+        }
+    };
+
+    // Build phase info list
+    let phases: Vec<PhaseInfo> = parsed_plan
+        .phases
+        .iter()
+        .map(|phase| {
+            let session = session_by_phase.get(&phase.number);
+
+            // Determine phase status
+            let status = if let Some(ref ctx) = phase_context {
+                if phase.number < ctx.phase_number {
+                    PhaseStatus::Completed
+                } else if phase.number == ctx.phase_number {
+                    // Check if there's a running session
+                    if session.map(|s| s.status == opencode_core::SessionStatus::Running).unwrap_or(false) {
+                        PhaseStatus::Running
+                    } else {
+                        PhaseStatus::Pending
+                    }
+                } else {
+                    PhaseStatus::Pending
+                }
+            } else {
+                // No phase context - check session status
+                match session {
+                    Some(s) if s.status == opencode_core::SessionStatus::Running => PhaseStatus::Running,
+                    Some(s) if s.status == opencode_core::SessionStatus::Completed => PhaseStatus::Completed,
+                    _ => PhaseStatus::Pending,
+                }
+            };
+
+            // Get summary for completed phases
+            let summary = phase_context
+                .as_ref()
+                .and_then(|ctx| {
+                    ctx.completed_phases
+                        .iter()
+                        .find(|s| s.phase_number == phase.number)
+                        .cloned()
+                });
+
+            PhaseInfo {
+                number: phase.number,
+                title: phase.title.clone(),
+                content: phase.content.clone(),
+                status,
+                session_id: session.map(|s| s.id.to_string()),
+                summary,
+            }
+        })
+        .collect();
+
+    Ok(Json(PhasesResponse {
+        is_multi_phase: !parsed_plan.is_single_phase(),
+        total_phases: parsed_plan.total_phases(),
+        current_phase,
+        phases,
+    }))
 }

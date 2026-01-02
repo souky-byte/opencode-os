@@ -18,4 +18,24 @@ opencode_session_id: string | null,
 /**
  * When the session was created
  */
-created_at: string, } | { "type": "session.ended", session_id: string, task_id: string, success: boolean, } | { "type": "agent.message", session_id: string, task_id: string, message: AgentMessageData, } | { "type": "tool.execution", session_id: string, task_id: string, tool: ToolExecutionData, } | { "type": "workspace.created", task_id: string, path: string, } | { "type": "workspace.merged", task_id: string, success: boolean, } | { "type": "workspace.deleted", task_id: string, } | { "type": "project.opened", path: string, name: string, was_initialized: boolean, } | { "type": "project.closed", path: string, } | { "type": "error", message: string, context: string | null, };
+created_at: string, } | { "type": "session.ended", session_id: string, task_id: string, success: boolean, } | { "type": "phase.completed", task_id: string, session_id: string, 
+/**
+ * The phase number that was completed (1-indexed)
+ */
+phase_number: number, 
+/**
+ * Total number of phases
+ */
+total_phases: number, 
+/**
+ * Title of the completed phase
+ */
+phase_title: string, } | { "type": "phase.continuing", task_id: string, 
+/**
+ * The next phase number (1-indexed)
+ */
+next_phase_number: number, 
+/**
+ * Total number of phases
+ */
+total_phases: number, } | { "type": "agent.message", session_id: string, task_id: string, message: AgentMessageData, } | { "type": "tool.execution", session_id: string, task_id: string, tool: ToolExecutionData, } | { "type": "workspace.created", task_id: string, path: string, } | { "type": "workspace.merged", task_id: string, success: boolean, } | { "type": "workspace.deleted", task_id: string, } | { "type": "project.opened", path: string, name: string, was_initialized: boolean, } | { "type": "project.closed", path: string, } | { "type": "error", message: string, context: string | null, };

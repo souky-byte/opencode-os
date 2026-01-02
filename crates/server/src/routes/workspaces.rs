@@ -1,6 +1,7 @@
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
+use db::DiffViewedRepository;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -249,6 +250,77 @@ pub async fn delete_workspace(
         .workspace_manager
         .cleanup_workspace(&workspace)
         .await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ============================================================================
+// Diff Viewed Files Endpoints
+// ============================================================================
+
+#[derive(Debug, Serialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+pub struct ViewedFilesResponse {
+    pub viewed_files: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+pub struct SetViewedRequest {
+    pub file_path: String,
+    pub viewed: bool,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/tasks/{task_id}/diff/viewed",
+    params(
+        ("task_id" = String, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 200, description = "List of viewed files", body = ViewedFilesResponse)
+    ),
+    tag = "workspaces"
+)]
+pub async fn get_viewed_files(
+    State(state): State<AppState>,
+    Path(task_id): Path<String>,
+) -> Result<Json<ViewedFilesResponse>, AppError> {
+    let project = state.project().await?;
+    let repo = DiffViewedRepository::new(project.pool.clone());
+
+    let viewed_files = repo.get_viewed_files(&task_id).await?;
+
+    Ok(Json(ViewedFilesResponse { viewed_files }))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/tasks/{task_id}/diff/viewed",
+    params(
+        ("task_id" = String, Path, description = "Task ID")
+    ),
+    request_body = SetViewedRequest,
+    responses(
+        (status = 204, description = "Viewed status updated")
+    ),
+    tag = "workspaces"
+)]
+pub async fn set_file_viewed(
+    State(state): State<AppState>,
+    Path(task_id): Path<String>,
+    Json(payload): Json<SetViewedRequest>,
+) -> Result<StatusCode, AppError> {
+    let project = state.project().await?;
+    let repo = DiffViewedRepository::new(project.pool.clone());
+
+    if payload.viewed {
+        repo.mark_viewed(&task_id, &payload.file_path).await?;
+    } else {
+        repo.unmark_viewed(&task_id, &payload.file_path).await?;
+    }
 
     Ok(StatusCode::NO_CONTENT)
 }

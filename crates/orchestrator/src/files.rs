@@ -23,6 +23,8 @@ const PLANS_DIR: &str = "plans";
 const REVIEWS_DIR: &str = "reviews";
 /// Directory for findings files
 const FINDINGS_DIR: &str = "findings";
+/// Directory for phase summaries
+const PHASES_DIR: &str = "phases";
 
 // ============================================================================
 // Review Findings Types
@@ -130,6 +132,125 @@ impl ReviewFindings {
             .iter()
             .filter(|f| f.status == FindingStatus::Pending)
             .count()
+    }
+}
+
+// ============================================================================
+// Multi-Phase Implementation Types
+// ============================================================================
+
+/// A parsed plan with detected phases
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+pub struct ParsedPlan {
+    /// Content before the first phase (intro, overview, etc.)
+    pub preamble: String,
+    /// Individual implementation phases
+    pub phases: Vec<PlanPhase>,
+}
+
+impl ParsedPlan {
+    /// Check if this is a single-phase (legacy) plan
+    pub fn is_single_phase(&self) -> bool {
+        self.phases.len() <= 1
+    }
+
+    /// Get total number of phases
+    pub fn total_phases(&self) -> u32 {
+        self.phases.len() as u32
+    }
+}
+
+/// A single phase within a plan
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+pub struct PlanPhase {
+    /// Phase number (1-indexed)
+    pub number: u32,
+    /// Phase title (e.g., "Setup database models")
+    pub title: String,
+    /// Full content of this phase
+    pub content: String,
+}
+
+/// Context passed between implementation phases
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+pub struct PhaseContext {
+    /// Current phase number being executed (1-indexed)
+    pub phase_number: u32,
+    /// Total number of phases
+    pub total_phases: u32,
+    /// Summary from the immediately previous phase
+    pub previous_summary: Option<PhaseSummary>,
+    /// All completed phase summaries
+    pub completed_phases: Vec<PhaseSummary>,
+}
+
+impl PhaseContext {
+    /// Create initial context for starting phased implementation
+    pub fn new(total_phases: u32) -> Self {
+        Self {
+            phase_number: 1,
+            total_phases,
+            previous_summary: None,
+            completed_phases: Vec::new(),
+        }
+    }
+
+    /// Check if all phases are complete
+    pub fn is_complete(&self) -> bool {
+        self.phase_number > self.total_phases
+    }
+
+    /// Advance to the next phase after completing current one
+    pub fn advance(&mut self, summary: PhaseSummary) {
+        self.completed_phases.push(summary.clone());
+        self.previous_summary = Some(summary);
+        self.phase_number += 1;
+    }
+}
+
+/// Summary of a completed implementation phase
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct PhaseSummary {
+    /// Phase number that was completed
+    pub phase_number: u32,
+    /// Phase title
+    pub title: String,
+    /// Summary of what was done
+    pub summary: String,
+    /// List of files that were changed
+    pub files_changed: Vec<String>,
+    /// Notes for the next phase (important context)
+    pub notes: Option<String>,
+    /// When the phase was completed
+    pub completed_at: DateTime<Utc>,
+}
+
+impl PhaseSummary {
+    /// Create a new phase summary
+    pub fn new(
+        phase_number: u32,
+        title: impl Into<String>,
+        summary: impl Into<String>,
+        files_changed: Vec<String>,
+        notes: Option<String>,
+    ) -> Self {
+        Self {
+            phase_number,
+            title: title.into(),
+            summary: summary.into(),
+            files_changed,
+            notes,
+            completed_at: Utc::now(),
+        }
     }
 }
 
@@ -469,6 +590,256 @@ impl FileManager {
             "{}/{}/{}/{}.md",
             STUDIO_DIR, KANBAN_DIR, REVIEWS_DIR, task_id
         )
+    }
+
+    // ========================================================================
+    // Phase Methods (Multi-Phase Implementation)
+    // ========================================================================
+
+    /// Get the path to the phases directory for a task
+    pub fn phases_dir(&self, task_id: Uuid) -> PathBuf {
+        self.base_path
+            .join(STUDIO_DIR)
+            .join(KANBAN_DIR)
+            .join(PHASES_DIR)
+            .join(task_id.to_string())
+    }
+
+    /// Get the path to the phase context file
+    pub fn phase_context_path(&self, task_id: Uuid) -> PathBuf {
+        self.phases_dir(task_id).join("context.json")
+    }
+
+    /// Get the path to a phase summary file
+    pub fn phase_summary_path(&self, task_id: Uuid, phase_number: u32) -> PathBuf {
+        self.phases_dir(task_id)
+            .join(format!("phase-{}-summary.json", phase_number))
+    }
+
+    /// Ensure the phases directory exists for a task
+    pub async fn ensure_phases_dir(&self, task_id: Uuid) -> Result<()> {
+        let dir = self.phases_dir(task_id);
+        fs::create_dir_all(&dir).await.map_err(|e| {
+            OrchestratorError::ExecutionFailed(format!(
+                "Failed to create phases directory {:?}: {}",
+                dir, e
+            ))
+        })?;
+        Ok(())
+    }
+
+    /// Write phase context to file (atomic write)
+    pub async fn write_phase_context(&self, task_id: Uuid, context: &PhaseContext) -> Result<PathBuf> {
+        self.ensure_phases_dir(task_id).await?;
+        let path = self.phase_context_path(task_id);
+        let temp_path = self.phases_dir(task_id).join(".context.tmp");
+
+        info!(
+            task_id = %task_id,
+            phase = context.phase_number,
+            total = context.total_phases,
+            "Writing phase context"
+        );
+
+        let json = serde_json::to_string_pretty(context).map_err(|e| {
+            OrchestratorError::ExecutionFailed(format!("Failed to serialize phase context: {}", e))
+        })?;
+
+        fs::write(&temp_path, &json).await.map_err(|e| {
+            OrchestratorError::ExecutionFailed(format!(
+                "Failed to write temp phase context {:?}: {}",
+                temp_path, e
+            ))
+        })?;
+
+        fs::rename(&temp_path, &path).await.map_err(|e| {
+            OrchestratorError::ExecutionFailed(format!(
+                "Failed to rename phase context {:?} -> {:?}: {}",
+                temp_path, path, e
+            ))
+        })?;
+
+        Ok(path)
+    }
+
+    /// Read phase context from file
+    pub async fn read_phase_context(&self, task_id: Uuid) -> Result<Option<PhaseContext>> {
+        let path = self.phase_context_path(task_id);
+
+        if !fs::try_exists(&path).await.unwrap_or(false) {
+            return Ok(None);
+        }
+
+        debug!("Reading phase context from {:?}", path);
+        let content = fs::read_to_string(&path).await.map_err(|e| {
+            OrchestratorError::ExecutionFailed(format!(
+                "Failed to read phase context {:?}: {}",
+                path, e
+            ))
+        })?;
+
+        let context: PhaseContext = serde_json::from_str(&content).map_err(|e| {
+            OrchestratorError::ExecutionFailed(format!(
+                "Failed to parse phase context {:?}: {}",
+                path, e
+            ))
+        })?;
+
+        Ok(Some(context))
+    }
+
+    /// Write a phase summary to file (atomic write)
+    pub async fn write_phase_summary(&self, task_id: Uuid, summary: &PhaseSummary) -> Result<PathBuf> {
+        self.ensure_phases_dir(task_id).await?;
+        let path = self.phase_summary_path(task_id, summary.phase_number);
+        let temp_path = self
+            .phases_dir(task_id)
+            .join(format!(".phase-{}.tmp", summary.phase_number));
+
+        info!(
+            task_id = %task_id,
+            phase = summary.phase_number,
+            title = %summary.title,
+            files_changed = summary.files_changed.len(),
+            "Writing phase summary"
+        );
+
+        let json = serde_json::to_string_pretty(summary).map_err(|e| {
+            OrchestratorError::ExecutionFailed(format!("Failed to serialize phase summary: {}", e))
+        })?;
+
+        fs::write(&temp_path, &json).await.map_err(|e| {
+            OrchestratorError::ExecutionFailed(format!(
+                "Failed to write temp phase summary {:?}: {}",
+                temp_path, e
+            ))
+        })?;
+
+        fs::rename(&temp_path, &path).await.map_err(|e| {
+            OrchestratorError::ExecutionFailed(format!(
+                "Failed to rename phase summary {:?} -> {:?}: {}",
+                temp_path, path, e
+            ))
+        })?;
+
+        Ok(path)
+    }
+
+    /// Read all phase summaries for a task (in order)
+    pub async fn read_phase_summaries(&self, task_id: Uuid) -> Result<Vec<PhaseSummary>> {
+        let dir = self.phases_dir(task_id);
+
+        if !fs::try_exists(&dir).await.unwrap_or(false) {
+            return Ok(Vec::new());
+        }
+
+        let mut summaries = Vec::new();
+        let mut entries = fs::read_dir(&dir).await.map_err(|e| {
+            OrchestratorError::ExecutionFailed(format!(
+                "Failed to read phases directory {:?}: {}",
+                dir, e
+            ))
+        })?;
+
+        while let Some(entry) = entries.next_entry().await.map_err(|e| {
+            OrchestratorError::ExecutionFailed(format!("Failed to read directory entry: {}", e))
+        })? {
+            let path = entry.path();
+            let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+            // Match phase-N-summary.json pattern
+            if file_name.starts_with("phase-") && file_name.ends_with("-summary.json") {
+                let content = fs::read_to_string(&path).await.map_err(|e| {
+                    OrchestratorError::ExecutionFailed(format!(
+                        "Failed to read phase summary {:?}: {}",
+                        path, e
+                    ))
+                })?;
+
+                let summary: PhaseSummary = serde_json::from_str(&content).map_err(|e| {
+                    OrchestratorError::ExecutionFailed(format!(
+                        "Failed to parse phase summary {:?}: {}",
+                        path, e
+                    ))
+                })?;
+
+                summaries.push(summary);
+            }
+        }
+
+        // Sort by phase number
+        summaries.sort_by_key(|s| s.phase_number);
+        Ok(summaries)
+    }
+
+    /// Mark a phase as complete in the plan file by adding a checkmark
+    pub async fn mark_phase_complete_in_plan(&self, task_id: Uuid, phase_number: u32) -> Result<()> {
+        let plan = self.read_plan(task_id).await?;
+
+        // Pattern to match phase headers like "### Phase 1: Title" or "## Phase 1 - Title"
+        let patterns = [
+            format!(r"(###?\s*Phase\s*{}\s*[:\-])", phase_number),
+            format!(r"(###?\s*Fáze\s*{}\s*[:\-])", phase_number),
+            format!(r"(###?\s*Step\s*{}\s*[:\-])", phase_number),
+            format!(r"(###?\s*Krok\s*{}\s*[:\-])", phase_number),
+        ];
+
+        let mut updated_plan = plan.clone();
+        let mut marked = false;
+
+        for pattern in &patterns {
+            if let Ok(re) = regex::Regex::new(pattern) {
+                if re.is_match(&updated_plan) {
+                    // Add checkmark after the header if not already present
+                    updated_plan = re
+                        .replace(&updated_plan, |caps: &regex::Captures| {
+                            let header = &caps[1];
+                            if !updated_plan.contains(&format!("{} ✓", header)) {
+                                format!("{} ✓", header)
+                            } else {
+                                header.to_string()
+                            }
+                        })
+                        .to_string();
+                    marked = true;
+                    break;
+                }
+            }
+        }
+
+        if marked {
+            self.write_plan(task_id, &updated_plan).await?;
+            info!(task_id = %task_id, phase = phase_number, "Marked phase complete in plan");
+        } else {
+            debug!(
+                task_id = %task_id,
+                phase = phase_number,
+                "No matching phase header found in plan to mark complete"
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Delete all phase data for a task
+    pub async fn delete_phases(&self, task_id: Uuid) -> Result<()> {
+        let dir = self.phases_dir(task_id);
+        if fs::try_exists(&dir).await.unwrap_or(false) {
+            fs::remove_dir_all(&dir).await.map_err(|e| {
+                OrchestratorError::ExecutionFailed(format!(
+                    "Failed to delete phases directory {:?}: {}",
+                    dir, e
+                ))
+            })?;
+        }
+        Ok(())
+    }
+
+    /// Check if phase context exists for a task
+    pub async fn phase_context_exists(&self, task_id: Uuid) -> bool {
+        fs::try_exists(self.phase_context_path(task_id))
+            .await
+            .unwrap_or(false)
     }
 }
 

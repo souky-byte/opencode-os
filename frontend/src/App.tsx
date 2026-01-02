@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Loader } from "@/components/ui/loader";
 import { ToastContainer } from "@/components/ui/toast";
 import { useEventStream } from "@/hooks/useEventStream";
+import { cn } from "@/lib/utils";
+import { useDiffViewerStore } from "@/stores/useDiffViewerStore";
 import { useProjectStore } from "@/stores/useProjectStore";
 import { useSidebarStore } from "@/stores/useSidebarStore";
 
@@ -60,6 +62,7 @@ export default function App() {
 		setLoading,
 		openDialog,
 	} = useProjectStore();
+	const { isExpanded: isDiffExpanded } = useDiffViewerStore();
 	const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 	const { isConnected } = useEventStream({
 		taskId: selectedTask?.id,
@@ -201,16 +204,27 @@ export default function App() {
 			<main className="flex flex-1 overflow-hidden">
 				{activeView === "kanban" && (
 					<>
-						<div className={`flex-1 overflow-hidden ${selectedTask ? "hidden lg:block" : ""}`}>
-							<KanbanView
-								selectedTaskId={selectedTask?.id}
-								onSelectTask={handleSelectTask}
-								onAddTask={handleAddTask}
-							/>
-						</div>
+						{/* Hide kanban when diff viewer is expanded */}
+						{!isDiffExpanded && (
+							<div className={cn(
+								"flex-1 overflow-hidden transition-all duration-200",
+								selectedTask ? "hidden lg:block" : ""
+							)}>
+								<KanbanView
+									selectedTaskId={selectedTask?.id}
+									onSelectTask={handleSelectTask}
+									onAddTask={handleAddTask}
+								/>
+							</div>
+						)}
 
 						{selectedTask && (
-							<div className="w-full lg:w-[480px] xl:w-[560px] border-l border-border bg-card">
+							<div className={cn(
+								"border-l border-border bg-card transition-all duration-200",
+								isDiffExpanded
+									? "w-full"
+									: "w-full lg:w-[480px] xl:w-[560px]"
+							)}>
 								<TaskDetailPanel task={selectedTask} onClose={handleClosePanel} />
 							</div>
 						)}

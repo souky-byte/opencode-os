@@ -12,6 +12,10 @@ pub struct SessionRow {
     pub started_at: Option<i64>,
     pub completed_at: Option<i64>,
     pub created_at: i64,
+    /// For multi-phase implementation: current phase number (1-indexed)
+    pub implementation_phase_number: Option<i32>,
+    /// For multi-phase implementation: current phase title
+    pub implementation_phase_title: Option<String>,
 }
 
 impl SessionRow {
@@ -25,6 +29,8 @@ impl SessionRow {
             started_at: self.started_at.map(timestamp_to_datetime),
             completed_at: self.completed_at.map(timestamp_to_datetime),
             created_at: timestamp_to_datetime(self.created_at),
+            implementation_phase_number: self.implementation_phase_number.map(|n| n as u32),
+            implementation_phase_title: self.implementation_phase_title,
         }
     }
 }
@@ -40,6 +46,8 @@ impl From<&Session> for SessionRow {
             started_at: session.started_at.map(datetime_to_timestamp),
             completed_at: session.completed_at.map(datetime_to_timestamp),
             created_at: datetime_to_timestamp(session.created_at),
+            implementation_phase_number: session.implementation_phase_number.map(|n| n as i32),
+            implementation_phase_title: session.implementation_phase_title.clone(),
         }
     }
 }

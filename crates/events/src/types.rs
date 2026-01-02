@@ -72,6 +72,30 @@ pub enum Event {
         success: bool,
     },
 
+    // Phase events (multi-phase implementation)
+    /// An implementation phase was completed
+    #[serde(rename = "phase.completed")]
+    PhaseCompleted {
+        task_id: Uuid,
+        session_id: Uuid,
+        /// The phase number that was completed (1-indexed)
+        phase_number: u32,
+        /// Total number of phases
+        total_phases: u32,
+        /// Title of the completed phase
+        phase_title: String,
+    },
+
+    /// Continuing to the next implementation phase
+    #[serde(rename = "phase.continuing")]
+    PhaseContinuing {
+        task_id: Uuid,
+        /// The next phase number (1-indexed)
+        next_phase_number: u32,
+        /// Total number of phases
+        total_phases: u32,
+    },
+
     /// Message from OpenCode agent
     #[serde(rename = "agent.message")]
     AgentMessage {
@@ -157,6 +181,8 @@ impl Event {
             Event::TaskStatusChanged { task_id, .. } => Some(*task_id),
             Event::SessionStarted { task_id, .. } => Some(*task_id),
             Event::SessionEnded { task_id, .. } => Some(*task_id),
+            Event::PhaseCompleted { task_id, .. } => Some(*task_id),
+            Event::PhaseContinuing { task_id, .. } => Some(*task_id),
             Event::AgentMessage { task_id, .. } => Some(*task_id),
             Event::ToolExecution { task_id, .. } => Some(*task_id),
             Event::WorkspaceCreated { task_id, .. } => Some(*task_id),

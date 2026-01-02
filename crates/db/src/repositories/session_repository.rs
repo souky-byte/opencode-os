@@ -19,8 +19,8 @@ impl SessionRepository {
 
         sqlx::query(
             r#"
-            INSERT INTO sessions (id, task_id, opencode_session_id, phase, status, started_at, completed_at, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO sessions (id, task_id, opencode_session_id, phase, status, started_at, completed_at, created_at, implementation_phase_number, implementation_phase_title)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .bind(&row.id)
@@ -31,6 +31,8 @@ impl SessionRepository {
         .bind(row.started_at)
         .bind(row.completed_at)
         .bind(row.created_at)
+        .bind(row.implementation_phase_number)
+        .bind(&row.implementation_phase_title)
         .execute(&self.pool)
         .await?;
 
@@ -40,7 +42,7 @@ impl SessionRepository {
     pub async fn find_by_id(&self, id: Uuid) -> Result<Option<Session>, DbError> {
         let row: Option<SessionRow> = sqlx::query_as(
             r#"
-            SELECT id, task_id, opencode_session_id, phase, status, started_at, completed_at, created_at
+            SELECT id, task_id, opencode_session_id, phase, status, started_at, completed_at, created_at, implementation_phase_number, implementation_phase_title
             FROM sessions
             WHERE id = ?
             "#,
@@ -55,7 +57,7 @@ impl SessionRepository {
     pub async fn find_by_task_id(&self, task_id: Uuid) -> Result<Vec<Session>, DbError> {
         let rows: Vec<SessionRow> = sqlx::query_as(
             r#"
-            SELECT id, task_id, opencode_session_id, phase, status, started_at, completed_at, created_at
+            SELECT id, task_id, opencode_session_id, phase, status, started_at, completed_at, created_at, implementation_phase_number, implementation_phase_title
             FROM sessions
             WHERE task_id = ?
             ORDER BY created_at DESC
@@ -74,7 +76,7 @@ impl SessionRepository {
     ) -> Result<Option<Session>, DbError> {
         let row: Option<SessionRow> = sqlx::query_as(
             r#"
-            SELECT id, task_id, opencode_session_id, phase, status, started_at, completed_at, created_at
+            SELECT id, task_id, opencode_session_id, phase, status, started_at, completed_at, created_at, implementation_phase_number, implementation_phase_title
             FROM sessions
             WHERE opencode_session_id = ?
             "#,
@@ -89,7 +91,7 @@ impl SessionRepository {
     pub async fn find_all(&self) -> Result<Vec<Session>, DbError> {
         let rows: Vec<SessionRow> = sqlx::query_as(
             r#"
-            SELECT id, task_id, opencode_session_id, phase, status, started_at, completed_at, created_at
+            SELECT id, task_id, opencode_session_id, phase, status, started_at, completed_at, created_at, implementation_phase_number, implementation_phase_title
             FROM sessions
             ORDER BY created_at DESC
             "#,
@@ -103,7 +105,7 @@ impl SessionRepository {
     pub async fn find_active(&self) -> Result<Vec<Session>, DbError> {
         let rows: Vec<SessionRow> = sqlx::query_as(
             r#"
-            SELECT id, task_id, opencode_session_id, phase, status, started_at, completed_at, created_at
+            SELECT id, task_id, opencode_session_id, phase, status, started_at, completed_at, created_at, implementation_phase_number, implementation_phase_title
             FROM sessions
             WHERE status IN ('pending', 'running')
             ORDER BY created_at DESC
@@ -121,7 +123,8 @@ impl SessionRepository {
         sqlx::query(
             r#"
             UPDATE sessions
-            SET opencode_session_id = ?, phase = ?, status = ?, started_at = ?, completed_at = ?
+            SET opencode_session_id = ?, phase = ?, status = ?, started_at = ?, completed_at = ?,
+                implementation_phase_number = ?, implementation_phase_title = ?
             WHERE id = ?
             "#,
         )
@@ -130,6 +133,8 @@ impl SessionRepository {
         .bind(&row.status)
         .bind(row.started_at)
         .bind(row.completed_at)
+        .bind(row.implementation_phase_number)
+        .bind(&row.implementation_phase_title)
         .bind(&row.id)
         .execute(&self.pool)
         .await?;

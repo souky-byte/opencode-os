@@ -28,6 +28,7 @@ chrono.workspace = true
 async-trait.workspace = true
 futures = "0.3"
 json-patch = "3"
+regex = "1"
 axum = { workspace = true }
 reqwest = { workspace = true }
 eventsource-stream.workspace = true

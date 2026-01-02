@@ -11,17 +11,59 @@ impl PhasePrompts {
 **Title:** {title}
 **Description:** {description}
 
-## Required Output
-Save your analysis to: `.opencode-studio/kanban/plans/{id}.md`
+## CRITICAL: Output the ENTIRE plan in your response
 
-The plan should include:
-1. Technical analysis
-2. Files to modify/create
-3. Step-by-step implementation steps
-4. Potential risks
-5. Estimated complexity (S/M/L/XL)
+Do NOT use any tools to write files. Simply output the complete plan as your response.
+Your response text will be automatically saved to the plan file.
 
-Do NOT implement anything yet. Only create the plan."#,
+## Required Plan Structure
+
+# Implementation Plan: {title}
+
+**Task ID:** {id}
+**Complexity:** [S/M/L/XL]
+
+## Overview
+[Brief technical analysis - what needs to be done and why]
+
+## Files to Modify
+- path/to/file1.rs - [what changes]
+- path/to/file2.ts - [what changes]
+
+## Phase 1: [Short Phase Title]
+
+[Detailed description of what this phase accomplishes]
+
+### Steps
+- Step 1.1: [Specific action]
+- Step 1.2: [Specific action]
+
+### Files
+- path/to/file.rs
+
+## Phase 2: [Short Phase Title]
+
+[Detailed description]
+
+### Steps
+- Step 2.1: [Specific action]
+
+[Continue for all phases...]
+
+## Risks and Mitigations
+- Risk 1: [description] - Mitigation: [how to handle]
+
+## Testing
+- [What needs to be tested]
+
+## Phase Guidelines
+- Use EXACTLY the format shown above for phases (two hashes, space, Phase, number, colon, title)
+- S complexity: 1-2 phases
+- M complexity: 2-4 phases
+- L/XL complexity: 4-8 phases
+- Each phase = one independent unit of work
+
+Output the complete plan now. Do NOT implement anything."#,
             title = task.title,
             description = task.description,
             id = task.id
@@ -315,6 +357,105 @@ Fix the issues now."#,
         )
     }
 
+    /// Generate prompt for a single implementation phase
+    pub fn implementation_phase(
+        task: &Task,
+        phase: &crate::files::PlanPhase,
+        context: &crate::files::PhaseContext,
+    ) -> String {
+        let prev_context = context.previous_summary.as_ref().map(|s| {
+            let files_list = s.files_changed
+                .iter()
+                .map(|f| format!("- {}", f))
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            format!(
+                r#"## Summary of Previous Phase (Phase {})
+
+{}
+
+### Changed Files
+{}
+
+### Notes for This Phase
+{}"#,
+                s.phase_number,
+                s.summary,
+                if files_list.is_empty() { "(none)".to_string() } else { files_list },
+                s.notes.as_deref().unwrap_or("(none)")
+            )
+        }).unwrap_or_default();
+
+        format!(
+            r#"You are implementing Phase {phase_num} of {total_phases} for this task.
+
+## Task
+**Title:** {title}
+**Description:** {description}
+
+{prev_context}
+
+## Current Phase: {phase_title}
+
+{phase_content}
+
+## Instructions
+
+1. Implement ONLY this phase - do not work ahead to future phases
+2. Complete each step thoroughly before moving on
+3. Write tests where applicable
+4. Commit your changes when done
+5. **MANDATORY: Write the PHASE_SUMMARY block** (see format below)
+
+## PHASE_SUMMARY Format (REQUIRED)
+
+You MUST end your response with this exact format:
+
+```
+### PHASE_SUMMARY
+**Summary:** [1-2 paragraphs describing what was done]
+**Changed files:**
+- path/to/file1.rs
+- path/to/file2.rs
+**Notes for next phase:** [Important context the next phase needs to know]
+### END_PHASE_SUMMARY
+```
+
+⚠️ **CRITICAL**: The phase is NOT complete until you write the PHASE_SUMMARY block. This is required for the next phase to receive context about your work.
+
+Start implementing now."#,
+            phase_num = context.phase_number,
+            total_phases = context.total_phases,
+            title = task.title,
+            description = task.description,
+            prev_context = prev_context,
+            phase_title = phase.title,
+            phase_content = phase.content
+        )
+    }
+
+    /// Generate follow-up prompt to request phase summary when AI forgot to include it
+    pub fn request_phase_summary(phase_number: u32, phase_title: &str) -> String {
+        format!(
+            r#"You just completed Phase {phase_number}: {phase_title}, but you forgot to include the PHASE_SUMMARY block.
+
+Please provide ONLY the summary now, in this exact format:
+
+### PHASE_SUMMARY
+**Summary:** [1-2 paragraphs describing what was done]
+**Changed files:**
+- path/to/file1.rs
+- path/to/file2.rs
+**Notes for next phase:** [Important context the next phase needs to know]
+### END_PHASE_SUMMARY
+
+Do not repeat any implementation work. Just provide the summary of what you did."#,
+            phase_number = phase_number,
+            phase_title = phase_title
+        )
+    }
+
     pub fn replan(task: &Task, feedback: &str) -> String {
         format!(
             r#"Revise the implementation plan based on feedback.
@@ -326,19 +467,49 @@ Fix the issues now."#,
 ## Feedback on Previous Plan
 {feedback}
 
-## Required Output
-Create a revised plan addressing the feedback.
-Save your analysis to: `.opencode-studio/kanban/plans/{id}.md`
+## CRITICAL: Output the ENTIRE revised plan in your response
 
-The revised plan should:
-1. Address all feedback points
-2. Include technical analysis
-3. List files to modify/create
-4. Provide step-by-step implementation steps
-5. Note potential risks
-6. Estimate complexity (S/M/L/XL)
+Do NOT use any tools to write files. Simply output the complete plan as your response.
+Your response text will be automatically saved to the plan file.
 
-Do NOT implement anything yet. Only create the revised plan."#,
+## Required Plan Structure
+
+# Implementation Plan: {title} (Revised)
+
+**Task ID:** {id}
+**Complexity:** [S/M/L/XL]
+
+## Changes from Previous Plan
+[What was changed based on feedback]
+
+## Overview
+[Brief technical analysis]
+
+## Files to Modify
+- path/to/file.rs - [what changes]
+
+## Phase 1: [Short Phase Title]
+
+[Detailed description]
+
+### Steps
+- Step 1.1: [Specific action]
+
+### Files
+- path/to/file.rs
+
+## Phase 2: [Short Phase Title]
+
+[Continue for all phases...]
+
+## Risks and Mitigations
+- Risk 1: [description] - Mitigation: [how to handle]
+
+## Phase Guidelines
+- Use EXACTLY the format shown above for phases (two hashes, space, Phase, number, colon, title)
+- Each phase = one independent unit of work
+
+Output the complete revised plan now. Do NOT implement anything."#,
             title = task.title,
             description = task.description,
             feedback = feedback,
@@ -412,8 +583,8 @@ mod tests {
         let prompt = PhasePrompts::review(&task, diff);
 
         assert!(prompt.contains(diff));
-        assert!(prompt.contains("APPROVED"));
-        assert!(prompt.contains("CHANGES_REQUESTED"));
+        assert!(prompt.contains("approved"));
+        assert!(prompt.contains("findings"));
     }
 
     #[test]

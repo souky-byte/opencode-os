@@ -13,11 +13,75 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use vcs::{GitVcs, JujutsuVcs, VersionControl, WorkspaceConfig, WorkspaceManager};
 
+use sha2::{Sha256, Digest};
+
 const STUDIO_DIR: &str = ".opencode-studio";
+const GLOBAL_STUDIO_DIR: &str = ".opencode-studio";
 const PROJECT_CONFIG_FILE: &str = "config.toml";
 const KANBAN_DIR: &str = "kanban";
 const PLANS_DIR: &str = "plans";
 const REVIEWS_DIR: &str = "reviews";
+
+/// Get the global data directory for a project based on path hash.
+/// This allows storing DB files outside the project directory.
+pub fn get_project_data_dir(project_path: &Path) -> Result<PathBuf, ProjectError> {
+    let canonical = project_path.canonicalize()?;
+    let hash = {
+        let mut hasher = Sha256::new();
+        hasher.update(canonical.to_string_lossy().as_bytes());
+        let result = hasher.finalize();
+        hex::encode(&result[..8]) // 16 hex chars for uniqueness
+    };
+
+    let global_dir = dirs::home_dir()
+        .ok_or_else(|| ProjectError::Config("Could not determine home directory".into()))?
+        .join(GLOBAL_STUDIO_DIR)
+        .join("data")
+        .join(&hash);
+
+    Ok(global_dir)
+}
+
+/// Get the database path for a project (in global data directory).
+pub fn get_db_path(project_path: &Path) -> Result<PathBuf, ProjectError> {
+    let data_dir = get_project_data_dir(project_path)?;
+    Ok(data_dir.join("studio.db"))
+}
+
+/// Migrate database from old per-project location to new global location.
+pub async fn migrate_db_if_needed(project_path: &Path) -> Result<(), ProjectError> {
+    let old_db = project_path.join(STUDIO_DIR).join("studio.db");
+    let new_db = get_db_path(project_path)?;
+
+    if old_db.exists() && !new_db.exists() {
+        // Create target directory
+        if let Some(parent) = new_db.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+
+        // Move the database file
+        tokio::fs::rename(&old_db, &new_db).await?;
+
+        // Move WAL files if they exist
+        let old_wal = old_db.with_extension("db-wal");
+        let old_shm = old_db.with_extension("db-shm");
+        if old_wal.exists() {
+            let _ = tokio::fs::rename(&old_wal, new_db.with_extension("db-wal")).await;
+        }
+        if old_shm.exists() {
+            let _ = tokio::fs::rename(&old_shm, new_db.with_extension("db-shm")).await;
+        }
+
+        tracing::info!(
+            old = %old_db.display(),
+            new = %new_db.display(),
+            "Migrated database to global location"
+        );
+    }
+
+    Ok(()
+    )
+}
 
 /// Errors that can occur during project operations.
 #[derive(Debug, thiserror::Error)]
@@ -183,7 +247,14 @@ impl ProjectContext {
         let studio_dir = path.join(STUDIO_DIR);
         let config = load_project_config(&studio_dir);
 
-        let db_path = studio_dir.join("studio.db");
+        // Migrate database from old per-project location if needed
+        migrate_db_if_needed(&path).await?;
+
+        // Database is now stored in global location (~/.opencode-studio/data/{hash}/)
+        let db_path = get_db_path(&path)?;
+        if let Some(parent) = db_path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
         let database_url = format!("sqlite:{}", db_path.display());
         let pool = db::create_pool(&database_url).await?;
         db::run_migrations(&pool).await?;
@@ -450,7 +521,6 @@ fn detect_vcs_impl(repo_path: &Path, workspace_base: &Path) -> Arc<dyn VersionCo
     }
 }
 
-const GLOBAL_STUDIO_DIR: &str = ".opencode-studio";
 const GLOBAL_CONFIG_FILE: &str = "global.toml";
 const MAX_RECENT_PROJECTS: usize = 10;
 

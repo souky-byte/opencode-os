@@ -16,6 +16,7 @@ export const TaskStatus = {
   planning_review: 'planning_review',
   in_progress: 'in_progress',
   ai_review: 'ai_review',
+  fix: 'fix',
   review: 'review',
   done: 'done',
 } as const;

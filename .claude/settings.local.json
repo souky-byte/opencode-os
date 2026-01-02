@@ -11,7 +11,9 @@
       "Bash(timeout 35 curl:*)",
       "Bash(npm run build:*)",
       "WebFetch(domain:localhost)",
-      "Bash(cargo test:*)"
+      "Bash(cargo test:*)",
+      "Bash(ls:*)",
+      "WebSearch"
     ]
   }
 }
