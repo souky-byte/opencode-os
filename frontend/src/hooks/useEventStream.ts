@@ -28,10 +28,11 @@ function getEventsUrl(taskIds?: string[]): string {
 interface UseEventStreamOptions {
 	taskId?: string;
 	onEvent?: (event: Event) => void;
+	onAutoExecute?: (taskId: string) => void;
 }
 
 export function useEventStream(options: UseEventStreamOptions = {}) {
-	const { taskId, onEvent } = options;
+	const { taskId, onEvent, onAutoExecute } = options;
 	const queryClient = useQueryClient();
 	const startExecuting = useExecutingTasksStore((s) => s.startExecuting);
 	const stopExecuting = useExecutingTasksStore((s) => s.stopExecuting);
@@ -43,9 +44,11 @@ export function useEventStream(options: UseEventStreamOptions = {}) {
 	const [error, setError] = useState<string | null>(null);
 
 	const onEventRef = useRef(onEvent);
+	const onAutoExecuteRef = useRef(onAutoExecute);
 	useEffect(() => {
 		onEventRef.current = onEvent;
-	}, [onEvent]);
+		onAutoExecuteRef.current = onAutoExecute;
+	}, [onEvent, onAutoExecute]);
 
 	const updateTaskInCache = useCallback(
 		(taskId: string, updates: Partial<Task>) => {
@@ -122,6 +125,10 @@ export function useEventStream(options: UseEventStreamOptions = {}) {
 					updateTaskInCache(event.task_id, {
 						status: event.to_status as TaskStatus,
 					});
+					// Auto-execute AI Review when transitioning from in_progress
+					if (event.from_status === "in_progress" && event.to_status === "ai_review") {
+						onAutoExecuteRef.current?.(event.task_id);
+					}
 					break;
 				case "session.started": {
 					// Mark task as executing

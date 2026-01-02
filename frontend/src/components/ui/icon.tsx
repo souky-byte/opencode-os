@@ -1,4 +1,5 @@
 import {
+	AlertTriangle,
 	BookOpen,
 	Check,
 	CheckCircle,
@@ -11,9 +12,11 @@ import {
 	FolderOpen,
 	GitBranch,
 	Globe,
+	Info,
 	Loader2,
 	type LucideIcon,
 	MessageSquare,
+	Minus,
 	Pencil,
 	Search,
 	Terminal,
@@ -51,12 +54,16 @@ export type IconName =
 	| "check-circle"
 	| "error"
 	| "warning"
+	| "info"
+	| "alert-circle"
+	| "alert-triangle"
 	| "loading"
 	| "chevron-down"
 	| "chevron-right"
 	| "tool"
 	| "play"
-	| "clock";
+	| "clock"
+	| "minus";
 
 const ICON_MAP: Record<IconName, LucideIcon> = {
 	read: BookOpen,
@@ -81,12 +88,16 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
 	"check-circle": CheckCircle,
 	error: XCircle,
 	warning: AlertCircle,
+	info: Info,
+	"alert-circle": AlertCircle,
+	"alert-triangle": AlertTriangle,
 	loading: Loader2,
 	"chevron-down": ChevronDown,
 	"chevron-right": ChevronRight,
 	tool: Wrench,
 	play: Play,
 	clock: Clock,
+	minus: Minus,
 };
 
 interface IconProps {
