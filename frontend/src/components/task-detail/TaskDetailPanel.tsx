@@ -5,6 +5,7 @@ import { useListSessionsForTask } from "@/api/generated/sessions/sessions";
 import {
 	getListTasksQueryKey,
 	useExecuteTask,
+	useGetTaskFindings,
 	useTransitionTask,
 } from "@/api/generated/tasks/tasks";
 import { getListSessionsForTaskQueryKey } from "@/api/generated/sessions/sessions";
@@ -12,6 +13,7 @@ import { customFetch } from "@/lib/api-fetcher";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
 import { DiffViewer } from "@/components/diff";
 import { PhasesList } from "@/components/task-detail/PhasesList";
+import { ProblemsTab } from "@/components/task-detail/ProblemsTab";
 import { STATUS_CONFIG } from "@/components/kanban/KanbanColumn";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -69,6 +71,19 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
 		enabled: activeTab === "plan",
 		staleTime: 10000,
 	});
+
+	// Fetch findings for AI Review
+	const { data: findingsData } = useGetTaskFindings(task.id, {
+		query: {
+			enabled: task.status === "ai_review" || task.status === "fix",
+			staleTime: 10000,
+		},
+	});
+
+	const hasFindings =
+		findingsData?.status === 200 &&
+		findingsData.data.exists &&
+		findingsData.data.findings.length > 0;
 
 	const latestRunningSession = useMemo(
 		() => taskSessions.find((s: Session) => s.status === "running") ?? null,
@@ -247,6 +262,14 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
 					</TabsTrigger>
 					<TabsTrigger value="plan">Plan</TabsTrigger>
 					<TabsTrigger value="diff">Diff</TabsTrigger>
+					{hasFindings && (
+						<TabsTrigger value="problems" className="relative">
+							Problems
+							<Badge variant="destructive" className="ml-1.5 h-5 px-1.5 text-xs">
+								{findingsData?.status === 200 ? findingsData.data.findings.length : 0}
+							</Badge>
+						</TabsTrigger>
+					)}
 					<TabsTrigger value="sessions">Sessions</TabsTrigger>
 				</TabsList>
 
@@ -385,6 +408,17 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
 						</div>
 					)}
 				</TabsContent>
+
+				{/* Problems tab */}
+				{hasFindings && findingsData?.status === 200 && (
+					<TabsContent value="problems" className="flex-1 mt-0 min-h-0">
+						<ProblemsTab
+							taskId={task.id}
+							findings={findingsData.data.findings}
+							summary={findingsData.data.summary}
+						/>
+					</TabsContent>
+				)}
 
 				{/* Sessions tab */}
 				<TabsContent value="sessions" className="flex-1 mt-0 min-h-0">

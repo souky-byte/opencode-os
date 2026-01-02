@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Task } from "@/api/generated/model";
 import { useGetCurrentProject } from "@/api/generated/projects/projects";
+import { useExecuteTask } from "@/api/generated/tasks/tasks";
 import { CreateTaskDialog } from "@/components/dialogs/CreateTaskDialog";
 import { ProjectPickerDialog } from "@/components/dialogs/ProjectPickerDialog";
 import { KanbanView } from "@/components/kanban/KanbanView";
@@ -64,8 +65,19 @@ export default function App() {
 	} = useProjectStore();
 	const { isExpanded: isDiffExpanded } = useDiffViewerStore();
 	const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+	// Auto-execute task when AI Review is triggered
+	const executeTask = useExecuteTask();
+	const handleAutoExecute = useCallback(
+		(taskId: string) => {
+			executeTask.mutate({ id: taskId });
+		},
+		[executeTask],
+	);
+
 	const { isConnected } = useEventStream({
 		taskId: selectedTask?.id,
+		onAutoExecute: handleAutoExecute,
 	});
 
 	const { data: currentProjectResponse, isLoading: isFetchingProject } = useGetCurrentProject({
