@@ -41,7 +41,11 @@ pub struct Message {
     pub parent_id: Option<String>,
     #[serde(rename = "modelID", default, skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
-    #[serde(rename = "providerID", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "providerID",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub provider_id: Option<String>,
     #[serde(rename = "mode", default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
@@ -81,7 +85,9 @@ impl Message {
     }
 }
 ///
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, Default)]
+#[derive(
+    Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, Default,
+)]
 pub enum Role {
     #[default]
     #[serde(rename = "user")]

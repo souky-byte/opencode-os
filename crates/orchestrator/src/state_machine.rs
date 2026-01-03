@@ -37,7 +37,9 @@ impl TaskStateMachine {
             TaskStatus::PlanningReview => vec![TaskStatus::InProgress, TaskStatus::Planning],
             TaskStatus::InProgress => vec![TaskStatus::AiReview, TaskStatus::PlanningReview],
             // AiReview can go to: Fix (fix findings), Review (skip/approved), InProgress (back to impl)
-            TaskStatus::AiReview => vec![TaskStatus::Fix, TaskStatus::Review, TaskStatus::InProgress],
+            TaskStatus::AiReview => {
+                vec![TaskStatus::Fix, TaskStatus::Review, TaskStatus::InProgress]
+            }
             // Fix goes back to AiReview for re-review after fixing
             TaskStatus::Fix => vec![TaskStatus::AiReview],
             TaskStatus::Review => vec![TaskStatus::Done, TaskStatus::InProgress],

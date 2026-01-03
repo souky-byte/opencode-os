@@ -20,9 +20,9 @@ use crate::files::{ParsedPlan, PlanPhase};
 pub fn parse_plan_phases(plan_content: &str) -> ParsedPlan {
     // Pattern to match phase headers
     // Captures: full match, phase number, separator, title
-    let phase_pattern = Regex::new(
-        r"(?m)^(##?#?)\s*(?:Phase|Fáze|Step|Krok)\s+(\d+)\s*[:\-–]\s*(.+)$"
-    ).expect("Invalid phase regex pattern");
+    let phase_pattern =
+        Regex::new(r"(?m)^(##?#?)\s*(?:Phase|Fáze|Step|Krok)\s+(\d+)\s*[:\-–]\s*(.+)$")
+            .expect("Invalid phase regex pattern");
 
     let mut phases = Vec::new();
     let mut preamble = String::new();
@@ -56,11 +56,13 @@ pub fn parse_plan_phases(plan_content: &str) -> ParsedPlan {
 
     // Process each phase
     for (i, caps) in matches.iter().enumerate() {
-        let phase_number: u32 = caps.get(2)
+        let phase_number: u32 = caps
+            .get(2)
             .and_then(|m| m.as_str().parse().ok())
             .unwrap_or((i + 1) as u32);
 
-        let title = caps.get(3)
+        let title = caps
+            .get(3)
             .map(|m| m.as_str().trim().to_string())
             .unwrap_or_else(|| format!("Phase {}", phase_number));
 
@@ -106,9 +108,8 @@ fn extract_phase_content(content: &str, start: usize, end: usize) -> String {
 ///
 /// Looks for the structured summary block between PHASE_SUMMARY markers
 pub fn extract_phase_summary(response: &str) -> Option<ExtractedSummary> {
-    let summary_pattern = Regex::new(
-        r"(?s)###\s*PHASE_SUMMARY\s*\n(.*?)###\s*END_PHASE_SUMMARY"
-    ).ok()?;
+    let summary_pattern =
+        Regex::new(r"(?s)###\s*PHASE_SUMMARY\s*\n(.*?)###\s*END_PHASE_SUMMARY").ok()?;
 
     let caps = summary_pattern.captures(response)?;
     let block = caps.get(1)?.as_str();
@@ -159,17 +160,16 @@ fn extract_file_list(block: &str) -> Vec<String> {
     let mut files = Vec::new();
 
     // Look for "Changed files:" or "Změněné soubory:" section
-    let list_pattern = Regex::new(
-        r"(?s)\*\*(?:Změněné soubory|Changed files):\*\*\s*\n((?:\s*-\s*.+\n?)+)"
-    );
+    let list_pattern =
+        Regex::new(r"(?s)\*\*(?:Změněné soubory|Changed files):\*\*\s*\n((?:\s*-\s*.+\n?)+)");
 
     if let Ok(re) = list_pattern {
         if let Some(caps) = re.captures(block) {
             if let Some(list) = caps.get(1) {
                 for line in list.as_str().lines() {
                     let line = line.trim();
-                    if line.starts_with('-') {
-                        let file = line[1..].trim();
+                    if let Some(stripped) = line.strip_prefix('-') {
+                        let file = stripped.trim();
                         if !file.is_empty() {
                             files.push(file.to_string());
                         }
@@ -236,7 +236,9 @@ Connect everything together.
         assert!(parsed.preamble.contains("preamble"));
         assert_eq!(parsed.phases[0].number, 1);
         assert_eq!(parsed.phases[0].title, "Setup");
-        assert!(parsed.phases[0].content.contains("Create the basic structure"));
+        assert!(parsed.phases[0]
+            .content
+            .contains("Create the basic structure"));
 
         assert_eq!(parsed.phases[1].number, 2);
         assert_eq!(parsed.phases[1].title, "Implementation");

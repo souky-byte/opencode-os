@@ -350,7 +350,7 @@ impl FileManager {
         let temp_path = self.plans_dir().join(format!(".{}.tmp", task_id));
 
         info!("Writing plan to {:?}", path);
-        
+
         fs::write(&temp_path, content).await.map_err(|e| {
             OrchestratorError::ExecutionFailed(format!(
                 "Failed to write temp plan file {:?}: {}",
@@ -383,7 +383,9 @@ impl FileManager {
 
     /// Check if a plan exists for a task
     pub async fn plan_exists(&self, task_id: Uuid) -> bool {
-        fs::try_exists(self.plan_path(task_id)).await.unwrap_or(false)
+        fs::try_exists(self.plan_path(task_id))
+            .await
+            .unwrap_or(false)
     }
 
     /// Write a review file for a task (atomic write via temp file + rename)
@@ -426,7 +428,9 @@ impl FileManager {
 
     /// Check if a review exists for a task
     pub async fn review_exists(&self, task_id: Uuid) -> bool {
-        fs::try_exists(self.review_path(task_id)).await.unwrap_or(false)
+        fs::try_exists(self.review_path(task_id))
+            .await
+            .unwrap_or(false)
     }
 
     /// Delete a plan file for a task
@@ -462,7 +466,11 @@ impl FileManager {
     // ========================================================================
 
     /// Write findings to a JSON file for a task (atomic write)
-    pub async fn write_findings(&self, task_id: Uuid, findings: &ReviewFindings) -> Result<PathBuf> {
+    pub async fn write_findings(
+        &self,
+        task_id: Uuid,
+        findings: &ReviewFindings,
+    ) -> Result<PathBuf> {
         self.ensure_directories().await?;
         let path = self.findings_path(task_id);
         let temp_path = self.findings_dir().join(format!(".{}.tmp", task_id));
@@ -578,10 +586,7 @@ impl FileManager {
 
     /// Get the relative path for a plan (used in prompts)
     pub fn plan_relative_path(&self, task_id: Uuid) -> String {
-        format!(
-            "{}/{}/{}/{}.md",
-            STUDIO_DIR, KANBAN_DIR, PLANS_DIR, task_id
-        )
+        format!("{}/{}/{}/{}.md", STUDIO_DIR, KANBAN_DIR, PLANS_DIR, task_id)
     }
 
     /// Get the relative path for a review (used in prompts)
@@ -629,7 +634,11 @@ impl FileManager {
     }
 
     /// Write phase context to file (atomic write)
-    pub async fn write_phase_context(&self, task_id: Uuid, context: &PhaseContext) -> Result<PathBuf> {
+    pub async fn write_phase_context(
+        &self,
+        task_id: Uuid,
+        context: &PhaseContext,
+    ) -> Result<PathBuf> {
         self.ensure_phases_dir(task_id).await?;
         let path = self.phase_context_path(task_id);
         let temp_path = self.phases_dir(task_id).join(".context.tmp");
@@ -689,7 +698,11 @@ impl FileManager {
     }
 
     /// Write a phase summary to file (atomic write)
-    pub async fn write_phase_summary(&self, task_id: Uuid, summary: &PhaseSummary) -> Result<PathBuf> {
+    pub async fn write_phase_summary(
+        &self,
+        task_id: Uuid,
+        summary: &PhaseSummary,
+    ) -> Result<PathBuf> {
         self.ensure_phases_dir(task_id).await?;
         let path = self.phase_summary_path(task_id, summary.phase_number);
         let temp_path = self
@@ -773,7 +786,11 @@ impl FileManager {
     }
 
     /// Mark a phase as complete in the plan file by adding a checkmark
-    pub async fn mark_phase_complete_in_plan(&self, task_id: Uuid, phase_number: u32) -> Result<()> {
+    pub async fn mark_phase_complete_in_plan(
+        &self,
+        task_id: Uuid,
+        phase_number: u32,
+    ) -> Result<()> {
         let plan = self.read_plan(task_id).await?;
 
         // Pattern to match phase headers like "### Phase 1: Title" or "## Phase 1 - Title"

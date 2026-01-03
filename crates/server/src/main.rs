@@ -24,16 +24,15 @@ async fn main() -> anyhow::Result<()> {
         state.open_project(&project_path).await?;
     } else if let Ok(database_url) = std::env::var("DATABASE_URL") {
         if database_url.starts_with("sqlite:") {
-            let db_path = database_url.strip_prefix("sqlite:").unwrap_or(&database_url);
+            let db_path = database_url
+                .strip_prefix("sqlite:")
+                .unwrap_or(&database_url);
             let db_path = PathBuf::from(db_path);
 
             if let Some(studio_dir) = db_path.parent() {
                 if let Some(project_path) = studio_dir.parent() {
                     if project_path.join(".git").exists() || project_path.join(".jj").exists() {
-                        tracing::info!(
-                            "Opening project from DATABASE_URL: {:?}",
-                            project_path
-                        );
+                        tracing::info!("Opening project from DATABASE_URL: {:?}", project_path);
                         state.open_project(project_path).await?;
                     }
                 }

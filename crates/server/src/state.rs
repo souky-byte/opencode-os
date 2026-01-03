@@ -22,7 +22,10 @@ impl AppState {
         let event_bus = EventBus::new();
         let event_buffer = Arc::new(RwLock::new(EventBuffer::new(DEFAULT_EVENT_BUFFER_SIZE)));
         let global_config = GlobalConfigManager::new();
-        let project_manager = Arc::new(ProjectManager::new(opencode_url.to_string(), event_bus.clone()));
+        let project_manager = Arc::new(ProjectManager::new(
+            opencode_url.to_string(),
+            event_bus.clone(),
+        ));
 
         Self {
             project_manager,
@@ -81,9 +84,10 @@ impl AppState {
 
     #[allow(dead_code)]
     pub async fn github_client(&self) -> Result<&GitHubClient, github::GitHubError> {
-        let project = self.project().await.map_err(|e| {
-            github::GitHubError::Config(format!("No project open: {}", e))
-        })?;
+        let project = self
+            .project()
+            .await
+            .map_err(|e| github::GitHubError::Config(format!("No project open: {}", e)))?;
 
         self.github_client
             .get_or_try_init(|| async {

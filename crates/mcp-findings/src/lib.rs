@@ -48,7 +48,9 @@ pub struct CreateFindingRequest {
     pub description: String,
 
     /// Severity level: "error", "warning", or "info"
-    #[schemars(description = "Severity level: error (must fix), warning (should fix), info (suggestion)")]
+    #[schemars(
+        description = "Severity level: error (must fix), warning (should fix), info (suggestion)"
+    )]
     pub severity: String,
 }
 
@@ -80,11 +82,11 @@ pub struct MarkFixedRequest {
     pub finding_id: String,
 }
 
-/// MCP Findings Service for code review
 #[derive(Clone)]
 pub struct FindingsService {
     task_id: Uuid,
     session_id: Uuid,
+    #[allow(dead_code)]
     workspace_path: PathBuf,
     findings: Arc<Mutex<Vec<ReviewFinding>>>,
     summary: Arc<Mutex<Option<String>>>,
@@ -139,7 +141,9 @@ impl FindingsService {
 
 #[tool_router]
 impl FindingsService {
-    #[tool(description = "Create a new code review finding. Use this to report issues found during review.")]
+    #[tool(
+        description = "Create a new code review finding. Use this to report issues found during review."
+    )]
     async fn create_finding(
         &self,
         Parameters(request): Parameters<CreateFindingRequest>,
@@ -180,7 +184,9 @@ impl FindingsService {
         ))]))
     }
 
-    #[tool(description = "List all findings for this task. Returns both existing findings from file and any newly created in this session.")]
+    #[tool(
+        description = "List all findings for this task. Returns both existing findings from file and any newly created in this session."
+    )]
     async fn list_findings(&self) -> Result<CallToolResult, McpError> {
         // First try to load existing findings from file
         let file_findings = match self.file_manager.read_findings(self.task_id).await {
@@ -255,14 +261,23 @@ impl FindingsService {
             };
             return Ok(CallToolResult::success(vec![Content::text(format!(
                 "Finding: {}\n\nTitle: {}\nSeverity: {}\nStatus: {:?}\n{}\n\nDescription:\n{}",
-                f.id, f.title, f.severity.as_str(), f.status, location, f.description
+                f.id,
+                f.title,
+                f.severity.as_str(),
+                f.status,
+                location,
+                f.description
             ))]));
         }
         drop(session_findings);
 
         // Then check file findings
         if let Ok(Some(existing)) = self.file_manager.read_findings(self.task_id).await {
-            if let Some(f) = existing.findings.iter().find(|f| f.id == request.finding_id) {
+            if let Some(f) = existing
+                .findings
+                .iter()
+                .find(|f| f.id == request.finding_id)
+            {
                 let location = match (&f.file_path, f.line_start, f.line_end) {
                     (Some(path), Some(start), Some(end)) if start != end => {
                         format!("Location: {}:{}-{}", path, start, end)
@@ -273,7 +288,12 @@ impl FindingsService {
                 };
                 return Ok(CallToolResult::success(vec![Content::text(format!(
                     "Finding: {}\n\nTitle: {}\nSeverity: {}\nStatus: {:?}\n{}\n\nDescription:\n{}",
-                    f.id, f.title, f.severity.as_str(), f.status, location, f.description
+                    f.id,
+                    f.title,
+                    f.severity.as_str(),
+                    f.status,
+                    location,
+                    f.description
                 ))]));
             }
         }
@@ -284,7 +304,9 @@ impl FindingsService {
         ))]))
     }
 
-    #[tool(description = "Mark a finding as fixed after you've addressed the issue. This updates the findings file.")]
+    #[tool(
+        description = "Mark a finding as fixed after you've addressed the issue. This updates the findings file."
+    )]
     async fn mark_fixed(
         &self,
         Parameters(request): Parameters<MarkFixedRequest>,
@@ -348,7 +370,9 @@ impl FindingsService {
         ))]))
     }
 
-    #[tool(description = "Approve the review. Use this when the code has no issues or only info-level suggestions.")]
+    #[tool(
+        description = "Approve the review. Use this when the code has no issues or only info-level suggestions."
+    )]
     async fn approve_review(
         &self,
         Parameters(request): Parameters<CompleteReviewRequest>,
@@ -376,7 +400,9 @@ impl FindingsService {
         )]))
     }
 
-    #[tool(description = "Complete the review with findings. Use this when there are issues that need to be fixed.")]
+    #[tool(
+        description = "Complete the review with findings. Use this when there are issues that need to be fixed."
+    )]
     async fn complete_review(
         &self,
         Parameters(request): Parameters<CompleteReviewRequest>,
@@ -446,11 +472,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_finding() {
-        let service = FindingsService::new(
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            PathBuf::from("/tmp/test"),
-        );
+        let service =
+            FindingsService::new(Uuid::new_v4(), Uuid::new_v4(), PathBuf::from("/tmp/test"));
 
         // Create a finding
         let request = CreateFindingRequest {
@@ -462,10 +485,7 @@ mod tests {
             severity: "error".to_string(),
         };
 
-        let result = service
-            .create_finding(Parameters(request))
-            .await
-            .unwrap();
+        let result = service.create_finding(Parameters(request)).await.unwrap();
 
         assert!(matches!(result, CallToolResult { .. }));
 

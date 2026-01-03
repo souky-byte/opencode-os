@@ -91,5 +91,3 @@ pub async fn delete_session(
         Err(AppError::NotFound(format!("Session not found: {}", id)))
     }
 }
-
-

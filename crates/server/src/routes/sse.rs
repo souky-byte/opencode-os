@@ -160,11 +160,8 @@ pub async fn events_stream(
         vec![]
     };
 
-    let missed_stream = futures::stream::iter(
-        missed_events
-            .into_iter()
-            .map(|e| envelope_to_sse_event(&e)),
-    );
+    let missed_stream =
+        futures::stream::iter(missed_events.into_iter().map(|e| envelope_to_sse_event(&e)));
 
     let live_stream = BroadcastStream::new(rx).filter_map(move |result| {
         let task_ids = task_ids.clone();
@@ -234,7 +231,10 @@ pub async fn session_activity_stream(
     }
 
     // Use async version that loads historical activities from DB
-    let store = project.activity_registry.get_or_create_with_history(id).await;
+    let store = project
+        .activity_registry
+        .get_or_create_with_history(id)
+        .await;
 
     let last_event_id: Option<u64> = headers
         .get("Last-Event-ID")

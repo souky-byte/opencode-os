@@ -14,25 +14,15 @@ use tracing::{debug, error, info, warn};
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum OpenCodeEvent {
     #[serde(rename = "session.status")]
-    SessionStatus {
-        properties: SessionStatusProps,
-    },
+    SessionStatus { properties: SessionStatusProps },
     #[serde(rename = "session.idle")]
-    SessionIdle {
-        properties: SessionIdleProps,
-    },
+    SessionIdle { properties: SessionIdleProps },
     #[serde(rename = "session.updated")]
-    SessionUpdated {
-        properties: SessionUpdatedProps,
-    },
+    SessionUpdated { properties: SessionUpdatedProps },
     #[serde(rename = "message.part.updated")]
-    MessagePartUpdated {
-        properties: MessagePartUpdatedProps,
-    },
+    MessagePartUpdated { properties: MessagePartUpdatedProps },
     #[serde(rename = "message.updated")]
-    MessageUpdated {
-        properties: MessageUpdatedProps,
-    },
+    MessageUpdated { properties: MessageUpdatedProps },
     // Direct activity events (streamed during execution)
     #[serde(rename = "step_start")]
     StepStart {
@@ -120,7 +110,10 @@ pub struct MessagePartUpdatedProps {
 impl MessagePartUpdatedProps {
     /// Extract session_id from the part object (OpenCode puts it inside part.sessionID)
     pub fn session_id(&self) -> Option<String> {
-        self.part.get("sessionID").and_then(|v| v.as_str()).map(String::from)
+        self.part
+            .get("sessionID")
+            .and_then(|v| v.as_str())
+            .map(String::from)
     }
 }
 
@@ -166,11 +159,20 @@ pub enum ExecutorEvent {
     /// Session became idle (AI finished responding)
     SessionIdle { session_id: String },
     /// Session status changed
-    StatusChanged { session_id: String, status: SessionStatus },
+    StatusChanged {
+        session_id: String,
+        status: SessionStatus,
+    },
     /// Message part updated (tool call, text, etc.)
-    MessagePartUpdated { session_id: String, part: serde_json::Value, delta: Option<String> },
+    MessagePartUpdated {
+        session_id: String,
+        part: serde_json::Value,
+        delta: Option<String>,
+    },
     /// Direct activity event (step_start, reasoning, agent_message, finished)
-    DirectActivity { activity: crate::activity_store::SessionActivityMsg },
+    DirectActivity {
+        activity: crate::activity_store::SessionActivityMsg,
+    },
     /// Connection error
     Error { message: String },
     /// Stream ended
@@ -208,7 +210,11 @@ impl OpenCodeEventSubscriber {
         tokio::spawn(async move {
             if let Err(e) = Self::run_subscription(client, config, tx.clone()).await {
                 error!(error = %e, "OpenCode event subscription failed");
-                let _ = tx.send(ExecutorEvent::Error { message: e.to_string() }).await;
+                let _ = tx
+                    .send(ExecutorEvent::Error {
+                        message: e.to_string(),
+                    })
+                    .await;
             }
             let _ = tx.send(ExecutorEvent::Disconnected).await;
         });
@@ -257,7 +263,9 @@ impl OpenCodeEventSubscriber {
                         "Received SSE event"
                     );
 
-                    if let Some(executor_event) = Self::process_sse_event(&event, &config.session_id) {
+                    if let Some(executor_event) =
+                        Self::process_sse_event(&event, &config.session_id)
+                    {
                         let is_idle = matches!(executor_event, ExecutorEvent::SessionIdle { .. });
 
                         if is_idle {
@@ -342,7 +350,8 @@ impl OpenCodeEventSubscriber {
             }
             OpenCodeEvent::MessagePartUpdated { properties } => {
                 // Extract session_id from the part object, or use target session as fallback
-                let event_session_id = properties.session_id()
+                let event_session_id = properties
+                    .session_id()
                     .unwrap_or_else(|| target_session_id.to_string());
 
                 debug!(
@@ -380,7 +389,11 @@ impl OpenCodeEventSubscriber {
             }
             OpenCodeEvent::MessageUpdated { .. } => None,
             // Direct activity events - convert to SessionActivityMsg and forward
-            OpenCodeEvent::StepStart { id, step_name, timestamp } => {
+            OpenCodeEvent::StepStart {
+                id,
+                step_name,
+                timestamp,
+            } => {
                 info!(id = %id, "Received step_start event");
                 let ts = chrono::DateTime::parse_from_rfc3339(&timestamp)
                     .map(|dt| dt.with_timezone(&chrono::Utc))
@@ -393,7 +406,11 @@ impl OpenCodeEventSubscriber {
                     },
                 })
             }
-            OpenCodeEvent::Reasoning { id, content, timestamp } => {
+            OpenCodeEvent::Reasoning {
+                id,
+                content,
+                timestamp,
+            } => {
                 debug!(id = %id, content_len = content.len(), "Received reasoning event");
                 let ts = chrono::DateTime::parse_from_rfc3339(&timestamp)
                     .map(|dt| dt.with_timezone(&chrono::Utc))
@@ -406,7 +423,12 @@ impl OpenCodeEventSubscriber {
                     },
                 })
             }
-            OpenCodeEvent::AgentMessage { id, content, is_partial, timestamp } => {
+            OpenCodeEvent::AgentMessage {
+                id,
+                content,
+                is_partial,
+                timestamp,
+            } => {
                 info!(id = %id, is_partial = is_partial, "Received agent_message event");
                 let ts = chrono::DateTime::parse_from_rfc3339(&timestamp)
                     .map(|dt| dt.with_timezone(&chrono::Utc))
@@ -420,7 +442,11 @@ impl OpenCodeEventSubscriber {
                     },
                 })
             }
-            OpenCodeEvent::Finished { success, error, timestamp } => {
+            OpenCodeEvent::Finished {
+                success,
+                error,
+                timestamp,
+            } => {
                 info!(success = success, "Received finished event");
                 let ts = chrono::DateTime::parse_from_rfc3339(&timestamp)
                     .map(|dt| dt.with_timezone(&chrono::Utc))
@@ -433,7 +459,12 @@ impl OpenCodeEventSubscriber {
                     },
                 })
             }
-            OpenCodeEvent::ToolCall { id, tool_name, args, timestamp } => {
+            OpenCodeEvent::ToolCall {
+                id,
+                tool_name,
+                args,
+                timestamp,
+            } => {
                 info!(id = %id, tool_name = %tool_name, "Received tool_call event");
                 let ts = chrono::DateTime::parse_from_rfc3339(&timestamp)
                     .map(|dt| dt.with_timezone(&chrono::Utc))
@@ -447,7 +478,14 @@ impl OpenCodeEventSubscriber {
                     },
                 })
             }
-            OpenCodeEvent::ToolResult { id, tool_name, args, result, success, timestamp } => {
+            OpenCodeEvent::ToolResult {
+                id,
+                tool_name,
+                args,
+                result,
+                success,
+                timestamp,
+            } => {
                 info!(id = %id, tool_name = %tool_name, success = success, "Received tool_result event");
                 let ts = chrono::DateTime::parse_from_rfc3339(&timestamp)
                     .map(|dt| dt.with_timezone(&chrono::Utc))
@@ -482,8 +520,14 @@ pub async fn wait_for_session_completion(
         while let Some(event) = rx.recv().await {
             match event {
                 ExecutorEvent::SessionIdle { .. } => return Ok(()),
-                ExecutorEvent::StatusChanged { status: SessionStatus::Completed, .. } => return Ok(()),
-                ExecutorEvent::StatusChanged { status: SessionStatus::Error, .. } => {
+                ExecutorEvent::StatusChanged {
+                    status: SessionStatus::Completed,
+                    ..
+                } => return Ok(()),
+                ExecutorEvent::StatusChanged {
+                    status: SessionStatus::Error,
+                    ..
+                } => {
                     return Err("Session ended with error".to_string());
                 }
                 ExecutorEvent::Error { message } => return Err(message),
@@ -509,7 +553,7 @@ mod tests {
     fn test_parse_session_idle() {
         let json = r#"{"type":"session.idle","properties":{"sessionID":"ses_123"}}"#;
         let event: OpenCodeEvent = serde_json::from_str(json).unwrap();
-        
+
         match event {
             OpenCodeEvent::SessionIdle { properties } => {
                 assert_eq!(properties.session_id, "ses_123");
@@ -544,6 +588,9 @@ mod tests {
         assert_eq!(SessionStatus::from("running"), SessionStatus::Running);
         assert_eq!(SessionStatus::from("idle"), SessionStatus::Idle);
         assert_eq!(SessionStatus::from("IDLE"), SessionStatus::Idle);
-        assert!(matches!(SessionStatus::from("custom"), SessionStatus::Unknown(_)));
+        assert!(matches!(
+            SessionStatus::from("custom"),
+            SessionStatus::Unknown(_)
+        ));
     }
 }

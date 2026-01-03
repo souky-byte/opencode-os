@@ -71,17 +71,35 @@ impl GitHubClient {
         let pulls_handler = self.octocrab.pulls(&self.repo.owner, &self.repo.repo);
 
         let prs = match state {
-            Some(PrState::Open) => pulls_handler.list().state(octocrab::params::State::Open).send().await?,
+            Some(PrState::Open) => {
+                pulls_handler
+                    .list()
+                    .state(octocrab::params::State::Open)
+                    .send()
+                    .await?
+            }
             Some(PrState::Closed) | Some(PrState::Merged) => {
-                pulls_handler.list().state(octocrab::params::State::Closed).send().await?
+                pulls_handler
+                    .list()
+                    .state(octocrab::params::State::Closed)
+                    .send()
+                    .await?
             }
             None => pulls_handler.list().send().await?,
         };
 
-        Ok(prs.items.into_iter().map(|pr| self.convert_pr(pr)).collect())
+        Ok(prs
+            .items
+            .into_iter()
+            .map(|pr| self.convert_pr(pr))
+            .collect())
     }
 
-    pub async fn merge_pull_request(&self, number: u64, commit_message: Option<&str>) -> Result<()> {
+    pub async fn merge_pull_request(
+        &self,
+        number: u64,
+        commit_message: Option<&str>,
+    ) -> Result<()> {
         info!("Merging PR #{}", number);
 
         let pulls_handler = self.octocrab.pulls(&self.repo.owner, &self.repo.repo);
@@ -129,10 +147,7 @@ impl GitHubClient {
             state,
             head_branch: pr.head.ref_field,
             base_branch: pr.base.ref_field,
-            html_url: pr
-                .html_url
-                .map(|u| u.to_string())
-                .unwrap_or_default(),
+            html_url: pr.html_url.map(|u| u.to_string()).unwrap_or_default(),
             created_at: pr.created_at.unwrap_or_default(),
             updated_at: pr.updated_at.unwrap_or_default(),
             merged_at: pr.merged_at,
@@ -183,10 +198,7 @@ impl GitHubClient {
         poll_interval_secs: u64,
         max_wait_secs: u64,
     ) -> Result<CiStatus> {
-        info!(
-            "Waiting for CI on {} (max {}s)",
-            ref_name, max_wait_secs
-        );
+        info!("Waiting for CI on {} (max {}s)", ref_name, max_wait_secs);
 
         let start = std::time::Instant::now();
         let poll_duration = std::time::Duration::from_secs(poll_interval_secs);
@@ -225,7 +237,11 @@ impl GitHubClient {
                 None => has_pending = true,
                 Some(c) if c.contains("Success") => {}
                 Some(c) if c.contains("Skipped") || c.contains("Neutral") => {}
-                Some(c) if c.contains("Failure") || c.contains("Cancelled") || c.contains("TimedOut") => {
+                Some(c)
+                    if c.contains("Failure")
+                        || c.contains("Cancelled")
+                        || c.contains("TimedOut") =>
+                {
                     has_failure = true
                 }
                 Some(c) if c.contains("ActionRequired") => has_pending = true,
@@ -262,8 +278,20 @@ impl GitHubClient {
         let issues_handler = self.octocrab.issues(&self.repo.owner, &self.repo.repo);
 
         let issues = match state {
-            Some(IssueState::Open) => issues_handler.list().state(octocrab::params::State::Open).send().await?,
-            Some(IssueState::Closed) => issues_handler.list().state(octocrab::params::State::Closed).send().await?,
+            Some(IssueState::Open) => {
+                issues_handler
+                    .list()
+                    .state(octocrab::params::State::Open)
+                    .send()
+                    .await?
+            }
+            Some(IssueState::Closed) => {
+                issues_handler
+                    .list()
+                    .state(octocrab::params::State::Closed)
+                    .send()
+                    .await?
+            }
             None => issues_handler.list().send().await?,
         };
 
@@ -278,10 +306,8 @@ impl GitHubClient {
     pub async fn import_issue(&self, number: u64) -> Result<opencode_core::Task> {
         let issue = self.get_issue(number).await?;
 
-        let task = opencode_core::Task::new(
-            issue.title.clone(),
-            issue.body.clone().unwrap_or_default(),
-        );
+        let task =
+            opencode_core::Task::new(issue.title.clone(), issue.body.clone().unwrap_or_default());
 
         info!("Imported issue #{} as task {}", number, task.id);
         Ok(task)
@@ -443,7 +469,11 @@ mod tests {
                 None => has_pending = true,
                 Some(c) if c.contains("Success") => {}
                 Some(c) if c.contains("Skipped") || c.contains("Neutral") => {}
-                Some(c) if c.contains("Failure") || c.contains("Cancelled") || c.contains("TimedOut") => {
+                Some(c)
+                    if c.contains("Failure")
+                        || c.contains("Cancelled")
+                        || c.contains("TimedOut") =>
+                {
                     has_failure = true
                 }
                 Some(c) if c.contains("ActionRequired") => has_pending = true,

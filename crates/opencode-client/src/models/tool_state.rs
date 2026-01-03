@@ -27,7 +27,11 @@ pub struct ToolState {
     pub time: Option<Box<models::ToolStateErrorTime>>,
     #[serde(rename = "output", default, skip_serializing_if = "Option::is_none")]
     pub output: Option<String>,
-    #[serde(rename = "attachments", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "attachments",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub attachments: Option<Vec<models::FilePart>>,
     #[serde(rename = "error", default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -49,7 +53,9 @@ impl ToolState {
     }
 }
 ///
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, Default)]
+#[derive(
+    Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, Default,
+)]
 pub enum Status {
     #[default]
     #[serde(rename = "pending")]

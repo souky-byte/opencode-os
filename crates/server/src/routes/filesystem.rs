@@ -91,7 +91,11 @@ fn browse_path(path: &PathBuf) -> BrowseResponse {
                         path: path.display().to_string(),
                         is_dir,
                         is_vcs_root,
-                        vcs: if is_vcs_root { Some(vcs.to_string()) } else { None },
+                        vcs: if is_vcs_root {
+                            Some(vcs.to_string())
+                        } else {
+                            None
+                        },
                     })
                 })
                 .collect()

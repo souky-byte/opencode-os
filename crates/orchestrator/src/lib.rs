@@ -6,6 +6,7 @@ pub mod mcp_config;
 pub mod opencode_events;
 pub mod plan_parser;
 pub mod prompts;
+pub mod services;
 pub mod session_runner;
 pub mod state_machine;
 
@@ -22,6 +23,7 @@ pub use opencode_events::{
 };
 pub use plan_parser::{extract_phase_summary, parse_plan_phases, ExtractedSummary};
 pub use prompts::UserReviewComment;
+pub use services::{McpManager, MessageParser, OpenCodeClient};
 pub use session_runner::{
     McpConfig, SessionConfig, SessionDependencies, SessionResult, SessionRunner,
 };
