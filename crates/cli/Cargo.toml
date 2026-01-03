@@ -26,6 +26,7 @@ reqwest = { workspace = true }
 zip = "2"
 futures-util = "0.3"
 indicatif = "0.17"
+which = "7"
 
 db = { path = "../db" }
 server = { path = "../server" }

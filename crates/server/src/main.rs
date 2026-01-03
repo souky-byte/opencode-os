@@ -1,4 +1,4 @@
-use server::{create_router, state::AppState};
+use server::{create_router, opencode_manager::OpenCodeManager, state::AppState};
 use std::path::PathBuf;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -16,6 +16,10 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("OPENCODE_URL").unwrap_or_else(|_| "http://localhost:4096".to_string());
 
     tracing::info!("OpenCode server URL: {}", opencode_url);
+
+    // Ensure OpenCode server is running
+    let mut _opencode_manager = OpenCodeManager::new(&opencode_url);
+    _opencode_manager.ensure_running().await?;
 
     let state = AppState::new(&opencode_url);
 

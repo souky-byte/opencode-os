@@ -1,4 +1,5 @@
 pub mod error;
+pub mod opencode_manager;
 pub mod project_manager;
 pub mod routes;
 pub mod state;

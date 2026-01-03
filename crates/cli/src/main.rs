@@ -10,6 +10,9 @@ use std::io::Write;
 use std::path::PathBuf;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+mod opencode_manager;
+use opencode_manager::OpenCodeManager;
+
 const STUDIO_DIR: &str = ".opencode-studio";
 const CONFIG_FILE: &str = "config.toml";
 const GLOBAL_CONFIG_FILE: &str = "global.toml";
@@ -579,6 +582,10 @@ async fn serve(
 
     tracing::debug!("Project: {}", cwd.display());
     tracing::debug!("OpenCode URL: {}", opencode_url);
+
+    // Ensure OpenCode server is running
+    let mut opencode_manager = OpenCodeManager::new(opencode_url);
+    opencode_manager.ensure_running().await?;
 
     let state = AppState::new(opencode_url);
     let state = if let Some(ref app_dir) = app_dir {
