@@ -22,7 +22,6 @@ impl McpAuthRemove200Response {
         McpAuthRemove200Response { success }
     }
 }
-///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Success {
     #[serde(rename = "true")]

@@ -24,7 +24,6 @@ impl GlobalHealth200Response {
         GlobalHealth200Response { healthy, version }
     }
 }
-///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Healthy {
     #[serde(rename = "true")]

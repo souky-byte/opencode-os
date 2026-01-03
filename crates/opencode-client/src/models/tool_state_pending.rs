@@ -30,7 +30,6 @@ impl ToolStatePending {
         ToolStatePending { status, input, raw }
     }
 }
-///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Status {
     #[serde(rename = "pending")]

@@ -22,7 +22,6 @@ impl McpStatusNeedsAuth {
         McpStatusNeedsAuth { status }
     }
 }
-///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Status {
     #[serde(rename = "needs_auth")]

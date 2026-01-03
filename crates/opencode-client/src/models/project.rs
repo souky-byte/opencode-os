@@ -39,7 +39,6 @@ impl Project {
         }
     }
 }
-///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Vcs {
     #[serde(rename = "git")]

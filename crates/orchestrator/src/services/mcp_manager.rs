@@ -9,6 +9,9 @@ use uuid::Uuid;
 
 use crate::error::{OrchestratorError, Result};
 
+const MCP_FINDINGS_NAME: &str = "opencode-findings";
+const MCP_FINDINGS_BINARY: &str = "opencode-mcp-findings";
+
 pub struct McpManager {
     opencode_config: Arc<Configuration>,
 }
@@ -39,7 +42,7 @@ impl McpManager {
         config.enabled = Some(true);
         config.timeout = Some(10000);
 
-        let request = McpAddRequest::new("opencode-findings".to_string(), config);
+        let request = McpAddRequest::new(MCP_FINDINGS_NAME.to_string(), config);
         let directory = workspace_path.to_str();
 
         info!(
@@ -55,7 +58,7 @@ impl McpManager {
                 OrchestratorError::OpenCodeError(format!("Failed to add MCP server: {}", e))
             })?;
 
-        default_api::mcp_connect(&self.opencode_config, "opencode-findings", directory)
+        default_api::mcp_connect(&self.opencode_config, MCP_FINDINGS_NAME, directory)
             .await
             .map_err(|e| {
                 error!(error = %e, "Failed to connect MCP findings server");
@@ -72,7 +75,7 @@ impl McpManager {
         info!("Disconnecting MCP findings server");
 
         if let Err(e) =
-            default_api::mcp_disconnect(&self.opencode_config, "opencode-findings", directory).await
+            default_api::mcp_disconnect(&self.opencode_config, MCP_FINDINGS_NAME, directory).await
         {
             warn!(error = %e, "Failed to disconnect MCP findings server (may already be disconnected)");
         }
@@ -84,14 +87,14 @@ impl McpManager {
         if cfg!(debug_assertions) {
             if let Ok(exe_path) = std::env::current_exe() {
                 if let Some(parent) = exe_path.parent() {
-                    let mcp_path = parent.join("opencode-mcp-findings");
+                    let mcp_path = parent.join(MCP_FINDINGS_BINARY);
                     if mcp_path.exists() {
                         return mcp_path.to_string_lossy().to_string();
                     }
                 }
             }
         }
-        "opencode-mcp-findings".to_string()
+        MCP_FINDINGS_BINARY.to_string()
     }
 }
 

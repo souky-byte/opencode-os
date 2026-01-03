@@ -24,7 +24,6 @@ impl McpStatusNeedsClientRegistration {
         McpStatusNeedsClientRegistration { status, error }
     }
 }
-///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Status {
     #[serde(rename = "needs_client_registration")]

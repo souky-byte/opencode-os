@@ -74,10 +74,13 @@ impl FixPhase {
             )
             .await;
 
-        let _ = ctx
+        if let Err(e) = ctx
             .mcp_manager
             .cleanup_findings_server(&workspace_path)
-            .await;
+            .await
+        {
+            debug!(error = %e, "MCP cleanup failed");
+        }
 
         let response_content = match response_content {
             Ok(content) => content,

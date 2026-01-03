@@ -27,7 +27,6 @@ impl ProviderList200ResponseAllInnerModelsValueModalities {
         ProviderList200ResponseAllInnerModelsValueModalities { input, output }
     }
 }
-///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Input {
     #[serde(rename = "text")]
@@ -47,7 +46,6 @@ impl Default for Input {
         Self::Text
     }
 }
-///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Output {
     #[serde(rename = "text")]

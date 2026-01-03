@@ -52,7 +52,6 @@ impl ToolState {
         }
     }
 }
-///
 #[derive(
     Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, Default,
 )]

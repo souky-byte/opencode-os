@@ -86,10 +86,13 @@ impl ReviewPhase {
             )
             .await;
 
-        let _ = ctx
+        if let Err(e) = ctx
             .mcp_manager
             .cleanup_findings_server(&workspace_path)
-            .await;
+            .await
+        {
+            debug!(error = %e, "MCP cleanup failed");
+        }
 
         let response_content = match response_content {
             Ok(content) => content,
@@ -334,9 +337,10 @@ impl ReviewPhase {
             None
         };
 
-        let diff = Self::get_workspace_diff(ctx, task)
-            .await
-            .unwrap_or_default();
+        let diff = Self::get_workspace_diff(ctx, task).await.unwrap_or_else(|e| {
+            warn!(error = %e, task_id = %task.id, "Failed to get workspace diff, proceeding without diff");
+            String::new()
+        });
         let prompt = if mcp_config.is_some() {
             PhasePrompts::review_with_mcp(task, &diff)
         } else {

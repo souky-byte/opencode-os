@@ -22,7 +22,6 @@ impl McpStatusDisabled {
         McpStatusDisabled { status }
     }
 }
-///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Status {
     #[serde(rename = "disabled")]

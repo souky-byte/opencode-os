@@ -91,11 +91,7 @@ fn browse_path(path: &PathBuf) -> BrowseResponse {
                         path: path.display().to_string(),
                         is_dir,
                         is_vcs_root,
-                        vcs: if is_vcs_root {
-                            Some(vcs.to_string())
-                        } else {
-                            None
-                        },
+                        vcs: is_vcs_root.then_some(vcs.to_string()),
                     })
                 })
                 .collect()
@@ -109,10 +105,6 @@ fn browse_path(path: &PathBuf) -> BrowseResponse {
         parent_path,
         entries,
         is_vcs_root,
-        vcs: if is_vcs_root {
-            Some(current_vcs.to_string())
-        } else {
-            None
-        },
+        vcs: is_vcs_root.then_some(current_vcs.to_string()),
     }
 }

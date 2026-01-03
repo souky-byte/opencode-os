@@ -298,6 +298,16 @@ impl OpenCodeEventSubscriber {
         Ok(())
     }
 
+    /// Parse RFC3339 timestamp, falling back to current time with a warning if parsing fails
+    fn parse_timestamp(timestamp: &str) -> chrono::DateTime<chrono::Utc> {
+        chrono::DateTime::parse_from_rfc3339(timestamp)
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+            .unwrap_or_else(|e| {
+                warn!(error = %e, timestamp = %timestamp, "Failed to parse timestamp, using current time");
+                chrono::Utc::now()
+            })
+    }
+
     fn process_sse_event(event: &SseEvent, target_session_id: &str) -> Option<ExecutorEvent> {
         // Skip empty events or comments
         if event.data.is_empty() {
@@ -395,9 +405,7 @@ impl OpenCodeEventSubscriber {
                 timestamp,
             } => {
                 info!(id = %id, "Received step_start event");
-                let ts = chrono::DateTime::parse_from_rfc3339(&timestamp)
-                    .map(|dt| dt.with_timezone(&chrono::Utc))
-                    .unwrap_or_else(|_| chrono::Utc::now());
+                let ts = Self::parse_timestamp(&timestamp);
                 Some(ExecutorEvent::DirectActivity {
                     activity: crate::activity_store::SessionActivityMsg::StepStart {
                         id,
@@ -412,9 +420,7 @@ impl OpenCodeEventSubscriber {
                 timestamp,
             } => {
                 debug!(id = %id, content_len = content.len(), "Received reasoning event");
-                let ts = chrono::DateTime::parse_from_rfc3339(&timestamp)
-                    .map(|dt| dt.with_timezone(&chrono::Utc))
-                    .unwrap_or_else(|_| chrono::Utc::now());
+                let ts = Self::parse_timestamp(&timestamp);
                 Some(ExecutorEvent::DirectActivity {
                     activity: crate::activity_store::SessionActivityMsg::Reasoning {
                         id,
@@ -430,9 +436,7 @@ impl OpenCodeEventSubscriber {
                 timestamp,
             } => {
                 info!(id = %id, is_partial = is_partial, "Received agent_message event");
-                let ts = chrono::DateTime::parse_from_rfc3339(&timestamp)
-                    .map(|dt| dt.with_timezone(&chrono::Utc))
-                    .unwrap_or_else(|_| chrono::Utc::now());
+                let ts = Self::parse_timestamp(&timestamp);
                 Some(ExecutorEvent::DirectActivity {
                     activity: crate::activity_store::SessionActivityMsg::AgentMessage {
                         id,
@@ -448,9 +452,7 @@ impl OpenCodeEventSubscriber {
                 timestamp,
             } => {
                 info!(success = success, "Received finished event");
-                let ts = chrono::DateTime::parse_from_rfc3339(&timestamp)
-                    .map(|dt| dt.with_timezone(&chrono::Utc))
-                    .unwrap_or_else(|_| chrono::Utc::now());
+                let ts = Self::parse_timestamp(&timestamp);
                 Some(ExecutorEvent::DirectActivity {
                     activity: crate::activity_store::SessionActivityMsg::Finished {
                         success,
@@ -466,9 +468,7 @@ impl OpenCodeEventSubscriber {
                 timestamp,
             } => {
                 info!(id = %id, tool_name = %tool_name, "Received tool_call event");
-                let ts = chrono::DateTime::parse_from_rfc3339(&timestamp)
-                    .map(|dt| dt.with_timezone(&chrono::Utc))
-                    .unwrap_or_else(|_| chrono::Utc::now());
+                let ts = Self::parse_timestamp(&timestamp);
                 Some(ExecutorEvent::DirectActivity {
                     activity: crate::activity_store::SessionActivityMsg::ToolCall {
                         id,
@@ -487,9 +487,7 @@ impl OpenCodeEventSubscriber {
                 timestamp,
             } => {
                 info!(id = %id, tool_name = %tool_name, success = success, "Received tool_result event");
-                let ts = chrono::DateTime::parse_from_rfc3339(&timestamp)
-                    .map(|dt| dt.with_timezone(&chrono::Utc))
-                    .unwrap_or_else(|_| chrono::Utc::now());
+                let ts = Self::parse_timestamp(&timestamp);
                 Some(ExecutorEvent::DirectActivity {
                     activity: crate::activity_store::SessionActivityMsg::ToolResult {
                         id,

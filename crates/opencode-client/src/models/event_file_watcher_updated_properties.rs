@@ -24,7 +24,6 @@ impl EventFileWatcherUpdatedProperties {
         EventFileWatcherUpdatedProperties { file, event }
     }
 }
-///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Event {
     #[serde(rename = "add")]

@@ -22,7 +22,6 @@ impl ConfigLspAnyOfValueAnyOf {
         ConfigLspAnyOfValueAnyOf { disabled }
     }
 }
-///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Disabled {
     #[serde(rename = "true")]

@@ -30,7 +30,6 @@ impl ProviderAuthAuthorization {
         }
     }
 }
-///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Method {
     #[serde(rename = "auto")]

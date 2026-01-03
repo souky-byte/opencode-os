@@ -22,7 +22,6 @@ impl PermissionRespondRequest {
         PermissionRespondRequest { response }
     }
 }
-///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Response {
     #[serde(rename = "once")]
