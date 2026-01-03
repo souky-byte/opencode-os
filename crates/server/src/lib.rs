@@ -1,3 +1,4 @@
+pub mod config;
 pub mod error;
 pub mod opencode_manager;
 pub mod project_manager;
@@ -63,6 +64,9 @@ use state::AppState;
         routes::delete_comment,
         routes::send_comments_to_fix,
         routes::filesystem::browse_directory,
+        routes::opencode::get_providers,
+        routes::settings::get_phase_models,
+        routes::settings::update_phase_models,
     ),
     components(schemas(
         routes::HealthResponse,
@@ -104,6 +108,14 @@ use state::AppState;
         routes::filesystem::BrowseQuery,
         routes::filesystem::BrowseResponse,
         routes::filesystem::DirectoryEntry,
+        routes::opencode::OpenCodeModel,
+        routes::opencode::OpenCodeProvider,
+        routes::opencode::ProvidersResponse,
+        routes::settings::PhaseModelsResponse,
+        routes::settings::UpdatePhaseModelsRequest,
+        config::ModelSelection,
+        config::PhaseModels,
+        config::ProjectConfig,
         opencode_core::Task,
         opencode_core::TaskStatus,
         opencode_core::CreateTaskRequest,
@@ -122,6 +134,8 @@ use state::AppState;
         (name = "workspaces", description = "Workspace management endpoints"),
         (name = "comments", description = "Review comments endpoints"),
         (name = "filesystem", description = "Filesystem browsing endpoints"),
+        (name = "opencode", description = "OpenCode integration endpoints"),
+        (name = "settings", description = "Project settings endpoints"),
     )
 )]
 pub struct ApiDoc;
@@ -216,6 +230,14 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/filesystem/browse",
             get(routes::filesystem::browse_directory),
+        )
+        .route(
+            "/api/opencode/providers",
+            get(routes::opencode::get_providers),
+        )
+        .route(
+            "/api/settings/models",
+            get(routes::settings::get_phase_models).put(routes::settings::update_phase_models),
         )
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())

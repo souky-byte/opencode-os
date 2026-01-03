@@ -5,7 +5,7 @@
 use db::{SessionActivityRepository, SessionRepository, TaskRepository};
 use events::EventBus;
 use opencode_client::apis::configuration::Configuration as OpenCodeConfig;
-use orchestrator::{ExecutorConfig, SessionActivityRegistry, TaskExecutor};
+use orchestrator::{ExecutorConfig, ModelSelection, PhaseModels, SessionActivityRegistry, TaskExecutor};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::path::{Path, PathBuf};
@@ -14,6 +14,8 @@ use tokio::sync::RwLock;
 use vcs::{GitVcs, JujutsuVcs, VersionControl, WorkspaceConfig, WorkspaceManager};
 
 use sha2::{Digest, Sha256};
+
+use crate::config::ProjectConfig as JsonProjectConfig;
 
 const STUDIO_DIR: &str = ".opencode-studio";
 const GLOBAL_STUDIO_DIR: &str = ".opencode-studio";
@@ -213,6 +215,7 @@ pub struct InitProjectResult {
 #[derive(Clone)]
 pub struct ProjectContext {
     pub path: PathBuf,
+    pub project_path: PathBuf,
     pub pool: SqlitePool,
     pub task_repository: TaskRepository,
     pub session_repository: SessionRepository,
@@ -280,7 +283,8 @@ impl ProjectContext {
         let executor_config = ExecutorConfig::new(&path)
             .with_plan_approval(config.require_plan_approval)
             .with_human_review(config.require_human_review)
-            .with_max_iterations(config.max_iterations);
+            .with_max_iterations(config.max_iterations)
+            .with_phase_models(convert_phase_models(&path).await);
 
         let task_executor = TaskExecutor::new(opencode_config, executor_config)
             .with_workspace_manager(workspace_manager.clone())
@@ -290,7 +294,8 @@ impl ProjectContext {
             .with_activity_registry(activity_registry.clone());
 
         Ok(Self {
-            path,
+            path: path.clone(),
+            project_path: path,
             pool,
             task_repository,
             session_repository,
@@ -503,6 +508,21 @@ pub fn detect_vcs(path: &Path) -> &'static str {
         "git"
     } else {
         "none"
+    }
+}
+
+async fn convert_phase_models(project_path: &Path) -> PhaseModels {
+    let json_config = JsonProjectConfig::read(project_path).await;
+
+    let convert_model = |m: Option<crate::config::ModelSelection>| -> Option<ModelSelection> {
+        m.map(|s| ModelSelection::new(s.provider_id, s.model_id))
+    };
+
+    PhaseModels {
+        planning: convert_model(json_config.phase_models.planning),
+        implementation: convert_model(json_config.phase_models.implementation),
+        review: convert_model(json_config.phase_models.review),
+        fix: convert_model(json_config.phase_models.fix),
     }
 }
 

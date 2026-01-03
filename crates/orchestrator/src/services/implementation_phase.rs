@@ -81,7 +81,8 @@ impl ImplementationPhase {
             has_workspace = task.workspace_path.is_some(),
             "Creating OpenCode session for implementation"
         );
-        let opencode_session = ctx.opencode_client.create_session(&working_dir).await?;
+        let client = ctx.opencode_client_for_phase(SessionPhase::Implementation);
+        let opencode_session = client.create_session(&working_dir).await?;
         let session_id_str = opencode_session.id.to_string();
 
         info!(
@@ -114,8 +115,7 @@ impl ImplementationPhase {
             "Sending implementation prompt to OpenCode"
         );
 
-        let response = ctx
-            .opencode_client
+        let response = client
             .send_prompt(
                 &session_id_str,
                 &prompt,
@@ -201,7 +201,8 @@ impl ImplementationPhase {
                 &current_phase.title,
             );
 
-            let opencode_session = ctx.opencode_client.create_session(&working_dir).await?;
+            let client = ctx.opencode_client_for_phase(SessionPhase::Implementation);
+            let opencode_session = client.create_session(&working_dir).await?;
             let session_id_str = opencode_session.id.to_string();
 
             session.start(session_id_str.clone());
@@ -212,8 +213,7 @@ impl ImplementationPhase {
 
             let prompt = PhasePrompts::implementation_phase(task, current_phase, &context);
 
-            let response = ctx
-                .opencode_client
+            let response = client
                 .send_prompt(
                     &session_id_str,
                     &prompt,
@@ -356,6 +356,7 @@ impl ImplementationPhase {
             None
         };
         let prompt = PhasePrompts::implementation_with_plan(task, plan.as_deref());
+        let client = ctx.opencode_client_for_phase(SessionPhase::Implementation);
 
         let config = SessionConfig {
             task_id: task.id,
@@ -363,8 +364,8 @@ impl ImplementationPhase {
             phase: SessionPhase::Implementation,
             prompt,
             working_dir,
-            provider_id: ctx.opencode_client.provider_id().to_string(),
-            model_id: ctx.opencode_client.model_id().to_string(),
+            provider_id: client.provider_id().to_string(),
+            model_id: client.model_id().to_string(),
             mcp_config: None,
             implementation_phase: None,
             skip_task_status_update: false,
@@ -408,7 +409,8 @@ impl ImplementationPhase {
             ))
         })?;
 
-        let opencode_session = ctx.opencode_client.create_session(&working_dir).await?;
+        let client = ctx.opencode_client_for_phase(SessionPhase::Implementation);
+        let opencode_session = client.create_session(&working_dir).await?;
         let opencode_session_id = opencode_session.id.to_string();
 
         let mut session =
@@ -430,8 +432,8 @@ impl ImplementationPhase {
         let event_bus = ctx.event_bus.clone();
         let activity_registry = ctx.activity_registry.clone();
         let opencode_config = Arc::clone(&ctx.opencode_config);
-        let provider_id = ctx.opencode_client.provider_id().to_string();
-        let model_id = ctx.opencode_client.model_id().to_string();
+        let provider_id = client.provider_id().to_string();
+        let model_id = client.model_id().to_string();
 
         tokio::spawn(async move {
             let mut task = task_clone;

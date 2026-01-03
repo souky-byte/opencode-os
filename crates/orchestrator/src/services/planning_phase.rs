@@ -21,8 +21,8 @@ impl PlanningPhase {
         let mut session = Session::new(task.id, SessionPhase::Planning);
 
         debug!("Creating OpenCode session for planning");
-        let opencode_session = ctx
-            .opencode_client
+        let client = ctx.opencode_client_for_phase(SessionPhase::Planning);
+        let opencode_session = client
             .create_session(&ctx.config.repo_path)
             .await?;
         let session_id_str = opencode_session.id.to_string();
@@ -45,8 +45,7 @@ impl PlanningPhase {
             "Sending planning prompt to OpenCode"
         );
 
-        let response_content = ctx
-            .opencode_client
+        let response_content = client
             .send_prompt(
                 &session_id_str,
                 &prompt,
@@ -103,6 +102,7 @@ impl PlanningPhase {
         info!(task_id = %task.id, "Starting planning with SessionRunner");
 
         let prompt = PhasePrompts::planning(task);
+        let client = ctx.opencode_client_for_phase(SessionPhase::Planning);
 
         let config = SessionConfig {
             task_id: task.id,
@@ -110,8 +110,8 @@ impl PlanningPhase {
             phase: SessionPhase::Planning,
             prompt,
             working_dir: ctx.config.repo_path.clone(),
-            provider_id: ctx.opencode_client.provider_id().to_string(),
-            model_id: ctx.opencode_client.model_id().to_string(),
+            provider_id: client.provider_id().to_string(),
+            model_id: client.model_id().to_string(),
             mcp_config: None,
             implementation_phase: None,
             skip_task_status_update: false,

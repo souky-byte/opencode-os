@@ -7,7 +7,7 @@ pub mod opencode_client;
 pub mod planning_phase;
 pub mod review_phase;
 
-pub use executor_context::{ExecutorConfig, ExecutorContext};
+pub use executor_context::{ExecutorConfig, ExecutorContext, ModelSelection, PhaseModels};
 pub use fix_phase::FixPhase;
 pub use implementation_phase::ImplementationPhase;
 pub use mcp_manager::McpManager;

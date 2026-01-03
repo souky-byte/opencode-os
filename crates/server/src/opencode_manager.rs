@@ -16,7 +16,7 @@ impl OpenCodeManager {
     pub fn new(url: &str) -> Self {
         let port = url
             .split(':')
-            .last()
+            .next_back()
             .and_then(|p| p.parse().ok())
             .unwrap_or(4096);
 

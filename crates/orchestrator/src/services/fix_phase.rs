@@ -20,8 +20,8 @@ impl FixPhase {
         let mut session = Session::new(task.id, SessionPhase::Fix);
 
         debug!("Creating OpenCode session for fix");
-        let opencode_session = ctx
-            .opencode_client
+        let client = ctx.opencode_client_for_fix();
+        let opencode_session = client
             .create_session(&ctx.config.repo_path)
             .await?;
         let session_id_str = opencode_session.id.to_string();
@@ -64,8 +64,7 @@ impl FixPhase {
             "Sending fix prompt to OpenCode"
         );
 
-        let response_content = ctx
-            .opencode_client
+        let response_content = client
             .send_prompt(
                 &session_id_str,
                 &prompt,
@@ -128,8 +127,8 @@ impl FixPhase {
         let mut session = Session::new(task.id, SessionPhase::Implementation);
 
         debug!("Creating OpenCode session for fix iteration");
-        let opencode_session = ctx
-            .opencode_client
+        let client = ctx.opencode_client_for_fix();
+        let opencode_session = client
             .create_session(&ctx.config.repo_path)
             .await?;
         let session_id_str = opencode_session.id.to_string();
@@ -152,8 +151,7 @@ impl FixPhase {
         );
 
         let workspace_path = ctx.working_dir_for_task(task);
-        let response = ctx
-            .opencode_client
+        let response = client
             .send_prompt(
                 &session_id_str,
                 &prompt,
@@ -206,6 +204,7 @@ impl FixPhase {
         });
 
         let prompt = PhasePrompts::fix_with_mcp(task);
+        let client = ctx.opencode_client_for_fix();
 
         let config = SessionConfig {
             task_id: task.id,
@@ -213,8 +212,8 @@ impl FixPhase {
             phase: SessionPhase::Fix,
             prompt,
             working_dir,
-            provider_id: ctx.opencode_client.provider_id().to_string(),
-            model_id: ctx.opencode_client.model_id().to_string(),
+            provider_id: client.provider_id().to_string(),
+            model_id: client.model_id().to_string(),
             mcp_config,
             implementation_phase: None,
             skip_task_status_update: false,
@@ -257,6 +256,7 @@ impl FixPhase {
         });
 
         let prompt = PhasePrompts::fix_user_comments(task, comments);
+        let client = ctx.opencode_client_for_fix();
 
         let config = SessionConfig {
             task_id: task.id,
@@ -264,8 +264,8 @@ impl FixPhase {
             phase: SessionPhase::Fix,
             prompt,
             working_dir,
-            provider_id: ctx.opencode_client.provider_id().to_string(),
-            model_id: ctx.opencode_client.model_id().to_string(),
+            provider_id: client.provider_id().to_string(),
+            model_id: client.model_id().to_string(),
             mcp_config,
             implementation_phase: None,
             skip_task_status_update: false,

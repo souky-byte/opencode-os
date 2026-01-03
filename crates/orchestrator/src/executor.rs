@@ -102,6 +102,10 @@ impl TaskExecutor {
         self.ctx.file_manager()
     }
 
+    pub fn opencode_config(&self) -> &Arc<Configuration> {
+        &self.ctx.opencode_config
+    }
+
     pub fn transition(&self, task: &mut Task, to: TaskStatus) -> Result<()> {
         self.ctx.transition(task, to)
     }

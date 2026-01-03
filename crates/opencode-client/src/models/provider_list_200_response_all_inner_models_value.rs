@@ -15,33 +15,35 @@ use serde::{Deserialize, Serialize};
 pub struct ProviderList200ResponseAllInnerModelsValue {
     #[serde(rename = "id")]
     pub id: String,
+    #[serde(rename = "providerID", skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
     #[serde(rename = "name")]
     pub name: String,
     #[serde(rename = "family", skip_serializing_if = "Option::is_none")]
     pub family: Option<String>,
     #[serde(rename = "release_date")]
     pub release_date: String,
-    #[serde(rename = "attachment")]
-    pub attachment: bool,
-    #[serde(rename = "reasoning")]
-    pub reasoning: bool,
-    #[serde(rename = "temperature")]
-    pub temperature: bool,
-    #[serde(rename = "tool_call")]
-    pub tool_call: bool,
+    #[serde(rename = "attachment", skip_serializing_if = "Option::is_none")]
+    pub attachment: Option<bool>,
+    #[serde(rename = "reasoning", skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<bool>,
+    #[serde(rename = "temperature", skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<bool>,
+    #[serde(rename = "tool_call", skip_serializing_if = "Option::is_none")]
+    pub tool_call: Option<bool>,
     #[serde(rename = "interleaved", skip_serializing_if = "Option::is_none")]
     pub interleaved: Option<Box<models::ProviderList200ResponseAllInnerModelsValueInterleaved>>,
     #[serde(rename = "cost", skip_serializing_if = "Option::is_none")]
     pub cost: Option<Box<models::ProviderList200ResponseAllInnerModelsValueCost>>,
-    #[serde(rename = "limit")]
-    pub limit: Box<models::ProviderList200ResponseAllInnerModelsValueLimit>,
+    #[serde(rename = "limit", skip_serializing_if = "Option::is_none")]
+    pub limit: Option<Box<models::ProviderList200ResponseAllInnerModelsValueLimit>>,
     #[serde(rename = "modalities", skip_serializing_if = "Option::is_none")]
     pub modalities: Option<Box<models::ProviderList200ResponseAllInnerModelsValueModalities>>,
     #[serde(rename = "experimental", skip_serializing_if = "Option::is_none")]
     pub experimental: Option<bool>,
     #[serde(rename = "status", skip_serializing_if = "Option::is_none")]
     pub status: Option<Status>,
-    #[serde(rename = "options")]
+    #[serde(rename = "options", default)]
     pub options: std::collections::HashMap<String, serde_json::Value>,
     #[serde(rename = "headers", skip_serializing_if = "Option::is_none")]
     pub headers: Option<std::collections::HashMap<String, String>>,
@@ -51,6 +53,10 @@ pub struct ProviderList200ResponseAllInnerModelsValue {
     pub variants: Option<
         std::collections::HashMap<String, std::collections::HashMap<String, serde_json::Value>>,
     >,
+    #[serde(rename = "api", skip_serializing_if = "Option::is_none")]
+    pub api: Option<Box<models::ProviderList200ResponseAllInnerModelsValueApi>>,
+    #[serde(rename = "capabilities", skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<Box<models::ProviderList200ResponseAllInnerModelsValueCapabilities>>,
 }
 
 impl ProviderList200ResponseAllInnerModelsValue {
@@ -58,25 +64,21 @@ impl ProviderList200ResponseAllInnerModelsValue {
         id: String,
         name: String,
         release_date: String,
-        attachment: bool,
-        reasoning: bool,
-        temperature: bool,
-        tool_call: bool,
-        limit: models::ProviderList200ResponseAllInnerModelsValueLimit,
         options: std::collections::HashMap<String, serde_json::Value>,
     ) -> ProviderList200ResponseAllInnerModelsValue {
         ProviderList200ResponseAllInnerModelsValue {
             id,
+            provider_id: None,
             name,
             family: None,
             release_date,
-            attachment,
-            reasoning,
-            temperature,
-            tool_call,
+            attachment: None,
+            reasoning: None,
+            temperature: None,
+            tool_call: None,
             interleaved: None,
             cost: None,
-            limit: Box::new(limit),
+            limit: None,
             modalities: None,
             experimental: None,
             status: None,
@@ -84,6 +86,8 @@ impl ProviderList200ResponseAllInnerModelsValue {
             headers: None,
             provider: None,
             variants: None,
+            api: None,
+            capabilities: None,
         }
     }
 }
@@ -95,6 +99,8 @@ pub enum Status {
     Beta,
     #[serde(rename = "deprecated")]
     Deprecated,
+    #[serde(rename = "active")]
+    Active,
 }
 
 impl Default for Status {

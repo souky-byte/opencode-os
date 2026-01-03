@@ -12,6 +12,7 @@ use crate::error::{OrchestratorError, Result};
 const MCP_FINDINGS_NAME: &str = "opencode-findings";
 const MCP_FINDINGS_BINARY: &str = "opencode-mcp-findings";
 
+#[derive(Clone)]
 pub struct McpManager {
     opencode_config: Arc<Configuration>,
 }

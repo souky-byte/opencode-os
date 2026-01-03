@@ -1,7 +1,7 @@
 use db::{SessionRepository, TaskRepository};
 use events::{Event, EventBus, EventEnvelope};
 use opencode_client::apis::configuration::Configuration;
-use opencode_core::{Session, Task, TaskStatus, UpdateTaskRequest};
+use opencode_core::{Session, SessionPhase, Task, TaskStatus, UpdateTaskRequest};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -14,12 +14,36 @@ use crate::files::FileManager;
 use crate::services::{McpManager, OpenCodeClient};
 use crate::state_machine::TaskStateMachine;
 
+#[derive(Debug, Clone, Default)]
+pub struct ModelSelection {
+    pub provider_id: String,
+    pub model_id: String,
+}
+
+impl ModelSelection {
+    pub fn new(provider_id: impl Into<String>, model_id: impl Into<String>) -> Self {
+        Self {
+            provider_id: provider_id.into(),
+            model_id: model_id.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PhaseModels {
+    pub planning: Option<ModelSelection>,
+    pub implementation: Option<ModelSelection>,
+    pub review: Option<ModelSelection>,
+    pub fix: Option<ModelSelection>,
+}
+
 #[derive(Debug, Clone)]
 pub struct ExecutorConfig {
     pub require_plan_approval: bool,
     pub require_human_review: bool,
     pub max_review_iterations: u32,
     pub repo_path: PathBuf,
+    pub phase_models: PhaseModels,
 }
 
 impl Default for ExecutorConfig {
@@ -29,6 +53,7 @@ impl Default for ExecutorConfig {
             require_human_review: true,
             max_review_iterations: 3,
             repo_path: PathBuf::from("."),
+            phase_models: PhaseModels::default(),
         }
     }
 }
@@ -53,6 +78,11 @@ impl ExecutorConfig {
 
     pub fn with_max_iterations(mut self, max: u32) -> Self {
         self.max_review_iterations = max;
+        self
+    }
+
+    pub fn with_phase_models(mut self, phase_models: PhaseModels) -> Self {
+        self.phase_models = phase_models;
         self
     }
 }
@@ -121,6 +151,24 @@ impl ExecutorContext {
 
     pub fn file_manager(&self) -> &FileManager {
         &self.file_manager
+    }
+
+    pub fn opencode_client_for_phase(&self, phase: SessionPhase) -> OpenCodeClient {
+        let model = match phase {
+            SessionPhase::Planning => &self.config.phase_models.planning,
+            SessionPhase::Implementation => &self.config.phase_models.implementation,
+            SessionPhase::Review => &self.config.phase_models.review,
+            SessionPhase::Fix => &self.config.phase_models.fix,
+        };
+
+        match model {
+            Some(m) => self.opencode_client.clone().with_model(&m.provider_id, &m.model_id),
+            None => self.opencode_client.clone(),
+        }
+    }
+
+    pub fn opencode_client_for_fix(&self) -> OpenCodeClient {
+        self.opencode_client_for_phase(SessionPhase::Fix)
     }
 
     pub fn transition(&self, task: &mut Task, to: TaskStatus) -> Result<()> {

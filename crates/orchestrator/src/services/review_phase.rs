@@ -30,8 +30,8 @@ impl ReviewPhase {
         let mut session = Session::new(task.id, SessionPhase::Review);
 
         debug!("Creating OpenCode session for AI review");
-        let opencode_session = ctx
-            .opencode_client
+        let client = ctx.opencode_client_for_phase(SessionPhase::Review);
+        let opencode_session = client
             .create_session(&ctx.config.repo_path)
             .await?;
         let session_id_str = opencode_session.id.to_string();
@@ -76,8 +76,7 @@ impl ReviewPhase {
             "Sending MCP review prompt to OpenCode"
         );
 
-        let response_content = ctx
-            .opencode_client
+        let response_content = client
             .send_prompt(
                 &session_id_str,
                 &prompt,
@@ -176,8 +175,8 @@ impl ReviewPhase {
         );
 
         let workspace_path = ctx.working_dir_for_task(task);
-        let response_content = ctx
-            .opencode_client
+        let client = ctx.opencode_client_for_phase(SessionPhase::Review);
+        let response_content = client
             .send_prompt(
                 &session_id_str,
                 &prompt,
@@ -346,6 +345,7 @@ impl ReviewPhase {
         } else {
             PhasePrompts::review(task, &diff)
         };
+        let client = ctx.opencode_client_for_phase(SessionPhase::Review);
 
         let config = SessionConfig {
             task_id: task.id,
@@ -353,8 +353,8 @@ impl ReviewPhase {
             phase: SessionPhase::Review,
             prompt,
             working_dir,
-            provider_id: ctx.opencode_client.provider_id().to_string(),
-            model_id: ctx.opencode_client.model_id().to_string(),
+            provider_id: client.provider_id().to_string(),
+            model_id: client.model_id().to_string(),
             mcp_config,
             implementation_phase: None,
             skip_task_status_update: false,
