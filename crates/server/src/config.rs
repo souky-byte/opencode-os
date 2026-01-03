@@ -36,6 +36,19 @@ pub struct PhaseModels {
     pub fix: Option<ModelSelection>,
 }
 
+/// User interface mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+#[serde(rename_all = "lowercase")]
+pub enum UserMode {
+    /// Full control with all options visible
+    #[default]
+    Developer,
+    /// Simplified interface for non-developers
+    Basic,
+}
+
 /// Project-level configuration stored in .opencode-studio/config.json
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
@@ -44,6 +57,9 @@ pub struct ProjectConfig {
     /// Per-phase model settings
     #[serde(default)]
     pub phase_models: PhaseModels,
+    /// User interface mode (developer or basic)
+    #[serde(default)]
+    pub user_mode: UserMode,
 }
 
 impl ProjectConfig {

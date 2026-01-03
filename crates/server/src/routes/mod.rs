@@ -1,4 +1,5 @@
 mod comments;
+pub mod complete;
 pub mod filesystem;
 mod health;
 pub mod opencode;
@@ -11,6 +12,7 @@ mod tasks;
 mod workspaces;
 
 pub use comments::*;
+pub use complete::*;
 pub use filesystem::*;
 pub use health::*;
 pub use opencode::*;

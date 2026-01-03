@@ -214,6 +214,11 @@ impl WorkspaceManager {
     pub async fn push(&self, workspace: &Workspace, remote: &str) -> Result<()> {
         self.vcs.push(workspace, remote).await
     }
+
+    /// Get a reference to the underlying VCS implementation
+    pub fn vcs(&self) -> &dyn VersionControl {
+        self.vcs.as_ref()
+    }
 }
 
 #[cfg(test)]

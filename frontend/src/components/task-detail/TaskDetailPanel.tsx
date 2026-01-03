@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSessionActivitySSE } from "@/hooks/useSessionActivitySSE";
 import { cn } from "@/lib/utils";
 import { useIsTaskExecuting } from "@/stores/useExecutingTasksStore";
+import { CompleteTaskDialog } from "@/components/dialogs/CompleteTaskDialog";
 
 const NEXT_STATUS: Partial<Record<TaskStatus, TaskStatus>> = {
   todo: "planning",
@@ -302,22 +303,27 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
         );
 
       case "review":
-        // Human review - can approve (done) or request changes
+        // Human review - can approve (done) via CompleteTaskDialog or request changes
         return (
           <>
             <Button
               size="sm"
-              onClick={() => handleTransition("done")}
+              onClick={async () => {
+                try {
+                  const result = await CompleteTaskDialog.show({ task });
+                  if (result?.success) {
+                    // Task was completed successfully - invalidate queries to refresh UI
+                    void queryClient.invalidateQueries({
+                      queryKey: getListTasksQueryKey(),
+                    });
+                  }
+                } catch {
+                  // Dialog was cancelled - no action needed
+                }
+              }}
               disabled={isPending}
             >
-              {isPending ? (
-                <>
-                  <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Completing...
-                </>
-              ) : (
-                "Approve & Complete"
-              )}
+              Approve & Complete
             </Button>
             <Button
               size="sm"

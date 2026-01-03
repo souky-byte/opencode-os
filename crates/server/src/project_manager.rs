@@ -5,7 +5,9 @@
 use db::{SessionActivityRepository, SessionRepository, TaskRepository};
 use events::EventBus;
 use opencode_client::apis::configuration::Configuration as OpenCodeConfig;
-use orchestrator::{ExecutorConfig, ModelSelection, PhaseModels, SessionActivityRegistry, TaskExecutor};
+use orchestrator::{
+    ExecutorConfig, ModelSelection, PhaseModels, SessionActivityRegistry, TaskExecutor,
+};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::path::{Path, PathBuf};
@@ -304,6 +306,19 @@ impl ProjectContext {
             activity_registry,
             config,
         })
+    }
+
+    /// Get the JSON config (phase models, user mode, etc.)
+    pub async fn get_config(&self) -> JsonProjectConfig {
+        JsonProjectConfig::read(&self.project_path).await
+    }
+
+    /// Save the JSON config
+    pub async fn save_config(&self, config: &JsonProjectConfig) -> Result<(), ProjectError> {
+        config
+            .write(&self.project_path)
+            .await
+            .map_err(|e| ProjectError::Config(e.to_string()))
     }
 
     /// Get project info for API responses.

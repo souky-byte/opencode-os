@@ -67,6 +67,10 @@ use state::AppState;
         routes::opencode::get_providers,
         routes::settings::get_phase_models,
         routes::settings::update_phase_models,
+        routes::complete::get_complete_preview,
+        routes::complete::complete_task,
+        routes::complete::get_user_mode,
+        routes::complete::update_user_mode,
     ),
     components(schemas(
         routes::HealthResponse,
@@ -116,6 +120,18 @@ use state::AppState;
         config::ModelSelection,
         config::PhaseModels,
         config::ProjectConfig,
+        config::UserMode,
+        routes::complete::CompletePreviewResponse,
+        routes::complete::CompleteAction,
+        routes::complete::PrOptions,
+        routes::complete::MergeOptions,
+        routes::complete::CompleteTaskRequest,
+        routes::complete::CompleteTaskResponse,
+        routes::complete::PrInfo,
+        routes::complete::MergeResultInfo,
+        routes::complete::UserModeResponse,
+        routes::complete::UpdateUserModeRequest,
+        vcs::DiffSummary,
         opencode_core::Task,
         opencode_core::TaskStatus,
         opencode_core::CreateTaskRequest,
@@ -136,6 +152,7 @@ use state::AppState;
         (name = "filesystem", description = "Filesystem browsing endpoints"),
         (name = "opencode", description = "OpenCode integration endpoints"),
         (name = "settings", description = "Project settings endpoints"),
+        (name = "complete", description = "Task completion and Git workflow endpoints"),
     )
 )]
 pub struct ApiDoc;
@@ -238,6 +255,18 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/settings/models",
             get(routes::settings::get_phase_models).put(routes::settings::update_phase_models),
+        )
+        .route(
+            "/api/settings/user-mode",
+            get(routes::complete::get_user_mode).put(routes::complete::update_user_mode),
+        )
+        .route(
+            "/api/tasks/{id}/complete/preview",
+            get(routes::complete::get_complete_preview),
+        )
+        .route(
+            "/api/tasks/{id}/complete",
+            post(routes::complete::complete_task),
         )
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())

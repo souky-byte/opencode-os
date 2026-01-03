@@ -4,7 +4,9 @@ use tokio::process::Command;
 use tracing::{debug, warn};
 
 use crate::error::{Result, VcsError};
-use crate::traits::{ConflictFile, ConflictType, MergeResult, VersionControl, Workspace};
+use crate::traits::{
+    ConflictFile, ConflictType, DiffSummary, MergeResult, VersionControl, Workspace,
+};
 
 pub struct GitVcs {
     repo_path: PathBuf,
@@ -148,6 +150,7 @@ impl VersionControl for GitVcs {
             return Err(VcsError::WorkspaceNotFound(workspace.task_id.clone()));
         }
 
+        // Commit any uncommitted changes in the workspace
         let status = self.get_status(workspace).await?;
         if !status.is_empty() {
             self.run_git(&["add", "-A"], &workspace.path).await?;
@@ -155,6 +158,83 @@ impl VersionControl for GitVcs {
                 .await?;
         }
 
+        // Check if main branch has uncommitted changes in the main repo
+        // This would prevent checkout, so we use a different strategy
+        let main_status = self
+            .run_git(&["status", "--porcelain"], &self.repo_path)
+            .await?;
+
+        if !main_status.trim().is_empty() {
+            // Main repo has uncommitted changes - use fetch + merge strategy
+            // First, fetch the workspace branch into main repo
+            // Then merge using git merge without checkout
+
+            // Get the commit SHA from workspace
+            let workspace_sha = self
+                .run_git(&["rev-parse", "HEAD"], &workspace.path)
+                .await?
+                .trim()
+                .to_string();
+
+            // Update the branch ref in main repo to point to workspace's HEAD
+            self.run_git(
+                &[
+                    "fetch",
+                    workspace.path.to_str().unwrap_or("."),
+                    &format!("{}:{}", workspace.branch_name, workspace.branch_name),
+                ],
+                &self.repo_path,
+            )
+            .await?;
+
+            // Now try to merge using git merge-tree to check for conflicts first
+            // If there are conflicts, we abort. Otherwise, we do the merge.
+
+            // Check if fast-forward is possible
+            let merge_base = self
+                .run_git(
+                    &["merge-base", &self.main_branch, &workspace.branch_name],
+                    &self.repo_path,
+                )
+                .await?
+                .trim()
+                .to_string();
+
+            let main_sha = self
+                .run_git(&["rev-parse", &self.main_branch], &self.repo_path)
+                .await?
+                .trim()
+                .to_string();
+
+            if merge_base == main_sha {
+                // Fast-forward is possible - update main branch ref directly
+                self.run_git(
+                    &[
+                        "update-ref",
+                        &format!("refs/heads/{}", self.main_branch),
+                        &workspace_sha,
+                    ],
+                    &self.repo_path,
+                )
+                .await?;
+
+                debug!(
+                    "Fast-forwarded {} to {}",
+                    self.main_branch, workspace.branch_name
+                );
+                return Ok(MergeResult::Success);
+            }
+
+            // Non-fast-forward merge needed - this is more complex
+            // For safety, we'll return an error asking user to resolve manually
+            // or stash their changes first
+            return Err(VcsError::CommandFailed(
+                "Cannot merge: main branch has diverged and your working directory has uncommitted changes. \
+                 Please commit or stash your changes in the main repository first, then try again.".to_string()
+            ));
+        }
+
+        // Main repo is clean - use standard checkout + merge approach
         self.run_git(&["checkout", &self.main_branch], &self.repo_path)
             .await?;
 
@@ -292,6 +372,61 @@ impl VersionControl for GitVcs {
         .await?;
 
         Ok(())
+    }
+
+    async fn get_diff_summary(&self, workspace: &Workspace) -> Result<DiffSummary> {
+        if !workspace.path.exists() {
+            return Err(VcsError::WorkspaceNotFound(workspace.task_id.clone()));
+        }
+
+        // Get diff stats comparing workspace branch to main branch
+        // Use --numstat for machine-readable output: additions deletions filename
+        let output = self
+            .run_git(
+                &["diff", "--numstat", &self.main_branch, "HEAD"],
+                &workspace.path,
+            )
+            .await?;
+
+        let mut files_changed: u32 = 0;
+        let mut additions: u32 = 0;
+        let mut deletions: u32 = 0;
+
+        for line in output.lines() {
+            if line.is_empty() {
+                continue;
+            }
+            let parts: Vec<&str> = line.split('\t').collect();
+            if parts.len() >= 2 {
+                files_changed += 1;
+                // Binary files show "-" for additions/deletions
+                if let Ok(add) = parts[0].parse::<u32>() {
+                    additions += add;
+                }
+                if let Ok(del) = parts[1].parse::<u32>() {
+                    deletions += del;
+                }
+            }
+        }
+
+        Ok(DiffSummary {
+            files_changed,
+            additions,
+            deletions,
+        })
+    }
+
+    fn main_branch(&self) -> &str {
+        &self.main_branch
+    }
+
+    async fn has_uncommitted_changes(&self, workspace: &Workspace) -> Result<bool> {
+        if !workspace.path.exists() {
+            return Err(VcsError::WorkspaceNotFound(workspace.task_id.clone()));
+        }
+
+        let status = self.get_status(workspace).await?;
+        Ok(!status.trim().is_empty())
     }
 }
 
