@@ -14,7 +14,8 @@ impl SessionActivityRepository {
     }
 
     pub async fn create(&self, activity: &CreateSessionActivity) -> Result<i64, DbError> {
-        let data_json = serde_json::to_string(&activity.data).unwrap_or_else(|_| "null".to_string());
+        let data_json =
+            serde_json::to_string(&activity.data).unwrap_or_else(|_| "null".to_string());
         let created_at = chrono::Utc::now().timestamp();
 
         let result = sqlx::query(
@@ -34,7 +35,10 @@ impl SessionActivityRepository {
         Ok(result.last_insert_rowid())
     }
 
-    pub async fn find_by_session_id(&self, session_id: Uuid) -> Result<Vec<SessionActivity>, DbError> {
+    pub async fn find_by_session_id(
+        &self,
+        session_id: Uuid,
+    ) -> Result<Vec<SessionActivity>, DbError> {
         let rows: Vec<SessionActivityRow> = sqlx::query_as(
             r#"
             SELECT id, session_id, activity_type, activity_id, data, created_at
@@ -72,12 +76,11 @@ impl SessionActivityRepository {
     }
 
     pub async fn count_by_session_id(&self, session_id: Uuid) -> Result<i64, DbError> {
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM session_activities WHERE session_id = ?",
-        )
-        .bind(session_id.to_string())
-        .fetch_one(&self.pool)
-        .await?;
+        let count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM session_activities WHERE session_id = ?")
+                .bind(session_id.to_string())
+                .fetch_one(&self.pool)
+                .await?;
 
         Ok(count.0)
     }
@@ -177,7 +180,10 @@ mod tests {
         }
 
         // Get activities since id[2]
-        let activities = repo.find_by_session_id_since(session.id, ids[2]).await.unwrap();
+        let activities = repo
+            .find_by_session_id_since(session.id, ids[2])
+            .await
+            .unwrap();
         assert_eq!(activities.len(), 2);
         assert_eq!(activities[0].id, ids[3]);
         assert_eq!(activities[1].id, ids[4]);

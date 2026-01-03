@@ -78,10 +78,17 @@ impl SessionActivityMsg {
     pub fn approx_bytes(&self) -> usize {
         const OVERHEAD: usize = 64;
         match self {
-            Self::ToolCall { tool_name, args, .. } => {
+            Self::ToolCall {
+                tool_name, args, ..
+            } => {
                 OVERHEAD + tool_name.len() + args.as_ref().map(|a| a.to_string().len()).unwrap_or(0)
             }
-            Self::ToolResult { tool_name, result, args, .. } => {
+            Self::ToolResult {
+                tool_name,
+                result,
+                args,
+                ..
+            } => {
                 OVERHEAD
                     + tool_name.len()
                     + result.len()
@@ -108,13 +115,18 @@ impl SessionActivityMsg {
         let json = match self {
             Self::Finished { .. } => serde_json::to_string(self)
                 .unwrap_or_else(|_| r#"{"type":"finished","success":false}"#.to_string()),
-            _ => serde_json::to_string(self)
-                .unwrap_or_else(|_| r#"{"type":"error","message":"serialization_failed"}"#.to_string()),
+            _ => serde_json::to_string(self).unwrap_or_else(|_| {
+                r#"{"type":"error","message":"serialization_failed"}"#.to_string()
+            }),
         };
         WsMessage::Text(json.into())
     }
 
-    pub fn tool_call(id: impl Into<String>, tool_name: impl Into<String>, args: Option<serde_json::Value>) -> Self {
+    pub fn tool_call(
+        id: impl Into<String>,
+        tool_name: impl Into<String>,
+        args: Option<serde_json::Value>,
+    ) -> Self {
         Self::ToolCall {
             id: id.into(),
             tool_name: tool_name.into(),
@@ -140,7 +152,11 @@ impl SessionActivityMsg {
         }
     }
 
-    pub fn agent_message(id: impl Into<String>, content: impl Into<String>, is_partial: bool) -> Self {
+    pub fn agent_message(
+        id: impl Into<String>,
+        content: impl Into<String>,
+        is_partial: bool,
+    ) -> Self {
         Self::AgentMessage {
             id: id.into(),
             content: content.into(),
@@ -232,7 +248,10 @@ impl SessionActivityStore {
         Ok(count)
     }
 
-    fn activity_to_msg(&self, activity: &db::models::SessionActivity) -> Option<SessionActivityMsg> {
+    fn activity_to_msg(
+        &self,
+        activity: &db::models::SessionActivity,
+    ) -> Option<SessionActivityMsg> {
         // Reconstruct the message from the stored JSON data
         // The data field should contain the full serialized message
         serde_json::from_value(activity.data.clone()).ok()
@@ -259,12 +278,8 @@ impl SessionActivityStore {
                 let activity_id = msg_clone.id().map(|s| s.to_string());
                 let data = serde_json::to_value(&msg_clone).unwrap_or(serde_json::Value::Null);
 
-                let create = CreateSessionActivity::new(
-                    session_id,
-                    activity_type,
-                    activity_id,
-                    data,
-                );
+                let create =
+                    CreateSessionActivity::new(session_id, activity_type, activity_id, data);
 
                 if let Err(e) = repo.create(&create).await {
                     tracing::warn!("Failed to persist activity to DB: {:?}", e);
@@ -287,7 +302,12 @@ impl SessionActivityStore {
         inner.total_bytes = inner.total_bytes.saturating_add(bytes);
     }
 
-    pub fn push_tool_call(&self, id: impl Into<String>, tool_name: impl Into<String>, args: Option<serde_json::Value>) {
+    pub fn push_tool_call(
+        &self,
+        id: impl Into<String>,
+        tool_name: impl Into<String>,
+        args: Option<serde_json::Value>,
+    ) {
         self.push(SessionActivityMsg::tool_call(id, tool_name, args));
     }
 
@@ -299,10 +319,17 @@ impl SessionActivityStore {
         result: impl Into<String>,
         success: bool,
     ) {
-        self.push(SessionActivityMsg::tool_result(id, tool_name, args, result, success));
+        self.push(SessionActivityMsg::tool_result(
+            id, tool_name, args, result, success,
+        ));
     }
 
-    pub fn push_agent_message(&self, id: impl Into<String>, content: impl Into<String>, is_partial: bool) {
+    pub fn push_agent_message(
+        &self,
+        id: impl Into<String>,
+        content: impl Into<String>,
+        is_partial: bool,
+    ) {
         self.push(SessionActivityMsg::agent_message(id, content, is_partial));
     }
 
@@ -338,9 +365,10 @@ impl SessionActivityStore {
         let rx = self.subscribe();
 
         let hist_stream = futures::stream::iter(history.into_iter().map(Ok::<_, std::io::Error>));
-        let live_stream = BroadcastStream::new(rx).filter_map(
-            |res: Result<SessionActivityMsg, _>| async move { res.ok().map(Ok::<_, std::io::Error>) },
-        );
+        let live_stream =
+            BroadcastStream::new(rx).filter_map(|res: Result<SessionActivityMsg, _>| async move {
+                res.ok().map(Ok::<_, std::io::Error>)
+            });
 
         hist_stream.chain(live_stream)
     }
@@ -422,7 +450,11 @@ impl SessionActivityRegistry {
         // Load from DB if repository is available (before acquiring write lock)
         if self.repository.is_some() {
             if let Err(e) = store.load_from_db().await {
-                tracing::warn!("Failed to load activities from DB for session {}: {:?}", session_id, e);
+                tracing::warn!(
+                    "Failed to load activities from DB for session {}: {:?}",
+                    session_id,
+                    e
+                );
             }
         }
 
@@ -472,13 +504,8 @@ mod tests {
         assert!(matches!(tool_call, SessionActivityMsg::ToolCall { .. }));
         assert_eq!(tool_call.id(), Some("tc-1"));
 
-        let tool_result = SessionActivityMsg::tool_result(
-            "tc-1",
-            "read_file",
-            None,
-            "file contents",
-            true,
-        );
+        let tool_result =
+            SessionActivityMsg::tool_result("tc-1", "read_file", None, "file contents", true);
         assert!(matches!(tool_result, SessionActivityMsg::ToolResult { .. }));
 
         let finished = SessionActivityMsg::finished(true, None);
@@ -488,7 +515,11 @@ mod tests {
 
     #[test]
     fn test_activity_msg_serialization() {
-        let msg = SessionActivityMsg::tool_call("tc-1", "bash", Some(serde_json::json!({"command": "ls"})));
+        let msg = SessionActivityMsg::tool_call(
+            "tc-1",
+            "bash",
+            Some(serde_json::json!({"command": "ls"})),
+        );
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("tool_call"));
         assert!(json.contains("bash"));
@@ -507,7 +538,10 @@ mod tests {
         assert_eq!(history.len(), 3);
         assert!(matches!(history[0], SessionActivityMsg::ToolCall { .. }));
         assert!(matches!(history[1], SessionActivityMsg::ToolResult { .. }));
-        assert!(matches!(history[2], SessionActivityMsg::AgentMessage { .. }));
+        assert!(matches!(
+            history[2],
+            SessionActivityMsg::AgentMessage { .. }
+        ));
     }
 
     #[tokio::test]
@@ -519,7 +553,9 @@ mod tests {
         store.push_tool_call("tc-1", "test_tool", None);
 
         let msg = rx.recv().await.unwrap();
-        assert!(matches!(msg, SessionActivityMsg::ToolCall { tool_name, .. } if tool_name == "test_tool"));
+        assert!(
+            matches!(msg, SessionActivityMsg::ToolCall { tool_name, .. } if tool_name == "test_tool")
+        );
     }
 
     #[test]

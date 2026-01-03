@@ -185,10 +185,7 @@ async fn download_frontend(app_dir: &PathBuf, show_progress: bool) -> Result<()>
         .context("Failed to download frontend")?;
 
     if !response.status().is_success() {
-        anyhow::bail!(
-            "Failed to download frontend: HTTP {}",
-            response.status()
-        );
+        anyhow::bail!("Failed to download frontend: HTTP {}", response.status());
     }
 
     let total_size = response.content_length().unwrap_or(0);
@@ -439,7 +436,11 @@ fn print_init_success(project_name: &str) {
     println!("        ├── {}/", "plans".dimmed());
     println!("        └── {}/", "reviews".dimmed());
     println!();
-    println!("  {} Database stored in {}", "ℹ".blue(), "~/.opencode-studio/data/".dimmed());
+    println!(
+        "  {} Database stored in {}",
+        "ℹ".blue(),
+        "~/.opencode-studio/data/".dimmed()
+    );
     println!();
 }
 
@@ -627,10 +628,7 @@ async fn status(path: Option<PathBuf>) -> Result<()> {
     if !studio_dir.exists() {
         println!();
         println!("  {} Not an OpenCode Studio project.", "✗".red());
-        println!(
-            "     Run {} to initialize.",
-            "opencode-studio init".cyan()
-        );
+        println!("     Run {} to initialize.", "opencode-studio init".cyan());
         println!();
         return Ok(());
     }
@@ -643,11 +641,7 @@ async fn status(path: Option<PathBuf>) -> Result<()> {
         Ok(p) => p,
         Err(e) => {
             println!();
-            println!(
-                "  {} Failed to determine database path: {}",
-                "✗".red(),
-                e
-            );
+            println!("  {} Failed to determine database path: {}", "✗".red(), e);
             return Ok(());
         }
     };
@@ -671,11 +665,7 @@ async fn status(path: Option<PathBuf>) -> Result<()> {
     let tasks = task_repo.find_all().await?;
 
     println!();
-    println!(
-        "  {} {}",
-        "◆".magenta(),
-        config.project.name.white().bold()
-    );
+    println!("  {} {}", "◆".magenta(), config.project.name.white().bold());
     println!("    {}", cwd.display().to_string().dimmed());
     println!();
 
@@ -729,8 +719,7 @@ fn init_tracing() {
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer().with_target(false))
         .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "warn".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "warn".into()),
         )
         .init();
 }

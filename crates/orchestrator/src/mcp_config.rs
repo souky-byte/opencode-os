@@ -95,8 +95,14 @@ impl PhaseMcpConfig {
             binary: McpBinarySource::Builtin("builtin:findings".to_string()),
             env_vars: [
                 ("OPENCODE_TASK_ID".to_string(), "{task_id}".to_string()),
-                ("OPENCODE_SESSION_ID".to_string(), "{session_id}".to_string()),
-                ("OPENCODE_WORKSPACE_PATH".to_string(), "{workspace_path}".to_string()),
+                (
+                    "OPENCODE_SESSION_ID".to_string(),
+                    "{session_id}".to_string(),
+                ),
+                (
+                    "OPENCODE_WORKSPACE_PATH".to_string(),
+                    "{workspace_path}".to_string(),
+                ),
             ]
             .into_iter()
             .collect(),
@@ -114,10 +120,7 @@ impl PhaseMcpConfig {
 
     /// Add an MCP server to a phase
     pub fn add_server(&mut self, phase: SessionPhase, server: McpServerSpec) {
-        self.phase_servers
-            .entry(phase)
-            .or_insert_with(Vec::new)
-            .push(server);
+        self.phase_servers.entry(phase).or_default().push(server);
     }
 
     /// Get MCP servers for a specific phase

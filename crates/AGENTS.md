@@ -11,11 +11,11 @@
 | `core` | Domain models (NO I/O) | `Task`, `Session`, `TaskStatus`, `SessionPhase` | 10 |
 | `db` | SQLite persistence (sqlx) | `TaskRepository`, `SessionRepository`, `create_pool` | 12 |
 | `opencode-client` | OpenAPI-generated SDK | `apis::DefaultApi`, `Configuration` | 0 |
-| `orchestrator` | Task lifecycle engine | `TaskExecutor`, `TaskStateMachine`, `FileManager` | 36 |
+| `orchestrator` | Task lifecycle engine | `TaskExecutor`, `TaskStateMachine`, `services::*` | 55 |
 | `vcs` | VCS abstraction | `VersionControl`, `WorkspaceManager`, `JujutsuVcs`, `GitVcs` | 20 |
 | `events` | Event bus | `EventBus`, `TaskEvent`, `SessionEvent` | 8 |
 | `github` | GitHub API (octocrab) | `GitHubClient`, `PullRequest`, `Issue` | 11 |
-| `server` | Axum HTTP + SSE | `AppState`, `router`, `OpenApi` | 12 |
+| `server` | Axum HTTP + SSE | `AppState`, `router`, `OpenApi` | 20 |
 | `cli` | Binary: `opencode-studio` | Commands: init, serve, status, update | 0 |
 
 ## DEPENDENCY GRAPH
@@ -40,9 +40,32 @@ Foundational (no internal deps): core, events, opencode-client
 | Add API route | `server` | `src/routes/` + update `src/lib.rs` OpenAPI |
 | Task state transitions | `orchestrator` | `src/state_machine.rs` |
 | AI prompts | `orchestrator` | `src/prompts.rs` |
+| Planning phase | `orchestrator` | `src/services/planning_phase.rs` |
+| Implementation phase | `orchestrator` | `src/services/implementation_phase.rs` |
+| Review phase | `orchestrator` | `src/services/review_phase.rs` |
+| Fix phase | `orchestrator` | `src/services/fix_phase.rs` |
+| OpenCode API calls | `orchestrator` | `src/services/opencode_client.rs` |
+| Message parsing | `orchestrator` | `src/services/message_parser.rs` |
 | VCS operations | `vcs` | `src/jj.rs` (primary), `src/git.rs` (fallback) |
 | Event emission | `events` | `src/types.rs` for new event types |
 | GitHub integration | `github` | `src/client.rs` |
+
+## ORCHESTRATOR SERVICES
+
+The `orchestrator` crate uses a modular service architecture in `src/services/`:
+
+| Service | Purpose | Lines |
+|:--------|:--------|------:|
+| `executor_context.rs` | Shared context, config, transitions, persistence | 243 |
+| `planning_phase.rs` | Planning phase execution | 136 |
+| `implementation_phase.rs` | Implementation + phased execution | 646 |
+| `review_phase.rs` | AI review with JSON fallback | 353 |
+| `fix_phase.rs` | Fix iteration handling | 269 |
+| `opencode_client.rs` | OpenCode session/prompt API | 210 |
+| `message_parser.rs` | SSE parsing, ReviewResult extraction | 327 |
+| `mcp_manager.rs` | MCP server lifecycle | 108 |
+
+The main `executor.rs` (~530 lines) delegates to these services.
 
 ## CONVENTIONS
 
@@ -62,7 +85,8 @@ Foundational (no internal deps): core, events, opencode-client
 ## TEST COMMANDS
 
 ```bash
-cargo test --workspace                    # All 109 tests
-cargo test -p orchestrator               # Single crate
-cargo test -p server -- --nocapture      # With output
+cargo test --workspace                    # All tests
+cargo test -p orchestrator               # 55 tests
+cargo test -p server -- --nocapture      # 20 tests with output
+cargo clippy --workspace -- -D warnings  # Lint check
 ```

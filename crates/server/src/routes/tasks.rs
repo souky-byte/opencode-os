@@ -495,7 +495,9 @@ pub async fn fix_findings(
     })?;
 
     let Some(findings_data) = findings_data else {
-        return Err(AppError::NotFound("No findings found for this task".to_string()));
+        return Err(AppError::NotFound(
+            "No findings found for this task".to_string(),
+        ));
     };
 
     // Determine which findings to fix
@@ -518,7 +520,9 @@ pub async fn fix_findings(
     };
 
     if findings_to_fix.is_empty() {
-        return Err(AppError::BadRequest("No pending findings to fix".to_string()));
+        return Err(AppError::BadRequest(
+            "No pending findings to fix".to_string(),
+        ));
     }
 
     info!(
@@ -737,10 +741,15 @@ pub async fn get_task_phases(
     let parsed_plan = parse_plan_phases(&plan_content);
 
     // Read phase context if it exists
-    let phase_context: Option<PhaseContext> = file_manager.read_phase_context(id).await.ok().flatten();
+    let phase_context: Option<PhaseContext> =
+        file_manager.read_phase_context(id).await.ok().flatten();
 
     // Get sessions for this task to determine which phases have sessions
-    let sessions = project.session_repository.find_by_task_id(id).await.unwrap_or_default();
+    let sessions = project
+        .session_repository
+        .find_by_task_id(id)
+        .await
+        .unwrap_or_default();
 
     // Build session lookup by phase number
     let session_by_phase: std::collections::HashMap<u32, &opencode_core::Session> = sessions
@@ -760,7 +769,9 @@ pub async fn get_task_phases(
         None
     } else {
         // Single-phase plan - check if there's a running session
-        let running_session = sessions.iter().find(|s| s.status == opencode_core::SessionStatus::Running);
+        let running_session = sessions
+            .iter()
+            .find(|s| s.status == opencode_core::SessionStatus::Running);
         if running_session.is_some() {
             Some(1)
         } else {
@@ -781,7 +792,10 @@ pub async fn get_task_phases(
                     PhaseStatus::Completed
                 } else if phase.number == ctx.phase_number {
                     // Check if there's a running session
-                    if session.map(|s| s.status == opencode_core::SessionStatus::Running).unwrap_or(false) {
+                    if session
+                        .map(|s| s.status == opencode_core::SessionStatus::Running)
+                        .unwrap_or(false)
+                    {
                         PhaseStatus::Running
                     } else {
                         PhaseStatus::Pending
@@ -792,21 +806,23 @@ pub async fn get_task_phases(
             } else {
                 // No phase context - check session status
                 match session {
-                    Some(s) if s.status == opencode_core::SessionStatus::Running => PhaseStatus::Running,
-                    Some(s) if s.status == opencode_core::SessionStatus::Completed => PhaseStatus::Completed,
+                    Some(s) if s.status == opencode_core::SessionStatus::Running => {
+                        PhaseStatus::Running
+                    }
+                    Some(s) if s.status == opencode_core::SessionStatus::Completed => {
+                        PhaseStatus::Completed
+                    }
                     _ => PhaseStatus::Pending,
                 }
             };
 
             // Get summary for completed phases
-            let summary = phase_context
-                .as_ref()
-                .and_then(|ctx| {
-                    ctx.completed_phases
-                        .iter()
-                        .find(|s| s.phase_number == phase.number)
-                        .cloned()
-                });
+            let summary = phase_context.as_ref().and_then(|ctx| {
+                ctx.completed_phases
+                    .iter()
+                    .find(|s| s.phase_number == phase.number)
+                    .cloned()
+            });
 
             PhaseInfo {
                 number: phase.number,

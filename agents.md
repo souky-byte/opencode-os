@@ -31,7 +31,8 @@ opencode-os/
 |------|----------|-------|
 | Add API endpoint | `crates/server/src/routes/` | Add to lib.rs OpenAPI schema |
 | Task state logic | `crates/orchestrator/src/state_machine.rs` | TaskStateMachine |
-| OpenCode integration | `crates/orchestrator/src/executor.rs` | Uses opencode-client SDK |
+| OpenCode integration | `crates/orchestrator/src/executor.rs` | Thin orchestrator, delegates to services |
+| Phase services | `crates/orchestrator/src/services/` | planning, implementation, review, fix phases |
 | VCS operations | `crates/vcs/src/` | jj.rs primary, git.rs fallback |
 | Frontend component | `frontend/src/components/` | Feature dirs: kanban/, sessions/, task-detail/ |
 | Generated types | `frontend/src/types/generated/` | ts-rs from Rust |
@@ -113,8 +114,9 @@ DATABASE_URL=sqlite:./studio.db cargo run --package server
 # Frontend only
 cd frontend && pnpm dev
 
-# Tests (109 unit tests across 9 crates)
+# Tests
 cargo test --workspace
+cargo test -p orchestrator  # 55 tests
 cargo clippy --workspace --all-features -- -D warnings
 
 # Generate frontend SDK

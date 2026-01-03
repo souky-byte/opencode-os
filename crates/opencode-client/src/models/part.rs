@@ -33,7 +33,11 @@ pub struct Part {
     pub metadata: Option<std::collections::HashMap<String, serde_json::Value>>,
     #[serde(rename = "prompt", default, skip_serializing_if = "Option::is_none")]
     pub prompt: Option<String>,
-    #[serde(rename = "description", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "description",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub description: Option<String>,
     #[serde(rename = "agent", default, skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
@@ -111,7 +115,6 @@ impl Part {
         }
     }
 }
-///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Type {
     #[serde(rename = "text")]

@@ -240,7 +240,9 @@ pub async fn remove_recent_project(
     State(state): State<AppState>,
     Json(payload): Json<RemoveRecentRequest>,
 ) -> Result<Json<RemoveRecentResponse>, AppError> {
-    state.global_config.remove_recent(&PathBuf::from(&payload.path))?;
+    state
+        .global_config
+        .remove_recent(&PathBuf::from(&payload.path))?;
     Ok(Json(RemoveRecentResponse { success: true }))
 }
 
@@ -318,10 +320,7 @@ pub async fn validate_project_path(
     let vcs = detect_vcs(&path);
     let is_vcs_repo = vcs != "none";
 
-    let name = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .map(String::from);
+    let name = path.file_name().and_then(|n| n.to_str()).map(String::from);
 
     Json(ValidatePathResponse {
         valid: is_vcs_repo,

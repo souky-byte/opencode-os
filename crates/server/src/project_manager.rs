@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use vcs::{GitVcs, JujutsuVcs, VersionControl, WorkspaceConfig, WorkspaceManager};
 
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 const STUDIO_DIR: &str = ".opencode-studio";
 const GLOBAL_STUDIO_DIR: &str = ".opencode-studio";
@@ -79,8 +79,7 @@ pub async fn migrate_db_if_needed(project_path: &Path) -> Result<(), ProjectErro
         );
     }
 
-    Ok(()
-    )
+    Ok(())
 }
 
 /// Errors that can occur during project operations.
@@ -272,13 +271,12 @@ impl ProjectContext {
         let task_repository = TaskRepository::new(pool.clone());
         let activity_repository = SessionActivityRepository::new(pool.clone());
 
-        let activity_registry = SessionActivityRegistry::new()
-            .with_repository(activity_repository);
+        let activity_registry = SessionActivityRegistry::new().with_repository(activity_repository);
 
         let mut opencode_config = OpenCodeConfig::new();
         opencode_config.base_path = opencode_url.to_string();
         let opencode_config = Arc::new(opencode_config);
-        
+
         let executor_config = ExecutorConfig::new(&path)
             .with_plan_approval(config.require_plan_approval)
             .with_human_review(config.require_human_review)
@@ -374,22 +372,24 @@ impl ProjectManager {
 
         self.close().await?;
 
-        let ctx =
-            ProjectContext::new(path.to_path_buf(), &self.opencode_url, self.event_bus.clone())
-                .await?;
+        let ctx = ProjectContext::new(
+            path.to_path_buf(),
+            &self.opencode_url,
+            self.event_bus.clone(),
+        )
+        .await?;
 
         let project_info = ctx.info().await;
 
         let mut guard = self.context.write().await;
         *guard = Some(ctx);
 
-        self.event_bus.publish(events::EventEnvelope::new(
-            events::Event::ProjectOpened {
+        self.event_bus
+            .publish(events::EventEnvelope::new(events::Event::ProjectOpened {
                 path: project_info.path.clone(),
                 name: project_info.name.clone(),
                 was_initialized,
-            },
-        ));
+            }));
 
         Ok(OpenProjectResult {
             project: project_info,
@@ -447,9 +447,10 @@ impl ProjectManager {
         if let Some(ctx) = guard.take() {
             let path = ctx.path.display().to_string();
             ctx.pool.close().await;
-            self.event_bus.publish(events::EventEnvelope::new(
-                events::Event::ProjectClosed { path },
-            ));
+            self.event_bus
+                .publish(events::EventEnvelope::new(events::Event::ProjectClosed {
+                    path,
+                }));
         }
         Ok(())
     }
@@ -795,7 +796,9 @@ mod tests {
         let manager = GlobalConfigManager::with_config_dir(tmp.path().to_path_buf());
 
         for i in 0..15 {
-            manager.add_recent(Path::new(&format!("/project/{}", i))).unwrap();
+            manager
+                .add_recent(Path::new(&format!("/project/{}", i)))
+                .unwrap();
         }
 
         let recent = manager.get_recent();

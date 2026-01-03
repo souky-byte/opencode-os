@@ -115,16 +115,11 @@ impl SessionRunner {
     ///
     /// The session runs entirely in the background - we never block.
     /// Progress is streamed via SSE and stored in the activity registry.
-    pub async fn start(
-        config: SessionConfig,
-        deps: SessionDependencies,
-    ) -> Result<SessionResult> {
+    pub async fn start(config: SessionConfig, deps: SessionDependencies) -> Result<SessionResult> {
         // 1. Create OpenCode session
-        let opencode_session = Self::create_opencode_session(
-            &deps.opencode_config,
-            config.working_dir.to_str(),
-        )
-        .await?;
+        let opencode_session =
+            Self::create_opencode_session(&deps.opencode_config, config.working_dir.to_str())
+                .await?;
         let opencode_session_id = opencode_session.id.to_string();
 
         // 2. Create our Session record
@@ -325,7 +320,15 @@ impl SessionRunner {
         }
 
         // Handle completion (update DB, save artifacts, emit events)
-        Self::handle_completion(&config, &deps, session_id, &opencode_session_id, success, &response_text).await;
+        Self::handle_completion(
+            &config,
+            &deps,
+            session_id,
+            &opencode_session_id,
+            success,
+            &response_text,
+        )
+        .await;
 
         info!(
             task_id = %config.task_id,
@@ -371,7 +374,11 @@ impl SessionRunner {
         // Save artifacts based on phase
         if success {
             if config.phase == SessionPhase::Planning && !response_text.is_empty() {
-                if let Err(e) = deps.file_manager.write_plan(config.task_id, response_text).await {
+                if let Err(e) = deps
+                    .file_manager
+                    .write_plan(config.task_id, response_text)
+                    .await
+                {
                     error!(error = %e, "Failed to save plan");
                 } else {
                     info!(task_id = %config.task_id, "Plan saved successfully");
@@ -462,7 +469,9 @@ impl SessionRunner {
 
         default_api::session_create(config, directory, Some(request))
             .await
-            .map_err(|e| OrchestratorError::OpenCodeError(format!("Failed to create session: {}", e)))
+            .map_err(|e| {
+                OrchestratorError::OpenCodeError(format!("Failed to create session: {}", e))
+            })
     }
 
     /// Extract response text from session messages
