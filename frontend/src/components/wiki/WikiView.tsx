@@ -17,11 +17,19 @@ export function WikiView() {
 		isError: isStatusError,
 	} = useGetWikiStatus({
 		query: {
-			refetchInterval: 5000,
+			refetchInterval: 2000,
 		},
 	});
 
-	const { data: structureData, isLoading: isStructureLoading } = useGetWikiStructure();
+	const isProcessing = statusData?.data?.branches?.some(
+		(b) => b.state === "indexing" || b.state === "generating",
+	);
+
+	const { data: structureData, isLoading: isStructureLoading } = useGetWikiStructure(undefined, {
+		query: {
+			refetchInterval: isProcessing ? 5000 : false,
+		},
+	});
 
 	// Sync status data to store
 	useEffect(() => {
@@ -38,7 +46,9 @@ export function WikiView() {
 					error_message: b.error_message ?? null,
 				})),
 			);
-			setIsIndexing(status.branches.some((b) => b.state === "indexing"));
+			setIsIndexing(
+				status.branches.some((b) => b.state === "indexing" || b.state === "generating"),
+			);
 		}
 	}, [statusData, setBranchStatuses, setIsIndexing]);
 
