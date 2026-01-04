@@ -1,6 +1,6 @@
 use opencode_core::{Session, SessionPhase, Task, TaskStatus};
 use std::sync::Arc;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::error::Result;
 use crate::executor::{PhaseResult, StartedExecution};
@@ -19,6 +19,25 @@ impl PlanningPhase {
         );
 
         let mut session = Session::new(task.id, SessionPhase::Planning);
+
+        let wiki_setup = if let Some(ref wiki_config) = ctx.config.wiki_config {
+            match ctx
+                .mcp_manager
+                .setup_wiki_server(&ctx.config.repo_path, wiki_config)
+                .await
+            {
+                Ok(()) => {
+                    info!("Wiki MCP server connected for planning");
+                    true
+                }
+                Err(e) => {
+                    warn!(error = %e, "Failed to setup wiki MCP server, continuing without it");
+                    false
+                }
+            }
+        } else {
+            false
+        };
 
         debug!("Creating OpenCode session for planning");
         let client = ctx.opencode_client_for_phase(SessionPhase::Planning);
@@ -90,6 +109,12 @@ impl PlanningPhase {
             &format!("Created plan for: {}", task.title),
         )
         .await?;
+
+        if wiki_setup {
+            if let Err(e) = ctx.mcp_manager.cleanup_wiki_server(&ctx.config.repo_path).await {
+                warn!(error = %e, "Failed to cleanup wiki MCP server");
+            }
+        }
 
         ctx.transition(task, TaskStatus::PlanningReview)?;
 

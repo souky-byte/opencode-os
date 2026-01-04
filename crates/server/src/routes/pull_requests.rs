@@ -536,7 +536,7 @@ pub async fn fix_from_pr_comments(
             selected_comments[0]
                 .path
                 .split('/')
-                .last()
+                .next_back()
                 .unwrap_or("file")
         )
     } else {

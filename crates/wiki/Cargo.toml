@@ -1,0 +1,55 @@
+[package]
+name = "wiki"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Async runtime
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+# HTTP client for OpenRouter API
+reqwest = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Utils
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Vector database - rusqlite with bundled SQLite for sqlite-vec
+rusqlite = { version = "0.32", features = ["bundled", "blob"] }
+sqlite-vec = "0.1"
+
+# Token counting for chunking
+tiktoken-rs = "0.6"
+
+# Gitignore-aware file walking
+ignore = "0.4"
+
+# Streaming support
+eventsource-stream = { workspace = true }
+bytes = { workspace = true }
+
+# Type generation for TypeScript (optional, for API types)
+ts-rs = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+wiremock = "0.6"
+tempfile = "3.15"
+
+[features]
+default = []
+ts = ["ts-rs"]

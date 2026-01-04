@@ -43,6 +43,9 @@ pids
 *.seed
 *.pid.lock
 
+# OpenCode Studio data (contains API keys)
+.opencode-studio/
+
 # Coverage
 coverage/
 *.lcov

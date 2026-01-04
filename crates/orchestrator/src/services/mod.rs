@@ -10,7 +10,7 @@ pub mod review_phase;
 pub use executor_context::{ExecutorConfig, ExecutorContext, ModelSelection, PhaseModels};
 pub use fix_phase::FixPhase;
 pub use implementation_phase::ImplementationPhase;
-pub use mcp_manager::McpManager;
+pub use mcp_manager::{McpManager, WikiMcpConfig};
 pub use message_parser::MessageParser;
 pub use opencode_client::OpenCodeClient;
 pub use planning_phase::PlanningPhase;

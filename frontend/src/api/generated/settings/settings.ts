@@ -30,7 +30,9 @@ import type {
   UpdateGitHubTokenRequest,
   UpdatePhaseModelsRequest,
   UpdateUserModeRequest,
-  UserModeResponse
+  UpdateWikiSettingsRequest,
+  UserModeResponse,
+  WikiSettingsResponse
 } from '.././model';
 
 import { customFetch } from '../../../lib/api-fetcher';
@@ -690,6 +692,196 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
 
       const mutationOptions = getUpdateUserModeMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    export type getWikiSettingsResponse200 = {
+  data: WikiSettingsResponse
+  status: 200
+}
+    
+export type getWikiSettingsResponseSuccess = (getWikiSettingsResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getWikiSettingsResponse = (getWikiSettingsResponseSuccess)
+
+export const getGetWikiSettingsUrl = () => {
+
+
+  
+
+  return `/api/settings/wiki`
+}
+
+export const getWikiSettings = async ( options?: RequestInit): Promise<getWikiSettingsResponse> => {
+  
+  return customFetch<getWikiSettingsResponse>(getGetWikiSettingsUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+
+
+export const getGetWikiSettingsQueryKey = () => {
+    return [
+    `/api/settings/wiki`
+    ] as const;
+    }
+
+    
+export const getGetWikiSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getWikiSettings>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWikiSettings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWikiSettingsQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWikiSettings>>> = ({ signal }) => getWikiSettings({ signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWikiSettings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetWikiSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getWikiSettings>>>
+export type GetWikiSettingsQueryError = unknown
+
+
+export function useGetWikiSettings<TData = Awaited<ReturnType<typeof getWikiSettings>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWikiSettings>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWikiSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getWikiSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWikiSettings<TData = Awaited<ReturnType<typeof getWikiSettings>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWikiSettings>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWikiSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getWikiSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWikiSettings<TData = Awaited<ReturnType<typeof getWikiSettings>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWikiSettings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetWikiSettings<TData = Awaited<ReturnType<typeof getWikiSettings>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWikiSettings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetWikiSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+export type updateWikiSettingsResponse200 = {
+  data: WikiSettingsResponse
+  status: 200
+}
+
+export type updateWikiSettingsResponse500 = {
+  data: void
+  status: 500
+}
+    
+export type updateWikiSettingsResponseSuccess = (updateWikiSettingsResponse200) & {
+  headers: Headers;
+};
+export type updateWikiSettingsResponseError = (updateWikiSettingsResponse500) & {
+  headers: Headers;
+};
+
+export type updateWikiSettingsResponse = (updateWikiSettingsResponseSuccess | updateWikiSettingsResponseError)
+
+export const getUpdateWikiSettingsUrl = () => {
+
+
+  
+
+  return `/api/settings/wiki`
+}
+
+export const updateWikiSettings = async (updateWikiSettingsRequest: UpdateWikiSettingsRequest, options?: RequestInit): Promise<updateWikiSettingsResponse> => {
+  
+  return customFetch<updateWikiSettingsResponse>(getUpdateWikiSettingsUrl(),
+  {      
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateWikiSettingsRequest,)
+  }
+);}
+
+
+
+
+export const getUpdateWikiSettingsMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWikiSettings>>, TError,{data: UpdateWikiSettingsRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateWikiSettings>>, TError,{data: UpdateWikiSettingsRequest}, TContext> => {
+
+const mutationKey = ['updateWikiSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateWikiSettings>>, {data: UpdateWikiSettingsRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateWikiSettings(data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateWikiSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateWikiSettings>>>
+    export type UpdateWikiSettingsMutationBody = UpdateWikiSettingsRequest
+    export type UpdateWikiSettingsMutationError = void
+
+    export const useUpdateWikiSettings = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWikiSettings>>, TError,{data: UpdateWikiSettingsRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateWikiSettings>>,
+        TError,
+        {data: UpdateWikiSettingsRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getUpdateWikiSettingsMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }

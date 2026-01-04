@@ -73,7 +73,7 @@ impl GhCli {
         // Extract PR number from URL (e.g., https://github.com/owner/repo/pull/123)
         let number = pr_url
             .split('/')
-            .last()
+            .next_back()
             .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(0);
 

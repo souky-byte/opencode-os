@@ -10,6 +10,7 @@ mod sessions;
 pub mod settings;
 pub mod sse;
 mod tasks;
+pub mod wiki;
 mod workspaces;
 
 pub use comments::*;
@@ -24,4 +25,5 @@ pub use sessions::*;
 pub use settings::*;
 pub use sse::*;
 pub use tasks::*;
+pub use wiki::*;
 pub use workspaces::*;

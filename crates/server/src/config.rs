@@ -36,6 +36,44 @@ pub struct PhaseModels {
     pub fix: Option<ModelSelection>,
 }
 
+/// Wiki feature configuration
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+pub struct WikiConfig {
+    /// Whether wiki feature is enabled
+    #[serde(default)]
+    pub enabled: bool,
+    /// Branches to index (e.g., ["main", "develop"])
+    #[serde(default)]
+    pub branches: Vec<String>,
+    /// OpenRouter API key for embeddings and chat
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub openrouter_api_key: Option<String>,
+    /// Embedding model (default: "openai/text-embedding-3-small")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_model: Option<String>,
+    /// Chat model for RAG (default: "anthropic/claude-3.5-sonnet")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chat_model: Option<String>,
+    /// Auto-sync on git push webhook
+    #[serde(default)]
+    pub auto_sync: bool,
+}
+
+impl Default for WikiConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            branches: vec!["main".to_string()],
+            openrouter_api_key: None,
+            embedding_model: None,
+            chat_model: None,
+            auto_sync: false,
+        }
+    }
+}
+
 /// User interface mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, ToSchema)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
@@ -54,12 +92,12 @@ pub enum UserMode {
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export))]
 pub struct ProjectConfig {
-    /// Per-phase model settings
     #[serde(default)]
     pub phase_models: PhaseModels,
-    /// User interface mode (developer or basic)
     #[serde(default)]
     pub user_mode: UserMode,
+    #[serde(default)]
+    pub wiki: WikiConfig,
 }
 
 impl ProjectConfig {
@@ -147,6 +185,8 @@ mod tests {
                 }),
                 fix: None,
             },
+            user_mode: UserMode::default(),
+            wiki: WikiConfig::default(),
         };
 
         config.write(temp_dir.path()).await.unwrap();

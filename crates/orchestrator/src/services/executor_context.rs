@@ -11,7 +11,7 @@ use vcs::WorkspaceManager;
 use crate::activity_store::{SessionActivityRegistry, SessionActivityStore};
 use crate::error::{OrchestratorError, Result};
 use crate::files::FileManager;
-use crate::services::{McpManager, OpenCodeClient};
+use crate::services::{McpManager, OpenCodeClient, WikiMcpConfig};
 use crate::state_machine::TaskStateMachine;
 
 #[derive(Debug, Clone, Default)]
@@ -44,6 +44,7 @@ pub struct ExecutorConfig {
     pub max_review_iterations: u32,
     pub repo_path: PathBuf,
     pub phase_models: PhaseModels,
+    pub wiki_config: Option<WikiMcpConfig>,
 }
 
 impl Default for ExecutorConfig {
@@ -54,6 +55,7 @@ impl Default for ExecutorConfig {
             max_review_iterations: 3,
             repo_path: PathBuf::from("."),
             phase_models: PhaseModels::default(),
+            wiki_config: None,
         }
     }
 }
@@ -83,6 +85,11 @@ impl ExecutorConfig {
 
     pub fn with_phase_models(mut self, phase_models: PhaseModels) -> Self {
         self.phase_models = phase_models;
+        self
+    }
+
+    pub fn with_wiki_config(mut self, wiki_config: WikiMcpConfig) -> Self {
+        self.wiki_config = Some(wiki_config);
         self
     }
 }

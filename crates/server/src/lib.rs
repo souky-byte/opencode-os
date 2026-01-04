@@ -83,6 +83,15 @@ use state::AppState;
         routes::pull_requests::reply_to_comment,
         routes::pull_requests::get_pull_request_reviews,
         routes::pull_requests::fix_from_pr_comments,
+        routes::wiki::get_wiki_status,
+        routes::wiki::start_indexing,
+        routes::wiki::get_wiki_structure,
+        routes::wiki::get_wiki_page,
+        routes::wiki::search_wiki,
+        routes::wiki::ask_wiki,
+        routes::wiki::handle_push_webhook,
+        routes::wiki::get_wiki_settings,
+        routes::wiki::update_wiki_settings,
     ),
     components(schemas(
         routes::HealthResponse,
@@ -154,6 +163,24 @@ use state::AppState;
         routes::pull_requests::FixFromCommentsRequest,
         routes::pull_requests::FixFromCommentsResponse,
         vcs::DiffSummary,
+        config::WikiConfig,
+        routes::wiki::WikiStatusResponse,
+        routes::wiki::BranchStatus,
+        routes::wiki::IndexRequest,
+        routes::wiki::IndexResponse,
+        routes::wiki::WikiStructureResponse,
+        routes::wiki::WikiTreeNode,
+        routes::wiki::WikiPageResponse,
+        routes::wiki::SearchRequest,
+        routes::wiki::WikiSearchResponse,
+        routes::wiki::WikiSearchResult,
+        routes::wiki::AskRequest,
+        routes::wiki::AskResponse,
+        routes::wiki::AskSource,
+        routes::wiki::WebhookPushRequest,
+        routes::wiki::WebhookResponse,
+        routes::wiki::WikiSettingsResponse,
+        routes::wiki::UpdateWikiSettingsRequest,
         opencode_core::Task,
         opencode_core::TaskStatus,
         opencode_core::CreateTaskRequest,
@@ -176,6 +203,7 @@ use state::AppState;
         (name = "settings", description = "Project settings endpoints"),
         (name = "complete", description = "Task completion and Git workflow endpoints"),
         (name = "pull-requests", description = "GitHub Pull Request management endpoints"),
+        (name = "wiki", description = "Wiki documentation and search endpoints"),
     )
 )]
 pub struct ApiDoc;
@@ -330,6 +358,23 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/pull-requests/{number}/fix",
             post(routes::pull_requests::fix_from_pr_comments),
+        )
+        .route("/api/wiki/status", get(routes::wiki::get_wiki_status))
+        .route("/api/wiki/index", post(routes::wiki::start_indexing))
+        .route("/api/wiki/structure", get(routes::wiki::get_wiki_structure))
+        .route(
+            "/api/wiki/pages/{slug}",
+            get(routes::wiki::get_wiki_page),
+        )
+        .route("/api/wiki/search", post(routes::wiki::search_wiki))
+        .route("/api/wiki/ask", post(routes::wiki::ask_wiki))
+        .route(
+            "/api/wiki/webhook/push",
+            post(routes::wiki::handle_push_webhook),
+        )
+        .route(
+            "/api/settings/wiki",
+            get(routes::wiki::get_wiki_settings).put(routes::wiki::update_wiki_settings),
         )
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())

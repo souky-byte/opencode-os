@@ -76,6 +76,25 @@ impl ImplementationPhase {
 
         let working_dir = ctx.working_dir_for_task(task);
 
+        let wiki_setup = if let Some(ref wiki_config) = ctx.config.wiki_config {
+            match ctx
+                .mcp_manager
+                .setup_wiki_server(&working_dir, wiki_config)
+                .await
+            {
+                Ok(()) => {
+                    info!("Wiki MCP server connected for implementation");
+                    true
+                }
+                Err(e) => {
+                    warn!(error = %e, "Failed to setup wiki MCP server, continuing without it");
+                    false
+                }
+            }
+        } else {
+            false
+        };
+
         debug!(
             working_dir = %working_dir.display(),
             has_workspace = task.workspace_path.is_some(),
@@ -145,7 +164,12 @@ impl ImplementationPhase {
 
         ctx.emit_session_ended(session.id, task.id, true);
 
-        // Commit implementation changes
+        if wiki_setup {
+            if let Err(e) = ctx.mcp_manager.cleanup_wiki_server(&working_dir).await {
+                warn!(error = %e, "Failed to cleanup wiki MCP server");
+            }
+        }
+
         ctx.commit_phase_changes(
             task,
             "Implementation",
