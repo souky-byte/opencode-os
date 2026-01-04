@@ -130,10 +130,18 @@ impl VersionControl for GitVcs {
             return Err(VcsError::WorkspaceNotFound(workspace.task_id.clone()));
         }
 
+        // Get all changes compared to main branch (committed changes)
+        let committed = self
+            .run_git(&["diff", &self.main_branch, "HEAD"], &workspace.path)
+            .await?;
+
+        // Get staged changes (not yet committed)
         let staged = self.run_git(&["diff", "--cached"], &workspace.path).await?;
+
+        // Get unstaged changes (working directory)
         let unstaged = self.run_git(&["diff"], &workspace.path).await?;
 
-        Ok(format!("{}{}", staged, unstaged))
+        Ok(format!("{}{}{}", committed, staged, unstaged))
     }
 
     async fn get_status(&self, workspace: &Workspace) -> Result<String> {

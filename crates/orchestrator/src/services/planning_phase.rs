@@ -22,9 +22,7 @@ impl PlanningPhase {
 
         debug!("Creating OpenCode session for planning");
         let client = ctx.opencode_client_for_phase(SessionPhase::Planning);
-        let opencode_session = client
-            .create_session(&ctx.config.repo_path)
-            .await?;
+        let opencode_session = client.create_session(&ctx.config.repo_path).await?;
         let session_id_str = opencode_session.id.to_string();
 
         info!(
@@ -84,6 +82,14 @@ impl PlanningPhase {
         session.complete();
         ctx.update_session(&session).await?;
         ctx.emit_session_ended(session.id, task.id, true);
+
+        // Commit plan changes
+        ctx.commit_phase_changes(
+            task,
+            "Planning",
+            &format!("Created plan for: {}", task.title),
+        )
+        .await?;
 
         ctx.transition(task, TaskStatus::PlanningReview)?;
 

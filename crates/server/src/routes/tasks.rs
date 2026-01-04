@@ -479,14 +479,6 @@ pub async fn fix_findings(
         return Err(AppError::NotFound(format!("Task not found: {}", id)));
     };
 
-    // Verify task is in ai_review state
-    if task.status != TaskStatus::AiReview {
-        return Err(AppError::BadRequest(format!(
-            "Task must be in ai_review state to fix findings. Current: {}",
-            task.status.as_str()
-        )));
-    }
-
     // Read current findings
     let file_manager = project.task_executor.file_manager();
     let findings_data = file_manager.read_findings(id).await.map_err(|e| {

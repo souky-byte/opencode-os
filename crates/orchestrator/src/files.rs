@@ -3,7 +3,7 @@
 //! Handles reading/writing of plan and review markdown files and
 //! structured findings JSON in the `.opencode-studio/kanban/` directory structure.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -267,6 +267,11 @@ impl FileManager {
         Self {
             base_path: base_path.into(),
         }
+    }
+
+    /// Get the base path of the repository
+    pub fn base_path(&self) -> &Path {
+        &self.base_path
     }
 
     /// Get the path to the plans directory

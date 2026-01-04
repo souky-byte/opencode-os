@@ -25,8 +25,12 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  GitHubSettingsResponse,
   PhaseModelsResponse,
-  UpdatePhaseModelsRequest
+  UpdateGitHubTokenRequest,
+  UpdatePhaseModelsRequest,
+  UpdateUserModeRequest,
+  UserModeResponse
 } from '.././model';
 
 import { customFetch } from '../../../lib/api-fetcher';
@@ -36,7 +40,280 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export type getPhaseModelsResponse200 = {
+export type getGithubSettingsResponse200 = {
+  data: GitHubSettingsResponse
+  status: 200
+}
+    
+export type getGithubSettingsResponseSuccess = (getGithubSettingsResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getGithubSettingsResponse = (getGithubSettingsResponseSuccess)
+
+export const getGetGithubSettingsUrl = () => {
+
+
+  
+
+  return `/api/settings/github`
+}
+
+export const getGithubSettings = async ( options?: RequestInit): Promise<getGithubSettingsResponse> => {
+  
+  return customFetch<getGithubSettingsResponse>(getGetGithubSettingsUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+
+
+export const getGetGithubSettingsQueryKey = () => {
+    return [
+    `/api/settings/github`
+    ] as const;
+    }
+
+    
+export const getGetGithubSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getGithubSettings>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGithubSettings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGithubSettingsQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGithubSettings>>> = ({ signal }) => getGithubSettings({ signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGithubSettings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetGithubSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getGithubSettings>>>
+export type GetGithubSettingsQueryError = unknown
+
+
+export function useGetGithubSettings<TData = Awaited<ReturnType<typeof getGithubSettings>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGithubSettings>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getGithubSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getGithubSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetGithubSettings<TData = Awaited<ReturnType<typeof getGithubSettings>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGithubSettings>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getGithubSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getGithubSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetGithubSettings<TData = Awaited<ReturnType<typeof getGithubSettings>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGithubSettings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetGithubSettings<TData = Awaited<ReturnType<typeof getGithubSettings>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGithubSettings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetGithubSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+export type updateGithubSettingsResponse200 = {
+  data: GitHubSettingsResponse
+  status: 200
+}
+
+export type updateGithubSettingsResponse500 = {
+  data: void
+  status: 500
+}
+    
+export type updateGithubSettingsResponseSuccess = (updateGithubSettingsResponse200) & {
+  headers: Headers;
+};
+export type updateGithubSettingsResponseError = (updateGithubSettingsResponse500) & {
+  headers: Headers;
+};
+
+export type updateGithubSettingsResponse = (updateGithubSettingsResponseSuccess | updateGithubSettingsResponseError)
+
+export const getUpdateGithubSettingsUrl = () => {
+
+
+  
+
+  return `/api/settings/github`
+}
+
+export const updateGithubSettings = async (updateGitHubTokenRequest: UpdateGitHubTokenRequest, options?: RequestInit): Promise<updateGithubSettingsResponse> => {
+  
+  return customFetch<updateGithubSettingsResponse>(getUpdateGithubSettingsUrl(),
+  {      
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateGitHubTokenRequest,)
+  }
+);}
+
+
+
+
+export const getUpdateGithubSettingsMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGithubSettings>>, TError,{data: UpdateGitHubTokenRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateGithubSettings>>, TError,{data: UpdateGitHubTokenRequest}, TContext> => {
+
+const mutationKey = ['updateGithubSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateGithubSettings>>, {data: UpdateGitHubTokenRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateGithubSettings(data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateGithubSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateGithubSettings>>>
+    export type UpdateGithubSettingsMutationBody = UpdateGitHubTokenRequest
+    export type UpdateGithubSettingsMutationError = void
+
+    export const useUpdateGithubSettings = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGithubSettings>>, TError,{data: UpdateGitHubTokenRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateGithubSettings>>,
+        TError,
+        {data: UpdateGitHubTokenRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getUpdateGithubSettingsMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    export type deleteGithubTokenResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteGithubTokenResponse500 = {
+  data: void
+  status: 500
+}
+    
+export type deleteGithubTokenResponseSuccess = (deleteGithubTokenResponse204) & {
+  headers: Headers;
+};
+export type deleteGithubTokenResponseError = (deleteGithubTokenResponse500) & {
+  headers: Headers;
+};
+
+export type deleteGithubTokenResponse = (deleteGithubTokenResponseSuccess | deleteGithubTokenResponseError)
+
+export const getDeleteGithubTokenUrl = () => {
+
+
+  
+
+  return `/api/settings/github`
+}
+
+export const deleteGithubToken = async ( options?: RequestInit): Promise<deleteGithubTokenResponse> => {
+  
+  return customFetch<deleteGithubTokenResponse>(getDeleteGithubTokenUrl(),
+  {      
+    ...options,
+    method: 'DELETE'
+    
+    
+  }
+);}
+
+
+
+
+export const getDeleteGithubTokenMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteGithubToken>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteGithubToken>>, TError,void, TContext> => {
+
+const mutationKey = ['deleteGithubToken'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteGithubToken>>, void> = () => {
+          
+
+          return  deleteGithubToken(requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteGithubTokenMutationResult = NonNullable<Awaited<ReturnType<typeof deleteGithubToken>>>
+    
+    export type DeleteGithubTokenMutationError = void
+
+    export const useDeleteGithubToken = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteGithubToken>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteGithubToken>>,
+        TError,
+        void,
+        TContext
+      > => {
+
+      const mutationOptions = getDeleteGithubTokenMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    export type getPhaseModelsResponse200 = {
   data: PhaseModelsResponse
   status: 200
 }
@@ -230,6 +507,189 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
 
       const mutationOptions = getUpdatePhaseModelsMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    export type getUserModeResponse200 = {
+  data: UserModeResponse
+  status: 200
+}
+    
+export type getUserModeResponseSuccess = (getUserModeResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getUserModeResponse = (getUserModeResponseSuccess)
+
+export const getGetUserModeUrl = () => {
+
+
+  
+
+  return `/api/settings/user-mode`
+}
+
+export const getUserMode = async ( options?: RequestInit): Promise<getUserModeResponse> => {
+  
+  return customFetch<getUserModeResponse>(getGetUserModeUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+
+
+export const getGetUserModeQueryKey = () => {
+    return [
+    `/api/settings/user-mode`
+    ] as const;
+    }
+
+    
+export const getGetUserModeQueryOptions = <TData = Awaited<ReturnType<typeof getUserMode>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserMode>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUserModeQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserMode>>> = ({ signal }) => getUserMode({ signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUserMode>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUserModeQueryResult = NonNullable<Awaited<ReturnType<typeof getUserMode>>>
+export type GetUserModeQueryError = unknown
+
+
+export function useGetUserMode<TData = Awaited<ReturnType<typeof getUserMode>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserMode>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUserMode>>,
+          TError,
+          Awaited<ReturnType<typeof getUserMode>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserMode<TData = Awaited<ReturnType<typeof getUserMode>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserMode>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUserMode>>,
+          TError,
+          Awaited<ReturnType<typeof getUserMode>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserMode<TData = Awaited<ReturnType<typeof getUserMode>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserMode>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetUserMode<TData = Awaited<ReturnType<typeof getUserMode>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserMode>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetUserModeQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+export type updateUserModeResponse200 = {
+  data: UserModeResponse
+  status: 200
+}
+    
+export type updateUserModeResponseSuccess = (updateUserModeResponse200) & {
+  headers: Headers;
+};
+;
+
+export type updateUserModeResponse = (updateUserModeResponseSuccess)
+
+export const getUpdateUserModeUrl = () => {
+
+
+  
+
+  return `/api/settings/user-mode`
+}
+
+export const updateUserMode = async (updateUserModeRequest: UpdateUserModeRequest, options?: RequestInit): Promise<updateUserModeResponse> => {
+  
+  return customFetch<updateUserModeResponse>(getUpdateUserModeUrl(),
+  {      
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateUserModeRequest,)
+  }
+);}
+
+
+
+
+export const getUpdateUserModeMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateUserMode>>, TError,{data: UpdateUserModeRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateUserMode>>, TError,{data: UpdateUserModeRequest}, TContext> => {
+
+const mutationKey = ['updateUserMode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateUserMode>>, {data: UpdateUserModeRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateUserMode(data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateUserModeMutationResult = NonNullable<Awaited<ReturnType<typeof updateUserMode>>>
+    export type UpdateUserModeMutationBody = UpdateUserModeRequest
+    export type UpdateUserModeMutationError = unknown
+
+    export const useUpdateUserMode = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateUserMode>>, TError,{data: UpdateUserModeRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateUserMode>>,
+        TError,
+        {data: UpdateUserModeRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getUpdateUserModeMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }

@@ -145,6 +145,14 @@ impl ImplementationPhase {
 
         ctx.emit_session_ended(session.id, task.id, true);
 
+        // Commit implementation changes
+        ctx.commit_phase_changes(
+            task,
+            "Implementation",
+            &format!("Implemented: {}", task.title),
+        )
+        .await?;
+
         ctx.transition(task, TaskStatus::AiReview)?;
 
         info!(

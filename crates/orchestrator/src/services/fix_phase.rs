@@ -1,6 +1,7 @@
 use opencode_core::{Session, SessionPhase, Task, TaskStatus};
 use std::sync::Arc;
 use tracing::{debug, info, warn};
+use uuid::Uuid;
 
 use crate::error::{OrchestratorError, Result};
 use crate::executor::{PhaseResult, StartedExecution};
@@ -21,9 +22,7 @@ impl FixPhase {
 
         debug!("Creating OpenCode session for fix");
         let client = ctx.opencode_client_for_fix();
-        let opencode_session = client
-            .create_session(&ctx.config.repo_path)
-            .await?;
+        let opencode_session = client.create_session(&ctx.config.repo_path).await?;
         let session_id_str = opencode_session.id.to_string();
 
         info!(
@@ -38,10 +37,11 @@ impl FixPhase {
         ctx.emit_session_started(&session, task.id);
 
         let workspace_path = ctx.working_dir_for_task(task);
+        let project_path = ctx.file_manager.base_path();
 
         if let Err(e) = ctx
             .mcp_manager
-            .setup_findings_server(task.id, session.id, &workspace_path)
+            .setup_findings_server(task.id, session.id, &workspace_path, project_path)
             .await
         {
             warn!(error = %e, "Failed to add MCP server for fix session");
@@ -105,6 +105,10 @@ impl FixPhase {
 
         ctx.emit_session_ended(session.id, task.id, true);
 
+        // Commit fix changes
+        ctx.commit_phase_changes(task, "Fix", "Fixed issues from AI review")
+            .await?;
+
         info!(task_id = %task.id, "Fix session completed, transitioning to AI Review");
         ctx.transition(task, TaskStatus::AiReview)?;
 
@@ -128,9 +132,7 @@ impl FixPhase {
 
         debug!("Creating OpenCode session for fix iteration");
         let client = ctx.opencode_client_for_fix();
-        let opencode_session = client
-            .create_session(&ctx.config.repo_path)
-            .await?;
+        let opencode_session = client.create_session(&ctx.config.repo_path).await?;
         let session_id_str = opencode_session.id.to_string();
 
         info!(
@@ -197,11 +199,27 @@ impl FixPhase {
         info!(task_id = %task.id, "Starting fix with SessionRunner");
 
         let working_dir = ctx.working_dir_for_task(task);
+        let project_path = ctx.file_manager.base_path();
 
-        let mcp_config = Some(McpConfig {
-            workspace_path: working_dir.clone(),
-            setup_success: true,
-        });
+        // Setup MCP findings server
+        let temp_session_id = Uuid::new_v4();
+        let mcp_config = match ctx
+            .mcp_manager
+            .setup_findings_server(task.id, temp_session_id, &working_dir, project_path)
+            .await
+        {
+            Ok(_) => {
+                info!(task_id = %task.id, "MCP findings server added for fix");
+                Some(McpConfig {
+                    workspace_path: working_dir.clone(),
+                    setup_success: true,
+                })
+            }
+            Err(e) => {
+                warn!(error = %e, "Failed to add MCP server for fix");
+                None
+            }
+        };
 
         let prompt = PhasePrompts::fix_with_mcp(task);
         let client = ctx.opencode_client_for_fix();

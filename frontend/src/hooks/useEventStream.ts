@@ -14,6 +14,8 @@ import {
 } from "@/api/generated/sessions/sessions";
 import {
   getListTasksQueryKey,
+  getGetTaskPlanQueryKey,
+  getGetTaskFindingsQueryKey,
   type listTasksResponse,
 } from "@/api/generated/tasks/tasks";
 import { getGetTaskPhasesQueryKey } from "@/api/generated/phases/phases";
@@ -143,11 +145,25 @@ export function useEventStream(options: UseEventStreamOptions = {}) {
           void queryClient.invalidateQueries({
             queryKey: getListTasksQueryKey(),
           });
+          // Also invalidate plan and findings as they may have changed
+          void queryClient.invalidateQueries({
+            queryKey: getGetTaskPlanQueryKey(event.task_id),
+          });
+          void queryClient.invalidateQueries({
+            queryKey: getGetTaskFindingsQueryKey(event.task_id),
+          });
           break;
         case "task.status_changed":
           // Optimistic update for status change - immediate UI feedback
           updateTaskInCache(event.task_id, {
             status: event.to_status as TaskStatus,
+          });
+          // Invalidate plan and findings on status change
+          void queryClient.invalidateQueries({
+            queryKey: getGetTaskPlanQueryKey(event.task_id),
+          });
+          void queryClient.invalidateQueries({
+            queryKey: getGetTaskFindingsQueryKey(event.task_id),
           });
           // Auto-execute AI Review when transitioning from in_progress
           if (
@@ -155,6 +171,19 @@ export function useEventStream(options: UseEventStreamOptions = {}) {
             event.to_status === "ai_review"
           ) {
             onAutoExecuteRef.current?.(event.task_id);
+          }
+          // Notify user when AI Review completes and found issues
+          if (event.from_status === "ai_review" && event.to_status === "fix") {
+            toast.info(
+              "AI Review complete - issues found. Check the Problems tab.",
+            );
+          }
+          // Notify when AI Review passes with no issues
+          if (
+            event.from_status === "ai_review" &&
+            event.to_status === "review"
+          ) {
+            toast.success("AI Review complete - no issues found!");
           }
           break;
         case "session.started": {
@@ -171,6 +200,10 @@ export function useEventStream(options: UseEventStreamOptions = {}) {
             started_at: new Date().toISOString(),
           };
           addSessionToCache(event.task_id, newSession);
+          // Invalidate phases query to show running state
+          void queryClient.invalidateQueries({
+            queryKey: getGetTaskPhasesQueryKey(event.task_id),
+          });
           // Show notification
           toast.info(`${event.phase} session started`);
           break;
@@ -186,6 +219,15 @@ export function useEventStream(options: UseEventStreamOptions = {}) {
           // Also invalidate for full refresh
           void queryClient.invalidateQueries({
             queryKey: getListSessionsQueryKey(),
+          });
+          // Invalidate phases query - important for single-phase implementations
+          // where PhaseCompleted event is not sent
+          void queryClient.invalidateQueries({
+            queryKey: getGetTaskPhasesQueryKey(event.task_id),
+          });
+          // Invalidate findings query - AI Review may have saved findings
+          void queryClient.invalidateQueries({
+            queryKey: getGetTaskFindingsQueryKey(event.task_id),
           });
           // Show notification
           if (event.success) {
@@ -207,6 +249,14 @@ export function useEventStream(options: UseEventStreamOptions = {}) {
           void queryClient.invalidateQueries({
             queryKey: getGetTaskPhasesQueryKey(event.task_id),
           });
+          // Invalidate main task list to update status in Kanban
+          void queryClient.invalidateQueries({
+            queryKey: getListTasksQueryKey(),
+          });
+          // Invalidate plan as it may have been updated
+          void queryClient.invalidateQueries({
+            queryKey: getGetTaskPlanQueryKey(event.task_id),
+          });
           // Also invalidate sessions as a new session may have been created
           void queryClient.invalidateQueries({
             queryKey: getListSessionsForTaskQueryKey(event.task_id),
@@ -220,6 +270,10 @@ export function useEventStream(options: UseEventStreamOptions = {}) {
           // Invalidate phases query
           void queryClient.invalidateQueries({
             queryKey: getGetTaskPhasesQueryKey(event.task_id),
+          });
+          // Invalidate main task list to update status
+          void queryClient.invalidateQueries({
+            queryKey: getListTasksQueryKey(),
           });
           toast.info(
             `Starting phase ${event.next_phase_number}/${event.total_phases}`,

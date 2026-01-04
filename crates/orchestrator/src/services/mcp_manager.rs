@@ -27,6 +27,7 @@ impl McpManager {
         task_id: Uuid,
         session_id: Uuid,
         workspace_path: &Path,
+        project_path: &Path,
     ) -> Result<()> {
         let mcp_binary = self.get_binary_path();
 
@@ -36,6 +37,11 @@ impl McpManager {
         environment.insert(
             "OPENCODE_WORKSPACE_PATH".to_string(),
             workspace_path.to_string_lossy().to_string(),
+        );
+        // Project path is where findings are stored (main repo, not worktree)
+        environment.insert(
+            "OPENCODE_PROJECT_PATH".to_string(),
+            project_path.to_string_lossy().to_string(),
         );
 
         let mut config = McpAddRequestConfig::local(vec![mcp_binary]);

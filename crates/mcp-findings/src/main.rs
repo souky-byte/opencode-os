@@ -6,7 +6,8 @@
 //! Environment variables:
 //! - OPENCODE_TASK_ID: UUID of the task being reviewed
 //! - OPENCODE_SESSION_ID: UUID of the review session
-//! - OPENCODE_WORKSPACE_PATH: Path to the workspace directory
+//! - OPENCODE_WORKSPACE_PATH: Path to the workspace directory (worktree)
+//! - OPENCODE_PROJECT_PATH: Path to the main project directory (for storing findings)
 
 use anyhow::{Context, Result};
 use mcp_findings::FindingsService;
@@ -43,15 +44,23 @@ async fn main() -> Result<()> {
         .context("OPENCODE_WORKSPACE_PATH environment variable not set")?;
     let workspace_path = PathBuf::from(workspace_path);
 
+    // Project path is where findings are stored (main repo, not worktree)
+    // Falls back to workspace_path if not set for backwards compatibility
+    let project_path = std::env::var("OPENCODE_PROJECT_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| workspace_path.clone());
+
     info!(
         task_id = %task_id,
         session_id = %session_id,
         workspace_path = %workspace_path.display(),
+        project_path = %project_path.display(),
         "Starting MCP Findings Server"
     );
 
     // Create the service and start serving
-    let service = FindingsService::new(task_id, session_id, workspace_path);
+    // Use project_path for storing findings (not workspace which is a worktree)
+    let service = FindingsService::new(task_id, session_id, project_path);
     let server = service.serve(stdio()).await?;
 
     info!("MCP Findings Server running");

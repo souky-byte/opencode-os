@@ -126,9 +126,11 @@ impl ExecutionEngine {
 
         // Setup MCP servers if needed
         if requirements.needs_mcp_findings && !config.mcp_servers.is_empty() {
+            let project_path = self.ctx.file_manager.base_path().to_path_buf();
             let guard = crate::resources::McpGuard::connect(
                 self.ctx.mcp_manager.clone(),
                 config.working_dir.clone(),
+                project_path,
                 &config.mcp_servers,
                 task.id,
                 session_id,

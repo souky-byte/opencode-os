@@ -67,10 +67,22 @@ use state::AppState;
         routes::opencode::get_providers,
         routes::settings::get_phase_models,
         routes::settings::update_phase_models,
+        routes::settings::get_github_settings,
+        routes::settings::update_github_settings,
+        routes::settings::delete_github_token,
         routes::complete::get_complete_preview,
         routes::complete::complete_task,
         routes::complete::get_user_mode,
         routes::complete::update_user_mode,
+        routes::pull_requests::list_pull_requests,
+        routes::pull_requests::get_pull_request,
+        routes::pull_requests::get_pull_request_diff,
+        routes::pull_requests::get_pull_request_files,
+        routes::pull_requests::get_pull_request_comments,
+        routes::pull_requests::create_review_comment,
+        routes::pull_requests::reply_to_comment,
+        routes::pull_requests::get_pull_request_reviews,
+        routes::pull_requests::fix_from_pr_comments,
     ),
     components(schemas(
         routes::HealthResponse,
@@ -117,6 +129,8 @@ use state::AppState;
         routes::opencode::ProvidersResponse,
         routes::settings::PhaseModelsResponse,
         routes::settings::UpdatePhaseModelsRequest,
+        routes::settings::GitHubSettingsResponse,
+        routes::settings::UpdateGitHubTokenRequest,
         config::ModelSelection,
         config::PhaseModels,
         config::ProjectConfig,
@@ -131,6 +145,14 @@ use state::AppState;
         routes::complete::MergeResultInfo,
         routes::complete::UserModeResponse,
         routes::complete::UpdateUserModeRequest,
+        routes::pull_requests::PullRequestsListResponse,
+        routes::pull_requests::PrDiffResponse,
+        routes::pull_requests::PrCommentsResponse,
+        routes::pull_requests::PrReviewsResponse,
+        routes::pull_requests::CreatePrCommentRequest,
+        routes::pull_requests::ReplyToCommentRequest,
+        routes::pull_requests::FixFromCommentsRequest,
+        routes::pull_requests::FixFromCommentsResponse,
         vcs::DiffSummary,
         opencode_core::Task,
         opencode_core::TaskStatus,
@@ -153,6 +175,7 @@ use state::AppState;
         (name = "opencode", description = "OpenCode integration endpoints"),
         (name = "settings", description = "Project settings endpoints"),
         (name = "complete", description = "Task completion and Git workflow endpoints"),
+        (name = "pull-requests", description = "GitHub Pull Request management endpoints"),
     )
 )]
 pub struct ApiDoc;
@@ -261,12 +284,52 @@ pub fn create_router(state: AppState) -> Router {
             get(routes::complete::get_user_mode).put(routes::complete::update_user_mode),
         )
         .route(
+            "/api/settings/github",
+            get(routes::settings::get_github_settings)
+                .put(routes::settings::update_github_settings)
+                .delete(routes::settings::delete_github_token),
+        )
+        .route(
             "/api/tasks/{id}/complete/preview",
             get(routes::complete::get_complete_preview),
         )
         .route(
             "/api/tasks/{id}/complete",
             post(routes::complete::complete_task),
+        )
+        // Pull Requests routes
+        .route(
+            "/api/pull-requests",
+            get(routes::pull_requests::list_pull_requests),
+        )
+        .route(
+            "/api/pull-requests/{number}",
+            get(routes::pull_requests::get_pull_request),
+        )
+        .route(
+            "/api/pull-requests/{number}/diff",
+            get(routes::pull_requests::get_pull_request_diff),
+        )
+        .route(
+            "/api/pull-requests/{number}/files",
+            get(routes::pull_requests::get_pull_request_files),
+        )
+        .route(
+            "/api/pull-requests/{number}/comments",
+            get(routes::pull_requests::get_pull_request_comments)
+                .post(routes::pull_requests::create_review_comment),
+        )
+        .route(
+            "/api/pull-requests/{number}/comments/{comment_id}/reply",
+            post(routes::pull_requests::reply_to_comment),
+        )
+        .route(
+            "/api/pull-requests/{number}/reviews",
+            get(routes::pull_requests::get_pull_request_reviews),
+        )
+        .route(
+            "/api/pull-requests/{number}/fix",
+            post(routes::pull_requests::fix_from_pr_comments),
         )
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())

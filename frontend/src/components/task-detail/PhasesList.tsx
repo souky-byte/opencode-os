@@ -98,9 +98,6 @@ function PhaseItem({
               >
                 {phase.number}. {phase.title}
               </span>
-              {phase.status === "completed" && (
-                <span className="text-[10px] text-emerald-500/60">✓</span>
-              )}
             </div>
 
             {/* Summary - only for completed */}
@@ -171,6 +168,7 @@ function PhaseItem({
 }
 
 export function PhasesList({ taskId, className }: PhasesListProps) {
+  // -1 means "explicitly collapsed by user", null means "use default (current_phase)"
   const [expandedPhase, setExpandedPhase] = useState<number | null>(null);
 
   const {
@@ -216,7 +214,15 @@ export function PhasesList({ taskId, className }: PhasesListProps) {
     );
   }
 
-  const effectiveExpanded = expandedPhase ?? phases.current_phase ?? null;
+  // -1 means user explicitly collapsed all phases
+  // null means use current_phase as default
+  // positive number means user explicitly expanded that phase
+  const effectiveExpanded =
+    expandedPhase === -1
+      ? null
+      : expandedPhase !== null
+        ? expandedPhase
+        : phases.current_phase;
 
   return (
     <div className={cn(className)}>
@@ -240,9 +246,13 @@ export function PhasesList({ taskId, className }: PhasesListProps) {
             isLast={index === phases.phases.length - 1}
             isExpanded={effectiveExpanded === phase.number}
             onToggle={() => {
-              setExpandedPhase(
-                effectiveExpanded === phase.number ? null : phase.number,
-              );
+              if (effectiveExpanded === phase.number) {
+                // Collapsing - use -1 to indicate explicit collapse
+                setExpandedPhase(-1);
+              } else {
+                // Expanding a specific phase
+                setExpandedPhase(phase.number);
+              }
             }}
           />
         ))}

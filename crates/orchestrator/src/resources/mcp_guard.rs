@@ -19,7 +19,7 @@ use crate::services::McpManager;
 /// # Example
 ///
 /// ```ignore
-/// let guard = McpGuard::connect(manager.clone(), path, &servers, task_id, session_id).await?;
+/// let guard = McpGuard::connect(manager.clone(), workspace_path, project_path, &servers, task_id, session_id).await?;
 /// // ... use MCP servers ...
 /// // guard is automatically cleaned up when it goes out of scope
 /// ```
@@ -36,7 +36,8 @@ impl McpGuard {
     /// # Arguments
     ///
     /// * `manager` - The MCP manager to use for connections (cloned)
-    /// * `workspace_path` - Path to the workspace
+    /// * `workspace_path` - Path to the workspace (worktree)
+    /// * `project_path` - Path to the main project (for storing findings)
     /// * `servers` - List of MCP server specifications to connect
     /// * `task_id` - Task ID for the session
     /// * `session_id` - Session ID for the connection
@@ -47,6 +48,7 @@ impl McpGuard {
     pub async fn connect(
         manager: McpManager,
         workspace_path: PathBuf,
+        project_path: PathBuf,
         servers: &[McpServerSpec],
         task_id: Uuid,
         session_id: Uuid,
@@ -67,7 +69,7 @@ impl McpGuard {
 
             guard
                 .manager
-                .setup_findings_server(task_id, session_id, &workspace_path)
+                .setup_findings_server(task_id, session_id, &workspace_path, &project_path)
                 .await?;
 
             guard.servers.push(server.name.clone());
