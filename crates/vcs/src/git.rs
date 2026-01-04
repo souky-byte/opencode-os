@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::path::PathBuf;
 use tokio::process::Command;
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 use crate::error::{Result, VcsError};
 use crate::traits::{
@@ -49,6 +49,19 @@ impl GitVcs {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     }
 
+    /// Run git command and return success/failure without error
+    async fn run_git_checked(&self, args: &[&str], cwd: &PathBuf) -> bool {
+        debug!("Running git (checked) {:?} in {:?}", args, cwd);
+
+        Command::new("git")
+            .args(args)
+            .current_dir(cwd)
+            .output()
+            .await
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+
     fn workspace_path(&self, task_id: &str) -> PathBuf {
         self.workspace_base.join(format!("task-{}", task_id))
     }
@@ -76,6 +89,60 @@ impl GitVcs {
             }
             Err(_) => Ok(Vec::new()),
         }
+    }
+
+    /// Resolve conflicts in .opencode-studio directory by accepting workspace version (theirs)
+    async fn auto_resolve_opencode_conflicts(&self) -> Result<Vec<String>> {
+        let conflicts = self.get_repo_conflicts().await?;
+        let mut resolved = Vec::new();
+
+        for conflict in &conflicts {
+            let path_str = conflict.path.to_string_lossy();
+
+            // Auto-resolve .opencode-studio files by taking the incoming (theirs) version
+            if path_str.starts_with(".opencode-studio/")
+                || path_str.starts_with(".opencode-studio\\")
+            {
+                info!(
+                    "Auto-resolving conflict in {} (accepting workspace version)",
+                    path_str
+                );
+
+                // Use checkout --theirs to accept the incoming branch version
+                let checkout_result = self
+                    .run_git_checked(&["checkout", "--theirs", &path_str], &self.repo_path)
+                    .await;
+
+                if checkout_result {
+                    // Stage the resolved file
+                    let add_result = self
+                        .run_git_checked(&["add", &path_str], &self.repo_path)
+                        .await;
+
+                    if add_result {
+                        resolved.push(path_str.to_string());
+                    }
+                }
+            }
+        }
+
+        Ok(resolved)
+    }
+
+    /// Check if all conflicts are resolved
+    async fn all_conflicts_resolved(&self) -> bool {
+        match self.get_repo_conflicts().await {
+            Ok(conflicts) => conflicts.is_empty(),
+            Err(_) => false,
+        }
+    }
+
+    /// Complete the merge after resolving conflicts
+    async fn complete_merge(&self, message: &str) -> Result<()> {
+        // Commit the merge
+        self.run_git(&["commit", "-m", message], &self.repo_path)
+            .await?;
+        Ok(())
     }
 }
 
@@ -167,24 +234,19 @@ impl VersionControl for GitVcs {
         }
 
         // Check if main branch has uncommitted changes in the main repo
-        // This would prevent checkout, so we use a different strategy
         let main_status = self
             .run_git(&["status", "--porcelain"], &self.repo_path)
             .await?;
 
         if !main_status.trim().is_empty() {
             // Main repo has uncommitted changes - use fetch + merge strategy
-            // First, fetch the workspace branch into main repo
-            // Then merge using git merge without checkout
-
-            // Get the commit SHA from workspace
             let workspace_sha = self
                 .run_git(&["rev-parse", "HEAD"], &workspace.path)
                 .await?
                 .trim()
                 .to_string();
 
-            // Update the branch ref in main repo to point to workspace's HEAD
+            // Update the branch ref in main repo
             self.run_git(
                 &[
                     "fetch",
@@ -194,9 +256,6 @@ impl VersionControl for GitVcs {
                 &self.repo_path,
             )
             .await?;
-
-            // Now try to merge using git merge-tree to check for conflicts first
-            // If there are conflicts, we abort. Otherwise, we do the merge.
 
             // Check if fast-forward is possible
             let merge_base = self
@@ -215,7 +274,7 @@ impl VersionControl for GitVcs {
                 .to_string();
 
             if merge_base == main_sha {
-                // Fast-forward is possible - update main branch ref directly
+                // Fast-forward is possible
                 self.run_git(
                     &[
                         "update-ref",
@@ -233,9 +292,6 @@ impl VersionControl for GitVcs {
                 return Ok(MergeResult::Success);
             }
 
-            // Non-fast-forward merge needed - this is more complex
-            // For safety, we'll return an error asking user to resolve manually
-            // or stash their changes first
             return Err(VcsError::CommandFailed(
                 "Cannot merge: main branch has diverged and your working directory has uncommitted changes. \
                  Please commit or stash your changes in the main repository first, then try again.".to_string()
@@ -246,27 +302,95 @@ impl VersionControl for GitVcs {
         self.run_git(&["checkout", &self.main_branch], &self.repo_path)
             .await?;
 
-        let merge_result = self
-            .run_git(
-                &["merge", "--no-ff", &workspace.branch_name, "-m", message],
-                &self.repo_path,
-            )
+        // Try merge with no-commit first to handle conflicts manually
+        let merge_result = Command::new("git")
+            .args(["merge", "--no-ff", "--no-commit", &workspace.branch_name])
+            .current_dir(&self.repo_path)
+            .output()
             .await;
 
-        match merge_result {
-            Ok(_) => Ok(MergeResult::Success),
-            Err(e) => {
-                warn!("Merge failed: {}", e);
-                let conflicts = self.get_repo_conflicts().await?;
-                if conflicts.is_empty() {
-                    let _ = self.run_git(&["merge", "--abort"], &self.repo_path).await;
-                    Err(e)
-                } else {
-                    let _ = self.run_git(&["merge", "--abort"], &self.repo_path).await;
-                    Ok(MergeResult::Conflicts { files: conflicts })
-                }
+        let merge_success = merge_result
+            .as_ref()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+
+        if merge_success {
+            // No conflicts - commit the merge
+            self.run_git(&["commit", "-m", message], &self.repo_path)
+                .await?;
+            return Ok(MergeResult::Success);
+        }
+
+        // Check for conflicts
+        let conflicts = self.get_repo_conflicts().await?;
+
+        if conflicts.is_empty() {
+            // Merge failed but no conflicts - abort and return error
+            let _ = self.run_git(&["merge", "--abort"], &self.repo_path).await;
+            let stderr = merge_result
+                .map(|o| String::from_utf8_lossy(&o.stderr).to_string())
+                .unwrap_or_default();
+            return Err(VcsError::CommandFailed(format!("Merge failed: {}", stderr)));
+        }
+
+        info!(
+            "Detected {} conflicts, attempting auto-resolve...",
+            conflicts.len()
+        );
+
+        // Try to auto-resolve .opencode-studio conflicts
+        let resolved = self.auto_resolve_opencode_conflicts().await?;
+
+        if !resolved.is_empty() {
+            info!("Auto-resolved {} conflicts: {:?}", resolved.len(), resolved);
+        }
+
+        // Check remaining conflicts
+        let remaining_conflicts = self.get_repo_conflicts().await?;
+
+        if remaining_conflicts.is_empty() {
+            // All conflicts resolved - complete the merge
+            info!("All conflicts resolved, completing merge");
+            self.complete_merge(message).await?;
+            return Ok(MergeResult::Success);
+        }
+
+        // Still have unresolved conflicts - check if they're all auto-resolvable
+        let non_resolvable: Vec<_> = remaining_conflicts
+            .iter()
+            .filter(|c| {
+                let path_str = c.path.to_string_lossy();
+                !path_str.starts_with(".opencode-studio/")
+                    && !path_str.starts_with(".opencode-studio\\")
+            })
+            .collect();
+
+        if non_resolvable.is_empty() {
+            // All remaining are .opencode-studio files - try one more time with force
+            for conflict in &remaining_conflicts {
+                let path_str = conflict.path.to_string_lossy();
+                // Accept theirs (workspace version)
+                let _ = self
+                    .run_git_checked(&["checkout", "--theirs", &path_str], &self.repo_path)
+                    .await;
+                let _ = self
+                    .run_git_checked(&["add", &path_str], &self.repo_path)
+                    .await;
+            }
+
+            if self.all_conflicts_resolved().await {
+                self.complete_merge(message).await?;
+                return Ok(MergeResult::Success);
             }
         }
+
+        // Abort merge and return conflicts
+        warn!("Could not auto-resolve all conflicts, aborting merge");
+        let _ = self.run_git(&["merge", "--abort"], &self.repo_path).await;
+
+        Ok(MergeResult::Conflicts {
+            files: remaining_conflicts,
+        })
     }
 
     async fn cleanup_workspace(&self, workspace: &Workspace) -> Result<()> {
@@ -388,7 +512,6 @@ impl VersionControl for GitVcs {
         }
 
         // Get diff stats comparing workspace branch to main branch
-        // Use --numstat for machine-readable output: additions deletions filename
         let output = self
             .run_git(
                 &["diff", "--numstat", &self.main_branch, "HEAD"],

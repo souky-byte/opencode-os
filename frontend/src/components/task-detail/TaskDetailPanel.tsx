@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import type { Session, Task, TaskStatus } from "@/api/generated/model";
+import { FindingStatus } from "@/api/generated/model/findingStatus";
 import { useListSessionsForTask } from "@/api/generated/sessions/sessions";
 import {
   getListTasksQueryKey,
@@ -96,6 +97,15 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
     findingsData?.status === 200 &&
     findingsData.data.exists &&
     findingsData.data.findings.length > 0;
+
+  // Count only pending findings for badge
+  const pendingFindingsCount = useMemo(() => {
+    if (!hasFindings || findingsData?.status !== 200) return 0;
+    return findingsData.data.findings.filter(
+      (f) =>
+        f.status !== FindingStatus.fixed && f.status !== FindingStatus.skipped,
+    ).length;
+  }, [hasFindings, findingsData]);
 
   const latestRunningSession = useMemo(
     () => taskSessions.find((s: Session) => s.status === "running") ?? null,
@@ -415,14 +425,29 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
           {hasFindings && (
             <TabsTrigger value="problems" className="relative">
               Problems
-              <Badge
-                variant="destructive"
-                className="ml-1.5 h-5 px-1.5 text-xs"
-              >
-                {findingsData?.status === 200
-                  ? findingsData.data.findings.length
-                  : 0}
-              </Badge>
+              {pendingFindingsCount > 0 ? (
+                <Badge
+                  variant="destructive"
+                  className="ml-1.5 h-5 px-1.5 text-xs"
+                >
+                  {pendingFindingsCount}
+                </Badge>
+              ) : (
+                <Badge
+                  variant="outline"
+                  className="ml-1.5 h-5 px-1.5 text-xs border-green-500/50 text-green-500"
+                >
+                  <svg
+                    className="w-3 h-3"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </Badge>
+              )}
             </TabsTrigger>
           )}
           <TabsTrigger value="sessions">Sessions</TabsTrigger>
@@ -555,28 +580,68 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
                 <button
                   type="button"
                   onClick={() => setActiveTab("problems")}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg border border-red-500/30 bg-red-500/5 hover:bg-red-500/10 transition-colors text-left group"
+                  className={cn(
+                    "w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left group",
+                    pendingFindingsCount > 0
+                      ? "border-red-500/30 bg-red-500/5 hover:bg-red-500/10"
+                      : "border-green-500/30 bg-green-500/5 hover:bg-green-500/10",
+                  )}
                 >
-                  <div className="w-8 h-8 rounded-md bg-red-500/10 flex items-center justify-center shrink-0">
-                    <svg
-                      className="w-4 h-4 text-red-500/70"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="12" y1="8" x2="12" y2="12" />
-                      <line x1="12" y1="16" x2="12.01" y2="16" />
-                    </svg>
+                  <div
+                    className={cn(
+                      "w-8 h-8 rounded-md flex items-center justify-center shrink-0",
+                      pendingFindingsCount > 0
+                        ? "bg-red-500/10"
+                        : "bg-green-500/10",
+                    )}
+                  >
+                    {pendingFindingsCount > 0 ? (
+                      <svg
+                        className="w-4 h-4 text-red-500/70"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                    ) : (
+                      <svg
+                        className="w-4 h-4 text-green-500/70"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-red-500/80">
-                      {findingsData.data.findings.length} issues found
-                    </span>
-                    <p className="text-xs text-muted-foreground/60">
-                      Review and fix problems
-                    </p>
+                    {pendingFindingsCount > 0 ? (
+                      <>
+                        <span className="text-sm font-medium text-red-500/80">
+                          {pendingFindingsCount} issue
+                          {pendingFindingsCount !== 1 ? "s" : ""} to fix
+                        </span>
+                        <p className="text-xs text-muted-foreground/60">
+                          Review and fix problems
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-sm font-medium text-green-500/80">
+                          All issues fixed
+                        </span>
+                        <p className="text-xs text-muted-foreground/60">
+                          {findingsData.data.findings.length} finding
+                          {findingsData.data.findings.length !== 1 ? "s" : ""}{" "}
+                          resolved
+                        </p>
+                      </>
+                    )}
                   </div>
                   <svg
                     className="w-4 h-4 text-muted-foreground/40 group-hover:text-muted-foreground/60"
