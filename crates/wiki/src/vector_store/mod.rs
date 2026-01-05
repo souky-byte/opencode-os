@@ -11,7 +11,8 @@ use crate::domain::{
     chunk::{ChunkType, CodeChunk},
     index_status::{IndexState, IndexStatus},
     search_result::SearchResult,
-    wiki_page::{PageType, WikiPage, WikiStructure, WikiTree},
+    wiki_page::{Importance, PageType, SourceCitation, WikiPage, WikiStructure, WikiTree},
+    wiki_section::WikiSection,
 };
 use crate::error::{WikiError, WikiResult};
 
@@ -21,17 +22,15 @@ pub const EMBEDDING_DIMENSION: usize = 1536;
 static SQLITE_VEC_INIT: Once = Once::new();
 
 fn init_sqlite_vec_extension() {
-    SQLITE_VEC_INIT.call_once(|| {
-        unsafe {
-            sqlite3_auto_extension(Some(std::mem::transmute::<
-                *const (),
-                unsafe extern "C" fn(
-                    *mut rusqlite::ffi::sqlite3,
-                    *mut *mut i8,
-                    *const rusqlite::ffi::sqlite3_api_routines,
-                ) -> i32,
-            >(sqlite_vec::sqlite3_vec_init as *const ())));
-        }
+    SQLITE_VEC_INIT.call_once(|| unsafe {
+        sqlite3_auto_extension(Some(std::mem::transmute::<
+            *const (),
+            unsafe extern "C" fn(
+                *mut rusqlite::ffi::sqlite3,
+                *mut *mut i8,
+                *const rusqlite::ffi::sqlite3_api_routines,
+            ) -> i32,
+        >(sqlite_vec::sqlite3_vec_init as *const ())));
     });
 }
 
@@ -135,10 +134,26 @@ impl VectorStore {
                 page_count INTEGER NOT NULL,
                 updated_at TEXT NOT NULL
             );
+
+            -- Wiki sections table (for hierarchical organization)
+            CREATE TABLE IF NOT EXISTS wiki_sections (
+                id TEXT PRIMARY KEY,
+                branch TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                page_slugs TEXT NOT NULL DEFAULT '[]',
+                subsection_ids TEXT NOT NULL DEFAULT '[]',
+                order_num INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_wiki_sections_branch ON wiki_sections(branch);
             "#,
         )?;
 
         self.migrate_index_status_columns()?;
+        self.migrate_wiki_pages_columns()?;
 
         debug!("Database schema initialized");
         Ok(())
@@ -159,9 +174,40 @@ impl VectorStore {
             )?;
 
             if !column_exists {
-                let sql = format!("ALTER TABLE index_status ADD COLUMN {} {}", column_name, column_def);
+                let sql = format!(
+                    "ALTER TABLE index_status ADD COLUMN {} {}",
+                    column_name, column_def
+                );
                 self.conn.execute(&sql, [])?;
                 debug!("Added column {} to index_status table", column_name);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn migrate_wiki_pages_columns(&self) -> WikiResult<()> {
+        let columns_to_add = [
+            ("importance", "TEXT DEFAULT 'medium'"),
+            ("related_pages", "TEXT DEFAULT '[]'"),
+            ("section_id", "TEXT"),
+            ("source_citations", "TEXT DEFAULT '[]'"),
+        ];
+
+        for (column_name, column_def) in columns_to_add {
+            let column_exists: bool = self.conn.query_row(
+                "SELECT COUNT(*) > 0 FROM pragma_table_info('wiki_pages') WHERE name = ?1",
+                params![column_name],
+                |row| row.get(0),
+            )?;
+
+            if !column_exists {
+                let sql = format!(
+                    "ALTER TABLE wiki_pages ADD COLUMN {} {}",
+                    column_name, column_def
+                );
+                self.conn.execute(&sql, [])?;
+                debug!("Added column {} to wiki_pages table", column_name);
             }
         }
 
@@ -195,7 +241,6 @@ impl VectorStore {
         Ok(())
     }
 
-    /// Insert an embedding for a chunk
     pub fn insert_embedding(&self, chunk_id: &Uuid, embedding: &[f32]) -> WikiResult<()> {
         if embedding.len() != EMBEDDING_DIMENSION {
             return Err(WikiError::DimensionMismatch {
@@ -204,11 +249,7 @@ impl VectorStore {
             });
         }
 
-        // Convert embedding to bytes for sqlite-vec
-        let embedding_bytes: Vec<u8> = embedding
-            .iter()
-            .flat_map(|f| f.to_le_bytes())
-            .collect();
+        let embedding_bytes: Vec<u8> = embedding.iter().flat_map(|f| f.to_le_bytes()).collect();
 
         self.conn.execute(
             "INSERT OR REPLACE INTO chunk_embeddings (chunk_id, embedding) VALUES (?1, ?2)",
@@ -217,12 +258,85 @@ impl VectorStore {
         Ok(())
     }
 
-    /// Search for similar chunks by embedding (searches all branches)
-    pub fn search_similar(&self, query_embedding: &[f32], limit: usize) -> WikiResult<Vec<SearchResult>> {
+    pub fn insert_chunks_batch(&self, chunks: &[CodeChunk]) -> WikiResult<()> {
+        if chunks.is_empty() {
+            return Ok(());
+        }
+
+        let mut stmt = self.conn.prepare_cached(
+            r#"
+            INSERT OR REPLACE INTO chunks 
+            (id, branch, file_path, start_line, end_line, content, chunk_type, 
+             language, token_count, chunk_index, commit_sha, created_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+            "#,
+        )?;
+
+        for chunk in chunks {
+            stmt.execute(params![
+                chunk.id.to_string(),
+                chunk.branch,
+                chunk.file_path,
+                chunk.start_line,
+                chunk.end_line,
+                chunk.content,
+                chunk.chunk_type.as_str(),
+                chunk.language,
+                chunk.token_count,
+                chunk.chunk_index,
+                chunk.commit_sha,
+                chunk.created_at.to_rfc3339(),
+            ])?;
+        }
+
+        Ok(())
+    }
+
+    pub fn insert_embeddings_batch(
+        &self,
+        chunk_ids: &[Uuid],
+        embeddings: &[Vec<f32>],
+    ) -> WikiResult<()> {
+        if chunk_ids.len() != embeddings.len() {
+            return Err(WikiError::IndexingFailed(format!(
+                "Chunk IDs count ({}) doesn't match embeddings count ({})",
+                chunk_ids.len(),
+                embeddings.len()
+            )));
+        }
+
+        if chunk_ids.is_empty() {
+            return Ok(());
+        }
+
+        let mut stmt = self.conn.prepare_cached(
+            "INSERT OR REPLACE INTO chunk_embeddings (chunk_id, embedding) VALUES (?1, ?2)",
+        )?;
+
+        for (chunk_id, embedding) in chunk_ids.iter().zip(embeddings.iter()) {
+            if embedding.len() != EMBEDDING_DIMENSION {
+                return Err(WikiError::DimensionMismatch {
+                    expected: EMBEDDING_DIMENSION,
+                    actual: embedding.len(),
+                });
+            }
+
+            let embedding_bytes: Vec<u8> = embedding.iter().flat_map(|f| f.to_le_bytes()).collect();
+
+            stmt.execute(params![chunk_id.to_string(), embedding_bytes])?;
+        }
+
+        Ok(())
+    }
+
+    pub fn search_similar(
+        &self,
+        query_embedding: &[f32],
+        limit: usize,
+    ) -> WikiResult<Vec<SearchResult>> {
         self.search_similar_in_branch(query_embedding, limit, None)
     }
 
-    /// Search for similar chunks by embedding in a specific branch
     pub fn search_similar_in_branch(
         &self,
         query_embedding: &[f32],
@@ -287,26 +401,26 @@ impl VectorStore {
             let score = 1.0 - distance;
 
             let id = Uuid::parse_str(&id_str).map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e))
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
             })?;
 
             let chunk_type = ChunkType::parse(&chunk_type_str).unwrap_or(ChunkType::Code);
 
             Ok(SearchResult::new(
-                id,
-                file_path,
-                start_line,
-                end_line,
-                content,
-                chunk_type,
-                language,
-                score,
+                id, file_path, start_line, end_line, content, chunk_type, language, score,
             ))
         };
 
         let results = if use_branch_filter {
-            stmt.query_map(params![embedding_bytes, limit as i64, branch.unwrap()], row_mapper)?
-                .collect::<Result<Vec<_>, _>>()?
+            stmt.query_map(
+                params![embedding_bytes, limit as i64, branch.unwrap()],
+                row_mapper,
+            )?
+            .collect::<Result<Vec<_>, _>>()?
         } else {
             stmt.query_map(params![embedding_bytes, limit as i64], row_mapper)?
                 .collect::<Result<Vec<_>, _>>()?
@@ -381,13 +495,16 @@ impl VectorStore {
     /// Insert a wiki page
     pub fn insert_wiki_page(&self, page: &WikiPage) -> WikiResult<()> {
         let file_paths_json = serde_json::to_string(&page.file_paths)?;
+        let related_pages_json = serde_json::to_string(&page.related_pages)?;
+        let source_citations_json = serde_json::to_string(&page.source_citations)?;
 
         self.conn.execute(
             r#"
             INSERT OR REPLACE INTO wiki_pages 
             (id, branch, slug, title, content, page_type, parent_slug, 
-             page_order, file_paths, has_diagrams, commit_sha, created_at, updated_at)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+             page_order, file_paths, has_diagrams, commit_sha, created_at, updated_at,
+             importance, related_pages, section_id, source_citations)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
             "#,
             params![
                 page.id.to_string(),
@@ -403,6 +520,10 @@ impl VectorStore {
                 page.commit_sha,
                 page.created_at.to_rfc3339(),
                 page.updated_at.to_rfc3339(),
+                page.importance.as_str(),
+                related_pages_json,
+                page.section_id,
+                source_citations_json,
             ],
         )?;
         Ok(())
@@ -412,12 +533,17 @@ impl VectorStore {
         self.get_wiki_page_in_branch(slug, None)
     }
 
-    pub fn get_wiki_page_in_branch(&self, slug: &str, branch: Option<&str>) -> WikiResult<Option<WikiPage>> {
+    pub fn get_wiki_page_in_branch(
+        &self,
+        slug: &str,
+        branch: Option<&str>,
+    ) -> WikiResult<Option<WikiPage>> {
         let (sql, use_branch) = if branch.is_some() {
             (
                 r#"
                 SELECT id, branch, slug, title, content, page_type, parent_slug,
-                       page_order, file_paths, has_diagrams, commit_sha, created_at, updated_at
+                       page_order, file_paths, has_diagrams, commit_sha, created_at, updated_at,
+                       importance, related_pages, section_id, source_citations
                 FROM wiki_pages
                 WHERE slug = ?1 AND branch = ?2
                 "#,
@@ -427,7 +553,8 @@ impl VectorStore {
             (
                 r#"
                 SELECT id, branch, slug, title, content, page_type, parent_slug,
-                       page_order, file_paths, has_diagrams, commit_sha, created_at, updated_at
+                       page_order, file_paths, has_diagrams, commit_sha, created_at, updated_at,
+                       importance, related_pages, section_id, source_citations
                 FROM wiki_pages
                 WHERE slug = ?1
                 LIMIT 1
@@ -445,25 +572,58 @@ impl VectorStore {
             let created_str: String = row.get(11)?;
             let updated_str: String = row.get(12)?;
 
+            let importance_str: Option<String> = row.get(13)?;
+            let related_pages_json: Option<String> = row.get(14)?;
+            let section_id: Option<String> = row.get(15)?;
+            let source_citations_json: Option<String> = row.get(16)?;
+
             let id = Uuid::parse_str(&id_str).map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e))
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
             })?;
 
             let file_paths: Vec<String> = serde_json::from_str(&file_paths_json).map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::new(e))
+                rusqlite::Error::FromSqlConversionFailure(
+                    8,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
             })?;
 
             let created_at = chrono::DateTime::parse_from_rfc3339(&created_str)
                 .map(|dt| dt.with_timezone(&chrono::Utc))
                 .map_err(|e| {
-                    rusqlite::Error::FromSqlConversionFailure(11, rusqlite::types::Type::Text, Box::new(e))
+                    rusqlite::Error::FromSqlConversionFailure(
+                        11,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
                 })?;
 
             let updated_at = chrono::DateTime::parse_from_rfc3339(&updated_str)
                 .map(|dt| dt.with_timezone(&chrono::Utc))
                 .map_err(|e| {
-                    rusqlite::Error::FromSqlConversionFailure(12, rusqlite::types::Type::Text, Box::new(e))
+                    rusqlite::Error::FromSqlConversionFailure(
+                        12,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
                 })?;
+
+            let importance = importance_str
+                .and_then(|s| Importance::parse(&s))
+                .unwrap_or_default();
+
+            let related_pages: Vec<String> = related_pages_json
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default();
+
+            let source_citations: Vec<SourceCitation> = source_citations_json
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default();
 
             Ok(WikiPage {
                 id,
@@ -479,6 +639,10 @@ impl VectorStore {
                 commit_sha: row.get(10)?,
                 created_at,
                 updated_at,
+                importance,
+                related_pages,
+                section_id,
+                source_citations,
             })
         };
 
@@ -521,7 +685,11 @@ impl VectorStore {
             let updated_at = chrono::DateTime::parse_from_rfc3339(&updated_str)
                 .map(|dt| dt.with_timezone(&chrono::Utc))
                 .map_err(|e| {
-                    rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(e))
+                    rusqlite::Error::FromSqlConversionFailure(
+                        2,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
                 })?;
 
             Ok(WikiStructure {
@@ -529,6 +697,8 @@ impl VectorStore {
                 root,
                 page_count,
                 updated_at,
+                sections: Vec::new(),
+                root_section_ids: Vec::new(),
             })
         });
 
@@ -561,7 +731,6 @@ impl VectorStore {
 
     /// Delete all data for a branch (for re-indexing)
     pub fn clear_branch(&self, branch: &str) -> WikiResult<()> {
-        // Delete embeddings for chunks in this branch
         self.conn.execute(
             r#"
             DELETE FROM chunk_embeddings 
@@ -570,25 +739,18 @@ impl VectorStore {
             params![branch],
         )?;
 
-        // Delete chunks
+        self.conn
+            .execute("DELETE FROM chunks WHERE branch = ?1", params![branch])?;
+        self.conn
+            .execute("DELETE FROM wiki_pages WHERE branch = ?1", params![branch])?;
         self.conn.execute(
-            "DELETE FROM chunks WHERE branch = ?1",
+            "DELETE FROM wiki_sections WHERE branch = ?1",
             params![branch],
         )?;
-
-        // Delete wiki pages
-        self.conn.execute(
-            "DELETE FROM wiki_pages WHERE branch = ?1",
-            params![branch],
-        )?;
-
-        // Delete structure
         self.conn.execute(
             "DELETE FROM wiki_structure WHERE branch = ?1",
             params![branch],
         )?;
-
-        // Reset index status
         self.conn.execute(
             "DELETE FROM index_status WHERE branch = ?1",
             params![branch],
@@ -596,6 +758,130 @@ impl VectorStore {
 
         debug!("Cleared all data for branch: {}", branch);
         Ok(())
+    }
+
+    pub fn insert_wiki_section(&self, section: &WikiSection) -> WikiResult<()> {
+        let page_slugs_json = serde_json::to_string(&section.page_slugs)?;
+        let subsection_ids_json = serde_json::to_string(&section.subsection_ids)?;
+
+        self.conn.execute(
+            r#"
+            INSERT OR REPLACE INTO wiki_sections 
+            (id, branch, title, description, page_slugs, subsection_ids, order_num, created_at, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            "#,
+            params![
+                section.id,
+                section.branch,
+                section.title,
+                section.description,
+                page_slugs_json,
+                subsection_ids_json,
+                section.order,
+                section.created_at.to_rfc3339(),
+                section.updated_at.to_rfc3339(),
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_wiki_sections(&self, branch: &str) -> WikiResult<Vec<WikiSection>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT id, branch, title, description, page_slugs, subsection_ids, order_num, created_at, updated_at
+            FROM wiki_sections
+            WHERE branch = ?1
+            ORDER BY order_num
+            "#,
+        )?;
+
+        let sections = stmt
+            .query_map(params![branch], |row| {
+                let page_slugs_json: String = row.get(4)?;
+                let subsection_ids_json: String = row.get(5)?;
+                let created_str: String = row.get(7)?;
+                let updated_str: String = row.get(8)?;
+
+                let page_slugs: Vec<String> =
+                    serde_json::from_str(&page_slugs_json).unwrap_or_default();
+                let subsection_ids: Vec<String> =
+                    serde_json::from_str(&subsection_ids_json).unwrap_or_default();
+
+                let created_at = chrono::DateTime::parse_from_rfc3339(&created_str)
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+                    .unwrap_or_else(|_| chrono::Utc::now());
+
+                let updated_at = chrono::DateTime::parse_from_rfc3339(&updated_str)
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+                    .unwrap_or_else(|_| chrono::Utc::now());
+
+                Ok(WikiSection {
+                    id: row.get(0)?,
+                    branch: row.get(1)?,
+                    title: row.get(2)?,
+                    description: row.get(3)?,
+                    page_slugs,
+                    subsection_ids,
+                    order: row.get(6)?,
+                    created_at,
+                    updated_at,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(sections)
+    }
+
+    pub fn get_wiki_section(
+        &self,
+        section_id: &str,
+        branch: &str,
+    ) -> WikiResult<Option<WikiSection>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT id, branch, title, description, page_slugs, subsection_ids, order_num, created_at, updated_at
+            FROM wiki_sections
+            WHERE id = ?1 AND branch = ?2
+            "#,
+        )?;
+
+        let result = stmt.query_row(params![section_id, branch], |row| {
+            let page_slugs_json: String = row.get(4)?;
+            let subsection_ids_json: String = row.get(5)?;
+            let created_str: String = row.get(7)?;
+            let updated_str: String = row.get(8)?;
+
+            let page_slugs: Vec<String> =
+                serde_json::from_str(&page_slugs_json).unwrap_or_default();
+            let subsection_ids: Vec<String> =
+                serde_json::from_str(&subsection_ids_json).unwrap_or_default();
+
+            let created_at = chrono::DateTime::parse_from_rfc3339(&created_str)
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .unwrap_or_else(|_| chrono::Utc::now());
+
+            let updated_at = chrono::DateTime::parse_from_rfc3339(&updated_str)
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .unwrap_or_else(|_| chrono::Utc::now());
+
+            Ok(WikiSection {
+                id: row.get(0)?,
+                branch: row.get(1)?,
+                title: row.get(2)?,
+                description: row.get(3)?,
+                page_slugs,
+                subsection_ids,
+                order: row.get(6)?,
+                created_at,
+                updated_at,
+            })
+        });
+
+        match result {
+            Ok(section) => Ok(Some(section)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Get chunk count for a branch

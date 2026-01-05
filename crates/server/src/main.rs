@@ -8,7 +8,7 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "server=debug,tower_http=debug".into()),
+                .unwrap_or_else(|_| "server=debug,wiki=info,tower_http=debug".into()),
         )
         .init();
 

@@ -210,7 +210,7 @@ impl Phase for ImplementationPhase {
                     previous_summary: state.previous_summary.clone(),
                 };
 
-                let prompt = PhasePrompts::implementation_phase(task, phase, &file_context);
+                let prompt = PhasePrompts::implementation_phase(task, phase, &file_context, plan);
 
                 (prompt, true, Some(current), Some(total))
             } else {

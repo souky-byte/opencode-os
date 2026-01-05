@@ -6,10 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { WikiTreeNode } from './wikiTreeNode';
+import type { WikiSectionResponse } from './wikiSectionResponse';
 
 export interface WikiStructureResponse {
   branch: string;
   /** @minimum 0 */
   page_count: number;
   root: WikiTreeNode;
+  sections: WikiSectionResponse[];
 }

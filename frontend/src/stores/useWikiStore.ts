@@ -10,6 +10,20 @@ export type WikiTreeNode = {
 	children: WikiTreeNode[];
 };
 
+export type WikiSection = {
+	id: string;
+	title: string;
+	description: string | null;
+	page_slugs: string[];
+	order: number;
+};
+
+export type SourceCitation = {
+	file_path: string;
+	start_line: number | null;
+	end_line: number | null;
+};
+
 export type WikiPage = {
 	slug: string;
 	title: string;
@@ -19,6 +33,10 @@ export type WikiPage = {
 	file_paths: string[];
 	has_diagrams: boolean;
 	updated_at: string;
+	importance: string;
+	related_pages: string[];
+	section_id: string | null;
+	source_citations: SourceCitation[];
 };
 
 export type WikiSearchResult = {
@@ -40,6 +58,22 @@ export type BranchStatus = {
 	error_message: string | null;
 };
 
+export type WikiGenerationPhase =
+	| "analyzing"
+	| "planning"
+	| "generating_pages"
+	| "completed"
+	| "failed";
+
+export type WikiGenerationProgress = {
+	branch: string;
+	phase: WikiGenerationPhase;
+	current: number;
+	total: number;
+	currentItem: string | null;
+	message: string | null;
+};
+
 export type ChatMessage = {
 	role: "user" | "assistant";
 	content: string;
@@ -56,6 +90,7 @@ type State = {
 	viewMode: WikiViewMode;
 	currentPageSlug: string | null;
 	structure: WikiTreeNode | null;
+	sections: WikiSection[];
 	searchQuery: string;
 	searchResults: WikiSearchResult[];
 	isSearching: boolean;
@@ -65,10 +100,12 @@ type State = {
 	conversationId: string | null;
 	branchStatuses: BranchStatus[];
 	isIndexing: boolean;
+	generationProgress: WikiGenerationProgress | null;
 
 	setViewMode: (mode: WikiViewMode) => void;
 	setCurrentPageSlug: (slug: string | null) => void;
 	setStructure: (structure: WikiTreeNode | null) => void;
+	setSections: (sections: WikiSection[]) => void;
 	setSearchQuery: (query: string) => void;
 	setSearchResults: (results: WikiSearchResult[]) => void;
 	setIsSearching: (isSearching: boolean) => void;
@@ -79,6 +116,7 @@ type State = {
 	clearChat: () => void;
 	setBranchStatuses: (statuses: BranchStatus[]) => void;
 	setIsIndexing: (isIndexing: boolean) => void;
+	setGenerationProgress: (progress: WikiGenerationProgress | null) => void;
 	reset: () => void;
 };
 
@@ -86,6 +124,7 @@ const initialState = {
 	viewMode: "page" as WikiViewMode,
 	currentPageSlug: null,
 	structure: null,
+	sections: [] as WikiSection[],
 	searchQuery: "",
 	searchResults: [],
 	isSearching: false,
@@ -95,6 +134,7 @@ const initialState = {
 	conversationId: null,
 	branchStatuses: [],
 	isIndexing: false,
+	generationProgress: null as WikiGenerationProgress | null,
 };
 
 export const useWikiStore = create<State>((set) => ({
@@ -103,6 +143,7 @@ export const useWikiStore = create<State>((set) => ({
 	setViewMode: (viewMode) => set({ viewMode }),
 	setCurrentPageSlug: (currentPageSlug) => set({ currentPageSlug }),
 	setStructure: (structure) => set({ structure }),
+	setSections: (sections) => set({ sections }),
 	setSearchQuery: (searchQuery) => set({ searchQuery }),
 	setSearchResults: (searchResults) => set({ searchResults }),
 	setIsSearching: (isSearching) => set({ isSearching }),
@@ -113,5 +154,6 @@ export const useWikiStore = create<State>((set) => ({
 	clearChat: () => set({ chatMessages: [], conversationId: null }),
 	setBranchStatuses: (branchStatuses) => set({ branchStatuses }),
 	setIsIndexing: (isIndexing) => set({ isIndexing }),
+	setGenerationProgress: (generationProgress) => set({ generationProgress }),
 	reset: () => set(initialState),
 }));

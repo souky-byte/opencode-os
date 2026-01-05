@@ -420,6 +420,7 @@ Start fixing the issues now."#,
         task: &Task,
         phase: &crate::files::PlanPhase,
         context: &crate::files::PhaseContext,
+        parsed_plan: &crate::files::ParsedPlan,
     ) -> String {
         let prev_context = context
             .previous_summary
@@ -454,12 +455,16 @@ Start fixing the issues now."#,
             })
             .unwrap_or_default();
 
+        let roadmap = Self::format_roadmap(parsed_plan, context.phase_number);
+
         format!(
             r#"You are implementing Phase {phase_num} of {total_phases} for this task.
 
 ## Task
 **Title:** {title}
 **Description:** {description}
+
+{roadmap}
 
 {prev_context}
 
@@ -496,10 +501,47 @@ Start implementing now."#,
             total_phases = context.total_phases,
             title = task.title,
             description = task.description,
+            roadmap = roadmap,
             prev_context = prev_context,
             phase_title = phase.title,
             phase_content = phase.content
         )
+    }
+
+    fn format_roadmap(parsed_plan: &crate::files::ParsedPlan, current_phase: u32) -> String {
+        let mut roadmap = String::from("## Full Roadmap (Overview)\n\n");
+
+        if !parsed_plan.preamble.trim().is_empty() {
+            roadmap.push_str(&parsed_plan.preamble);
+            roadmap.push_str("\n\n");
+        }
+
+        roadmap.push_str("### All Phases:\n\n");
+
+        for phase in &parsed_plan.phases {
+            let marker = if phase.number < current_phase {
+                "✓"
+            } else if phase.number == current_phase {
+                "→"
+            } else {
+                "○"
+            };
+
+            let status = if phase.number < current_phase {
+                " (completed)"
+            } else if phase.number == current_phase {
+                " **(CURRENT)**"
+            } else {
+                " (upcoming)"
+            };
+
+            roadmap.push_str(&format!(
+                "{} **Phase {}:** {}{}\n",
+                marker, phase.number, phase.title, status
+            ));
+        }
+
+        roadmap
     }
 
     /// Generate follow-up prompt to request phase summary when AI forgot to include it

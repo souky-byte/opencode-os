@@ -1,7 +1,15 @@
 //! Text chunking for code files
 
-use tiktoken_rs::cl100k_base;
+use std::sync::OnceLock;
+use tiktoken_rs::{cl100k_base, CoreBPE};
 use tracing::debug;
+
+// Cached tokenizer - initialization is expensive (~10-50ms)
+static BPE_TOKENIZER: OnceLock<Option<CoreBPE>> = OnceLock::new();
+
+fn get_tokenizer() -> Option<&'static CoreBPE> {
+    BPE_TOKENIZER.get_or_init(|| cl100k_base().ok()).as_ref()
+}
 
 /// Text splitter that chunks content with overlap
 pub struct TextSplitter {
@@ -14,21 +22,21 @@ pub struct TextSplitter {
 impl TextSplitter {
     /// Create a new TextSplitter
     pub fn new(max_tokens: usize, overlap: usize) -> Self {
-        Self { max_tokens, overlap }
+        Self {
+            max_tokens,
+            overlap,
+        }
     }
 
-    /// Split text into chunks with overlap
-    ///
-    /// Returns a vector of (content, start_line, end_line) tuples
     pub fn split(&self, content: &str) -> Vec<(String, u32, u32)> {
         let lines: Vec<&str> = content.lines().collect();
         if lines.is_empty() {
             return Vec::new();
         }
 
-        let bpe = match cl100k_base() {
-            Ok(b) => b,
-            Err(_) => return self.split_by_lines(content, &lines),
+        let bpe = match get_tokenizer() {
+            Some(b) => b,
+            None => return self.split_by_lines(content, &lines),
         };
 
         let mut chunks = Vec::new();
@@ -129,11 +137,10 @@ impl TextSplitter {
         chunks
     }
 
-    /// Count tokens in a string
     pub fn count_tokens(&self, text: &str) -> usize {
-        match cl100k_base() {
-            Ok(bpe) => bpe.encode_ordinary(text).len(),
-            Err(_) => text.len() / 4, // Rough fallback
+        match get_tokenizer() {
+            Some(bpe) => bpe.encode_ordinary(text).len(),
+            None => text.len() / 4,
         }
     }
 
@@ -217,9 +224,18 @@ mod tests {
 
     #[test]
     fn test_detect_language() {
-        assert_eq!(TextSplitter::detect_language("src/lib.rs"), Some("rust".to_string()));
-        assert_eq!(TextSplitter::detect_language("main.py"), Some("python".to_string()));
-        assert_eq!(TextSplitter::detect_language("index.tsx"), Some("typescript".to_string()));
+        assert_eq!(
+            TextSplitter::detect_language("src/lib.rs"),
+            Some("rust".to_string())
+        );
+        assert_eq!(
+            TextSplitter::detect_language("main.py"),
+            Some("python".to_string())
+        );
+        assert_eq!(
+            TextSplitter::detect_language("index.tsx"),
+            Some("typescript".to_string())
+        );
         assert_eq!(TextSplitter::detect_language("Makefile"), None);
     }
 }

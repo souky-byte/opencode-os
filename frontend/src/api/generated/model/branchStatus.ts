@@ -7,6 +7,8 @@
  */
 import type { BranchStatusErrorMessage } from './branchStatusErrorMessage';
 import type { BranchStatusLastIndexedAt } from './branchStatusLastIndexedAt';
+import type { BranchStatusCurrentPhase } from './branchStatusCurrentPhase';
+import type { BranchStatusCurrentItem } from './branchStatusCurrentItem';
 
 export interface BranchStatus {
   branch: string;
@@ -19,4 +21,8 @@ export interface BranchStatus {
   /** @minimum 0 */
   progress_percent: number;
   state: string;
+  /** @minimum 0 */
+  page_count: number;
+  current_phase?: BranchStatusCurrentPhase;
+  current_item?: BranchStatusCurrentItem;
 }

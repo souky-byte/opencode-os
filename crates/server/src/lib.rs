@@ -84,7 +84,9 @@ use state::AppState;
         routes::pull_requests::get_pull_request_reviews,
         routes::pull_requests::fix_from_pr_comments,
         routes::wiki::get_wiki_status,
+        routes::wiki::get_remote_branches,
         routes::wiki::start_indexing,
+        routes::wiki::generate_wiki,
         routes::wiki::get_wiki_structure,
         routes::wiki::get_wiki_page,
         routes::wiki::search_wiki,
@@ -165,9 +167,12 @@ use state::AppState;
         vcs::DiffSummary,
         config::WikiConfig,
         routes::wiki::WikiStatusResponse,
+        routes::wiki::RemoteBranchesResponse,
         routes::wiki::BranchStatus,
         routes::wiki::IndexRequest,
         routes::wiki::IndexResponse,
+        routes::wiki::GenerateWikiRequest,
+        routes::wiki::GenerateWikiResponse,
         routes::wiki::WikiStructureResponse,
         routes::wiki::WikiTreeNode,
         routes::wiki::WikiPageResponse,
@@ -360,7 +365,9 @@ pub fn create_router(state: AppState) -> Router {
             post(routes::pull_requests::fix_from_pr_comments),
         )
         .route("/api/wiki/status", get(routes::wiki::get_wiki_status))
+        .route("/api/wiki/remote-branches", get(routes::wiki::get_remote_branches))
         .route("/api/wiki/index", post(routes::wiki::start_indexing))
+        .route("/api/wiki/generate", post(routes::wiki::generate_wiki))
         .route("/api/wiki/structure", get(routes::wiki::get_wiki_structure))
         .route(
             "/api/wiki/pages/{slug}",

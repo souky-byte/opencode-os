@@ -1,13 +1,16 @@
-import { useStartIndexing } from "@/api/generated/wiki/wiki";
+import { useQueryClient } from "@tanstack/react-query";
+import { useStartIndexing, getGetWikiStatusQueryKey } from "@/api/generated/wiki/wiki";
 import { cn } from "@/lib/utils";
-import { useWikiStore } from "@/stores/useWikiStore";
+import { useWikiStore, type WikiGenerationProgress } from "@/stores/useWikiStore";
 
 interface WikiIndexProgressProps {
 	compact?: boolean;
+	indexOnly?: boolean;
 }
 
-export function WikiIndexProgress({ compact = false }: WikiIndexProgressProps) {
-	const { branchStatuses, isIndexing } = useWikiStore();
+export function WikiIndexProgress({ compact = false, indexOnly = false }: WikiIndexProgressProps) {
+	const queryClient = useQueryClient();
+	const { branchStatuses, isIndexing, setIsIndexing, generationProgress } = useWikiStore();
 	const startIndexingMutation = useStartIndexing();
 
 	const handleStartIndexing = async () => {
@@ -15,24 +18,36 @@ export function WikiIndexProgress({ compact = false }: WikiIndexProgressProps) {
 			(b) => b.state !== "indexed" && b.state !== "indexing",
 		);
 
-		if (branchToIndex) {
-			await startIndexingMutation.mutateAsync({
-				data: { branch: branchToIndex.branch },
-			});
-		} else {
-			const firstBranch = branchStatuses[0];
-			if (firstBranch) {
+		setIsIndexing(true);
+
+		try {
+			if (branchToIndex) {
 				await startIndexingMutation.mutateAsync({
-					data: { branch: firstBranch.branch, force: true },
+					data: { branch: branchToIndex.branch, index_only: indexOnly },
 				});
+			} else {
+				const firstBranch = branchStatuses[0];
+				if (firstBranch) {
+					await startIndexingMutation.mutateAsync({
+						data: { branch: firstBranch.branch, force: true, index_only: indexOnly },
+					});
+				}
 			}
+			setTimeout(() => {
+				void queryClient.invalidateQueries({ queryKey: getGetWikiStatusQueryKey() });
+			}, 500);
+		} catch {
+			setIsIndexing(false);
 		}
 	};
 
-	// Compact mode - just show status indicator
 	if (compact) {
-		if (branchStatuses.length === 0) {
+		if (branchStatuses.length === 0 && !isIndexing && !generationProgress) {
 			return null;
+		}
+
+		if (generationProgress) {
+			return <CompactGenerationProgress progress={generationProgress} />;
 		}
 
 		const indexingBranch = branchStatuses.find(
@@ -56,12 +71,21 @@ export function WikiIndexProgress({ compact = false }: WikiIndexProgressProps) {
 			);
 		}
 
+		if (isIndexing) {
+			return (
+				<div className="flex items-center gap-2 text-xs text-muted-foreground">
+					<div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+					<span>Starting...</span>
+				</div>
+			);
+		}
+
 		return (
 			<div className="flex items-center gap-2 text-xs text-muted-foreground">
 				<div
 					className={cn(
 						"h-2 w-2 rounded-full",
-						completedCount === totalCount ? "bg-green-500" : "bg-yellow-500",
+						completedCount === totalCount && totalCount > 0 ? "bg-green-500" : "bg-yellow-500",
 					)}
 				/>
 				<span>
@@ -201,6 +225,38 @@ function BranchStatusItem({
 				<div className="mt-2 text-xs text-destructive bg-destructive/10 px-2 py-1 rounded">
 					{branch.error_message}
 				</div>
+			)}
+		</div>
+	);
+}
+
+function CompactGenerationProgress({ progress }: { progress: WikiGenerationProgress }) {
+	const phaseLabels: Record<string, string> = {
+		analyzing: "Analyzing",
+		planning: "Planning",
+		generating_pages: "Generating",
+		completed: "Done",
+		failed: "Failed",
+	};
+
+	const phaseLabel = phaseLabels[progress.phase] || progress.phase;
+	const showPageProgress = progress.phase === "generating_pages" && progress.total > 0;
+
+	return (
+		<div className="flex items-center gap-2 text-xs text-muted-foreground">
+			<div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+			<span>
+				{phaseLabel}
+				{showPageProgress && (
+					<span className="text-primary ml-1">
+						{progress.current}/{progress.total}
+					</span>
+				)}
+			</span>
+			{progress.currentItem && showPageProgress && (
+				<span className="hidden sm:inline text-foreground/70 truncate max-w-[150px]">
+					{progress.currentItem}
+				</span>
 			)}
 		</div>
 	);

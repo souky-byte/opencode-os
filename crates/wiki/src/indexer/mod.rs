@@ -3,20 +3,24 @@
 pub mod reader;
 
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
+use rayon::prelude::*;
 use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 
+use crate::chunker::TextSplitter;
 use crate::domain::chunk::{ChunkType, CodeChunk};
 use crate::domain::index_status::{IndexProgress, IndexState, IndexStatus};
 use crate::error::{WikiError, WikiResult};
+use crate::git;
 use crate::openrouter::OpenRouterClient;
 use crate::vector_store::VectorStore;
 
 use reader::{FileInfo, FileReader};
 
-const EMBEDDING_BATCH_SIZE: usize = 20;
+const EMBEDDING_BATCH_SIZE: usize = 100;
 
 pub struct CodeIndexer {
     openrouter: Arc<OpenRouterClient>,
@@ -99,38 +103,64 @@ impl CodeIndexer {
             total_files,
         });
 
-        let mut all_chunks: Vec<CodeChunk> = Vec::new();
+        status.file_count = total_files;
+        status.current_phase = Some("reading_files".to_string());
+        status.progress_percent = 5;
+        self.vector_store.update_index_status(&status)?;
 
-        for (i, file) in files.iter().enumerate() {
-            send_progress(IndexProgress::ReadingFiles {
-                current: i as u32 + 1,
-                total: total_files,
-                current_file: file.relative_path.clone(),
-            });
+        let processed_count = Arc::new(AtomicUsize::new(0));
+        let text_splitter = TextSplitter::new(self.max_chunk_tokens, self.chunk_overlap);
+        let branch_str = branch.to_string();
+        let commit_sha_str = commit_sha.to_string();
 
-            let chunks = self.create_chunks_from_file(file, branch, commit_sha, &reader);
-            all_chunks.extend(chunks);
-        }
+        let all_chunks: Vec<CodeChunk> = files
+            .par_iter()
+            .flat_map(|file| {
+                let count = processed_count.fetch_add(1, Ordering::Relaxed);
+                if count % 50 == 0 {
+                    debug!("Processing file {}/{}: {}", count + 1, total_files, file.relative_path);
+                }
+                Self::create_chunks_from_file_static(
+                    file,
+                    &branch_str,
+                    &commit_sha_str,
+                    &text_splitter,
+                )
+            })
+            .collect();
+
+        send_progress(IndexProgress::ReadingFiles {
+            current: total_files,
+            total: total_files,
+            current_file: "complete".to_string(),
+        });
 
         let total_chunks = all_chunks.len();
-        info!("Created {} chunks from {} files", total_chunks, total_files);
+        info!("Created {} chunks from {} files (parallel)", total_chunks, total_files);
 
-        for chunk in &all_chunks {
-            self.vector_store.insert_chunk(chunk)?;
-        }
+        self.vector_store.insert_chunks_batch(&all_chunks)?;
 
         let chunk_contents: Vec<String> = all_chunks.iter().map(|c| c.content.clone()).collect();
         let chunk_ids: Vec<_> = all_chunks.iter().map(|c| c.id).collect();
 
         let total_batches = chunk_contents.len().div_ceil(EMBEDDING_BATCH_SIZE);
 
+        status.current_phase = Some("creating_embeddings".to_string());
+        status.chunk_count = total_chunks as u32;
+        self.vector_store.update_index_status(&status)?;
+
         for (batch_idx, batch) in chunk_contents.chunks(EMBEDDING_BATCH_SIZE).enumerate() {
             let batch_start = batch_idx * EMBEDDING_BATCH_SIZE;
 
-            send_progress(IndexProgress::CreatingEmbeddings {
+            let progress = IndexProgress::CreatingEmbeddings {
                 current: (batch_idx + 1) as u32,
                 total: total_batches as u32,
-            });
+            };
+            send_progress(progress.clone());
+
+            status.progress_percent = progress.percent();
+            status.current_item = Some(format!("batch {}/{}", batch_idx + 1, total_batches));
+            let _ = self.vector_store.update_index_status(&status);
 
             debug!(
                 "Creating embeddings for batch {}/{} ({} chunks)",
@@ -140,40 +170,14 @@ impl CodeIndexer {
             );
 
             let batch_vec: Vec<String> = batch.to_vec();
+            let batch_chunk_ids: Vec<_> = chunk_ids[batch_start..batch_start + batch.len()].to_vec();
 
-            let store_embeddings = |embeddings: Vec<Vec<f32>>, batch_len: usize| -> WikiResult<()> {
-                if embeddings.len() != batch_len {
-                    return Err(WikiError::IndexingFailed(format!(
-                        "Embedding count mismatch: expected {}, got {}",
-                        batch_len,
-                        embeddings.len()
-                    )));
-                }
-                for (j, embedding) in embeddings.into_iter().enumerate() {
-                    let chunk_id = chunk_ids[batch_start + j];
-                    self.vector_store.insert_embedding(&chunk_id, &embedding)?;
-                }
-                Ok(())
-            };
-
-            match self
+            let embeddings = match self
                 .openrouter
                 .create_embeddings_batch(&batch_vec, &self.embedding_model)
                 .await
             {
-                Ok(embeddings) => {
-                    if let Err(e) = store_embeddings(embeddings, batch.len()) {
-                        error!("{}", e);
-                        status.state = IndexState::Failed;
-                        status.error_message = Some(e.to_string());
-                        self.vector_store.update_index_status(&status)?;
-                        send_progress(IndexProgress::Failed {
-                            branch: branch.to_string(),
-                            error: e.to_string(),
-                        });
-                        return Err(e);
-                    }
-                }
+                Ok(emb) => emb,
                 Err(WikiError::RateLimited { retry_after }) => {
                     let wait_secs = retry_after.unwrap_or(60);
                     warn!("Rate limited, waiting {}s before retry", wait_secs);
@@ -184,19 +188,7 @@ impl CodeIndexer {
                         .create_embeddings_batch(&batch_vec, &self.embedding_model)
                         .await
                     {
-                        Ok(embeddings) => {
-                            if let Err(e) = store_embeddings(embeddings, batch.len()) {
-                                error!("{}", e);
-                                status.state = IndexState::Failed;
-                                status.error_message = Some(e.to_string());
-                                self.vector_store.update_index_status(&status)?;
-                                send_progress(IndexProgress::Failed {
-                                    branch: branch.to_string(),
-                                    error: e.to_string(),
-                                });
-                                return Err(e);
-                            }
-                        }
+                        Ok(emb) => emb,
                         Err(e) => {
                             let err_msg = format!("Embedding creation failed after retry: {}", e);
                             error!("{}", err_msg);
@@ -223,6 +215,21 @@ impl CodeIndexer {
                     });
                     return Err(WikiError::IndexingFailed(err_msg));
                 }
+            };
+
+            if let Err(e) = self
+                .vector_store
+                .insert_embeddings_batch(&batch_chunk_ids, &embeddings)
+            {
+                error!("Failed to store embeddings: {}", e);
+                status.state = IndexState::Failed;
+                status.error_message = Some(e.to_string());
+                self.vector_store.update_index_status(&status)?;
+                send_progress(IndexProgress::Failed {
+                    branch: branch.to_string(),
+                    error: e.to_string(),
+                });
+                return Err(e);
             }
         }
 
@@ -250,14 +257,72 @@ impl CodeIndexer {
         Ok(status)
     }
 
-    fn create_chunks_from_file(
+    /// Index a remote repository branch via shallow clone, then cleanup
+    pub async fn index_remote_branch(
         &self,
+        repo_url: &str,
+        branch: &str,
+        access_token: Option<&str>,
+        progress_tx: Option<broadcast::Sender<IndexProgress>>,
+    ) -> WikiResult<IndexStatus> {
+        info!(
+            repo_url = %repo_url,
+            branch = %branch,
+            "Starting remote branch indexing"
+        );
+
+        let send_progress = |progress: IndexProgress| {
+            if let Some(ref tx) = progress_tx {
+                let _ = tx.send(progress);
+            }
+        };
+
+        let temp_dir = tempfile::tempdir().map_err(|e| {
+            WikiError::IoError(format!("Failed to create temp directory: {}", e))
+        })?;
+        let clone_path = temp_dir.path();
+
+        send_progress(IndexProgress::Started {
+            branch: branch.to_string(),
+            total_files: 0,
+        });
+
+        let commit_sha = match git::shallow_clone(repo_url, branch, access_token, clone_path) {
+            Ok(sha) => sha,
+            Err(e) => {
+                let err_msg = format!("Failed to clone repository: {}", e);
+                error!("{}", err_msg);
+                send_progress(IndexProgress::Failed {
+                    branch: branch.to_string(),
+                    error: err_msg.clone(),
+                });
+                return Err(WikiError::IndexingFailed(err_msg));
+            }
+        };
+
+        info!(
+            commit_sha = %commit_sha,
+            clone_path = %clone_path.display(),
+            "Repository cloned successfully, starting indexing"
+        );
+
+        let result = self
+            .index_branch(clone_path, branch, &commit_sha, progress_tx)
+            .await;
+
+        if let Err(e) = git::cleanup_clone(clone_path) {
+            warn!("Failed to cleanup clone directory: {}", e);
+        }
+
+        result
+    }
+
+    fn create_chunks_from_file_static(
         file: &FileInfo,
         branch: &str,
         commit_sha: &str,
-        reader: &FileReader,
+        text_splitter: &TextSplitter,
     ) -> Vec<CodeChunk> {
-        let text_splitter = reader.text_splitter();
         let split_chunks = text_splitter.split(&file.content);
 
         split_chunks

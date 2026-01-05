@@ -138,6 +138,18 @@ pub enum Event {
     #[serde(rename = "project.closed")]
     ProjectClosed { path: String },
 
+    // Wiki events
+    /// Wiki generation progress update
+    #[serde(rename = "wiki.generation_progress")]
+    WikiGenerationProgress {
+        branch: String,
+        phase: WikiGenerationPhase,
+        current: u32,
+        total: u32,
+        current_item: Option<String>,
+        message: Option<String>,
+    },
+
     // System events
     /// Generic error event
     #[serde(rename = "error")]
@@ -145,6 +157,18 @@ pub enum Event {
         message: String,
         context: Option<String>,
     },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum WikiGenerationPhase {
+    Analyzing,
+    Planning,
+    GeneratingPages,
+    Completed,
+    Failed,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -190,6 +214,7 @@ impl Event {
             Event::WorkspaceDeleted { task_id } => Some(*task_id),
             Event::ProjectOpened { .. } => None,
             Event::ProjectClosed { .. } => None,
+            Event::WikiGenerationProgress { .. } => None,
             Event::Error { .. } => None,
         }
     }

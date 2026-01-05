@@ -91,6 +91,7 @@ fn envelope_to_sse_event(envelope: &events::EventEnvelope) -> Result<Event, Infa
         events::Event::WorkspaceDeleted { .. } => "workspace.deleted",
         events::Event::ProjectOpened { .. } => "project.opened",
         events::Event::ProjectClosed { .. } => "project.closed",
+        events::Event::WikiGenerationProgress { .. } => "wiki.generation_progress",
         events::Event::Error { .. } => "error",
     };
 

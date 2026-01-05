@@ -4,7 +4,10 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum WikiError {
     #[error("OpenRouter API error: {message}")]
-    OpenRouterApi { message: String, status_code: Option<u16> },
+    OpenRouterApi {
+        message: String,
+        status_code: Option<u16>,
+    },
 
     #[error("OpenRouter rate limited, retry after {retry_after:?}s")]
     RateLimited { retry_after: Option<u64> },
@@ -38,6 +41,12 @@ pub enum WikiError {
 
     #[error("Generation failed: {0}")]
     GenerationFailed(String),
+
+    #[error("Git error: {0}")]
+    GitError(String),
+
+    #[error("IO error: {0}")]
+    IoError(String),
 
     #[error("Chunk too large: {size} tokens (max: {max})")]
     ChunkTooLarge { size: usize, max: usize },

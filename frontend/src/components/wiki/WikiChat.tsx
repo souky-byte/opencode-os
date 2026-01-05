@@ -1,4 +1,9 @@
 import { useEffect, useRef } from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useAskWiki } from "@/api/generated/wiki/wiki";
 import { type ChatMessage, useWikiStore } from "@/stores/useWikiStore";
 
@@ -218,9 +223,107 @@ function ChatMessageItem({ message }: { message: ChatMessage }) {
 				<div
 					className={`rounded-lg px-4 py-2 ${
 						isUser ? "bg-primary text-primary-foreground" : "bg-accent"
-					}`}
+					} overflow-hidden`}
 				>
-					<p className="text-sm whitespace-pre-wrap">{message.content}</p>
+					{isUser ? (
+						<p className="text-sm whitespace-pre-wrap">{message.content}</p>
+					) : (
+						<div className="text-sm">
+							<Markdown
+								remarkPlugins={[remarkGfm]}
+								rehypePlugins={[rehypeRaw]}
+								components={{
+									h1: ({ node, ...props }) => (
+										<h1 className="text-lg font-bold mt-4 mb-2" {...props} />
+									),
+									h2: ({ node, ...props }) => (
+										<h2 className="text-base font-semibold mt-3 mb-2" {...props} />
+									),
+									h3: ({ node, ...props }) => (
+										<h3 className="text-sm font-semibold mt-2 mb-1" {...props} />
+									),
+									p: ({ node, ...props }) => (
+										<p className="mb-2 last:mb-0 leading-relaxed" {...props} />
+									),
+									a: ({ node, ...props }) => (
+										<a className="text-primary hover:underline font-medium underline" {...props} />
+									),
+									ul: ({ node, ...props }) => (
+										<ul className="list-disc ml-4 mb-2 space-y-1" {...props} />
+									),
+									ol: ({ node, ...props }) => (
+										<ol className="list-decimal ml-4 mb-2 space-y-1" {...props} />
+									),
+									li: ({ node, ...props }) => <li className="pl-1" {...props} />,
+									blockquote: ({ node, ...props }) => (
+										<blockquote
+											className="border-l-2 border-primary/20 pl-3 italic my-2 text-muted-foreground"
+											{...props}
+										/>
+									),
+									details: ({ node, ...props }) => (
+										<details
+											className="my-2 rounded border border-border bg-background/30 overflow-hidden"
+											{...props}
+										/>
+									),
+									summary: ({ node, ...props }) => (
+										<summary
+											className="px-3 py-1.5 cursor-pointer font-medium bg-muted/50 hover:bg-muted/70 transition-colors select-none text-sm"
+											{...props}
+										/>
+									),
+									table: ({ node, ...props }) => (
+										<div className="my-2 w-full overflow-y-auto rounded border border-border bg-card">
+											<table className="w-full text-xs" {...props} />
+										</div>
+									),
+									thead: ({ node, ...props }) => <thead className="bg-muted/50" {...props} />,
+									tbody: ({ node, ...props }) => (
+										<tbody
+											className="divide-y divide-border [&>tr:nth-child(even)]:bg-muted/30"
+											{...props}
+										/>
+									),
+									tr: ({ node, ...props }) => (
+										<tr className="transition-colors hover:bg-muted/50" {...props} />
+									),
+									th: ({ node, ...props }) => (
+										<th
+											className="px-2 py-1 text-left align-middle font-medium text-muted-foreground"
+											{...props}
+										/>
+									),
+									td: ({ node, ...props }) => <td className="p-2 align-middle" {...props} />,
+									code: ({ node, inline, className, children, ...props }: any) => {
+										const match = /language-(\w+)/.exec(className || "");
+										return !inline && match ? (
+											<div className="my-2 rounded overflow-hidden">
+												<SyntaxHighlighter
+													style={vscDarkPlus}
+													language={match[1]}
+													PreTag="div"
+													customStyle={{ margin: 0, borderRadius: 0, fontSize: "0.75rem" }}
+													{...props}
+												>
+													{String(children).replace(/\n$/, "")}
+												</SyntaxHighlighter>
+											</div>
+										) : (
+											<code
+												className="bg-background/50 px-1 py-0.5 rounded font-mono text-foreground"
+												{...props}
+											>
+												{children}
+											</code>
+										);
+									},
+								}}
+							>
+								{message.content}
+							</Markdown>
+						</div>
+					)}
 				</div>
 
 				{/* Sources (for assistant messages) */}

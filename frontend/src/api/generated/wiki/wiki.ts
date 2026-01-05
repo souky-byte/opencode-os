@@ -27,6 +27,8 @@ import type {
 import type {
   AskRequest,
   AskResponse,
+  GenerateWikiRequest,
+  GenerateWikiResponse,
   GetWikiStructureParams,
   IndexRequest,
   IndexResponse,
@@ -750,6 +752,95 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
 
       const mutationOptions = getHandlePushWebhookMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    export type generateWikiResponse200 = {
+  data: GenerateWikiResponse
+  status: 200
+}
+
+export type generateWikiResponse400 = {
+  data: void
+  status: 400
+}
+
+export type generateWikiResponse500 = {
+  data: void
+  status: 500
+}
+    
+export type generateWikiResponseSuccess = (generateWikiResponse200) & {
+  headers: Headers;
+};
+export type generateWikiResponseError = (generateWikiResponse400 | generateWikiResponse500) & {
+  headers: Headers;
+};
+
+export type generateWikiResponse = (generateWikiResponseSuccess | generateWikiResponseError)
+
+export const getGenerateWikiUrl = () => {
+
+
+  
+
+  return `/api/wiki/generate`
+}
+
+export const generateWiki = async (generateWikiRequest: GenerateWikiRequest, options?: RequestInit): Promise<generateWikiResponse> => {
+  
+  return customFetch<generateWikiResponse>(getGenerateWikiUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      generateWikiRequest,)
+  }
+);}
+
+
+
+
+export const getGenerateWikiMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateWiki>>, TError,{data: GenerateWikiRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateWiki>>, TError,{data: GenerateWikiRequest}, TContext> => {
+
+const mutationKey = ['generateWiki'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateWiki>>, {data: GenerateWikiRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  generateWiki(data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateWikiMutationResult = NonNullable<Awaited<ReturnType<typeof generateWiki>>>
+    export type GenerateWikiMutationBody = GenerateWikiRequest
+    export type GenerateWikiMutationError = void
+
+    export const useGenerateWiki = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateWiki>>, TError,{data: GenerateWikiRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof generateWiki>>,
+        TError,
+        {data: GenerateWikiRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getGenerateWikiMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }

@@ -1,31 +1,139 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useGetWikiSettings, useUpdateWikiSettings } from "@/api/generated/settings/settings";
+import { useGetWikiStatus } from "@/api/generated/wiki/wiki";
+import { useEventStream } from "@/hooks/useEventStream";
+import { useWikiStore } from "@/stores/useWikiStore";
+import { WikiIndexProgress } from "./WikiIndexProgress";
+
+type WikiEvent = {
+	type: "WikiIndexProgress";
+	data: {
+		branches: Array<{
+			branch: string;
+			state: string;
+			// biome-ignore lint/style/useNamingConvention: Backend type
+			file_count: number;
+			// biome-ignore lint/style/useNamingConvention: Backend type
+			chunk_count: number;
+			// biome-ignore lint/style/useNamingConvention: Backend type
+			last_indexed_at: string | null;
+			// biome-ignore lint/style/useNamingConvention: Backend type
+			progress_percent: number | null;
+			// biome-ignore lint/style/useNamingConvention: Backend type
+			error_message: string | null;
+		}>;
+		configured: boolean;
+	};
+};
+
+type RemoteBranchesData = {
+	// biome-ignore lint/style/useNamingConvention: Backend type
+	remote_url: string | null;
+	branches: string[];
+	// biome-ignore lint/style/useNamingConvention: Backend type
+	current_branch: string | null;
+};
 
 export function WikiSettings() {
 	const queryClient = useQueryClient();
-	const { data: settingsData, isLoading } = useGetWikiSettings();
+	const { setBranchStatuses, setIsIndexing, isIndexing: isStoreIndexing } = useWikiStore();
+	const { data: settingsData, isLoading: isSettingsLoading } = useGetWikiSettings();
 	const updateMutation = useUpdateWikiSettings();
+
+	const [remoteBranches, setRemoteBranches] = useState<RemoteBranchesData | null>(null);
+	const [isLoadingBranches, setIsLoadingBranches] = useState(false);
+
+	useEventStream({
+		onEvent: (event) => {
+			const e = event as unknown as Event | WikiEvent;
+			// biome-ignore lint/security/noSecrets: Event type
+			if (e.type === "WikiIndexProgress") {
+				const status = (e as WikiEvent).data;
+				setBranchStatuses(
+					status.branches.map((b) => ({
+						branch: b.branch,
+						state: b.state,
+						file_count: b.file_count,
+						chunk_count: b.chunk_count,
+						last_indexed_at: b.last_indexed_at ?? null,
+						progress_percent: b.progress_percent ?? 0,
+						error_message: b.error_message ?? null,
+					})),
+				);
+				setIsIndexing(
+					status.branches.some((b) => b.state === "indexing" || b.state === "generating"),
+				);
+			}
+		},
+	});
+
+	const { data: statusData } = useGetWikiStatus({
+		query: {
+			refetchInterval: (query) => {
+				const branches = query.state.data?.data?.branches;
+				const isProcessingFromQuery = branches?.some(
+					(b) => b.state === "indexing" || b.state === "generating",
+				);
+				if (isProcessingFromQuery || isStoreIndexing) {
+					return 2000;
+				}
+				return 30000;
+			},
+		},
+	});
+
+	useEffect(() => {
+		if (statusData?.status === 200) {
+			const status = statusData.data;
+			setBranchStatuses(
+				status.branches.map((b) => ({
+					branch: b.branch,
+					state: b.state,
+					file_count: b.file_count,
+					chunk_count: b.chunk_count,
+					last_indexed_at: b.last_indexed_at ?? null,
+					progress_percent: b.progress_percent ?? 0,
+					error_message: b.error_message ?? null,
+				})),
+			);
+			setIsIndexing(
+				status.branches.some((b) => b.state === "indexing" || b.state === "generating"),
+			);
+		}
+	}, [statusData, setBranchStatuses, setIsIndexing]);
 
 	const [enabled, setEnabled] = useState(false);
 	const [branches, setBranches] = useState<string[]>([]);
-	const [branchInput, setBranchInput] = useState("");
 	const [openrouterApiKey, setOpenrouterApiKey] = useState("");
-	const [embeddingModel, setEmbeddingModel] = useState("");
-	const [chatModel, setChatModel] = useState("");
 	const [autoSync, setAutoSync] = useState(false);
 	const [isDirty, setIsDirty] = useState(false);
 
-	// Sync settings to local state
+	const fetchRemoteBranches = useCallback(async () => {
+		setIsLoadingBranches(true);
+		try {
+			const response = await fetch("/api/wiki/remote-branches");
+			if (response.ok) {
+				const data = (await response.json()) as RemoteBranchesData;
+				setRemoteBranches(data);
+			}
+		} catch (error) {
+			console.error("Failed to fetch remote branches:", error);
+		} finally {
+			setIsLoadingBranches(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		void fetchRemoteBranches();
+	}, [fetchRemoteBranches]);
+
 	useEffect(() => {
 		if (settingsData?.status === 200) {
 			const settings = settingsData.data;
 			setEnabled(settings.enabled);
 			setBranches(settings.branches);
-			setEmbeddingModel(settings.embedding_model ?? "openai/text-embedding-3-small");
-			setChatModel(settings.chat_model ?? "anthropic/claude-3.5-sonnet");
 			setAutoSync(settings.auto_sync);
-			// Don't set API key from response (it's masked)
 		}
 	}, [settingsData]);
 
@@ -35,33 +143,25 @@ export function WikiSettings() {
 				enabled,
 				branches,
 				openrouter_api_key: openrouterApiKey || null,
-				embedding_model: embeddingModel || null,
-				chat_model: chatModel || null,
 				auto_sync: autoSync,
 			},
 		});
 
-		// Invalidate wiki queries to refresh status
 		await queryClient.invalidateQueries({ queryKey: ["/api/wiki/status"] });
 		setIsDirty(false);
-		setOpenrouterApiKey(""); // Clear API key input after save
+		setOpenrouterApiKey("");
 	};
 
-	const handleAddBranch = () => {
-		const branch = branchInput.trim();
-		if (branch && !branches.includes(branch)) {
+	const handleBranchToggle = (branch: string) => {
+		if (branches.includes(branch)) {
+			setBranches(branches.filter((b) => b !== branch));
+		} else {
 			setBranches([...branches, branch]);
-			setBranchInput("");
-			setIsDirty(true);
 		}
-	};
-
-	const handleRemoveBranch = (branch: string) => {
-		setBranches(branches.filter((b) => b !== branch));
 		setIsDirty(true);
 	};
 
-	if (isLoading) {
+	if (isSettingsLoading) {
 		return (
 			<div className="rounded-lg border border-border p-4">
 				<div className="animate-pulse space-y-3">
@@ -85,12 +185,15 @@ export function WikiSettings() {
 			{/* Enable/Disable */}
 			<div className="flex items-center justify-between">
 				<div>
-					<label className="text-sm font-medium">Enable Wiki</label>
+					<label htmlFor="wiki-enable" className="text-sm font-medium">
+						Enable Wiki
+					</label>
 					<p className="text-xs text-muted-foreground">
 						Enable wiki generation and semantic search
 					</p>
 				</div>
 				<button
+					id="wiki-enable"
 					type="button"
 					role="switch"
 					aria-checked={enabled}
@@ -112,8 +215,11 @@ export function WikiSettings() {
 
 			{/* OpenRouter API Key */}
 			<div className="space-y-2">
-				<label className="text-sm font-medium">OpenRouter API Key</label>
+				<label htmlFor="wiki-api-key" className="text-sm font-medium">
+					OpenRouter API Key
+				</label>
 				<input
+					id="wiki-api-key"
 					type="password"
 					value={openrouterApiKey}
 					onChange={(e) => {
@@ -136,99 +242,103 @@ export function WikiSettings() {
 				</p>
 			</div>
 
-			{/* Branches */}
+			{/* Remote Info */}
+			{remoteBranches?.remote_url && (
+				<div className="space-y-1 p-3 bg-accent/50 rounded-md">
+					<div className="flex items-center gap-2 text-sm">
+						<svg
+							className="h-4 w-4 text-muted-foreground"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth="2"
+						>
+							<path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
+						</svg>
+						<span className="font-mono text-xs truncate">{remoteBranches.remote_url}</span>
+					</div>
+					{remoteBranches.current_branch && (
+						<p className="text-xs text-muted-foreground">
+							Current branch: <span className="font-mono">{remoteBranches.current_branch}</span>
+						</p>
+					)}
+				</div>
+			)}
+
+			{/* Branches to Index */}
 			<div className="space-y-2">
-				<label className="text-sm font-medium">Branches to Index</label>
-				<div className="flex gap-2">
-					<input
-						type="text"
-						value={branchInput}
-						onChange={(e) => setBranchInput(e.target.value)}
-						onKeyDown={(e) => {
-							if (e.key === "Enter") {
-								e.preventDefault();
-								handleAddBranch();
-							}
-						}}
-						placeholder="e.g., main, develop"
-						className="flex-1 px-3 py-2 bg-accent border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
-					/>
+				<div className="flex items-center justify-between">
+					<label className="text-sm font-medium">Branches to Index</label>
 					<button
 						type="button"
-						onClick={handleAddBranch}
-						className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 text-sm"
+						onClick={() => void fetchRemoteBranches()}
+						disabled={isLoadingBranches}
+						className="text-xs text-primary hover:underline disabled:opacity-50"
 					>
-						Add
+						{isLoadingBranches ? "Loading..." : "Refresh"}
 					</button>
 				</div>
-				{branches.length > 0 && (
-					<div className="flex flex-wrap gap-2 mt-2">
-						{branches.map((branch) => (
-							<span
+
+				{isLoadingBranches ? (
+					<div className="animate-pulse space-y-2">
+						<div className="h-6 bg-accent rounded w-1/3" />
+						<div className="h-6 bg-accent rounded w-1/4" />
+					</div>
+				) : remoteBranches && remoteBranches.branches.length > 0 ? (
+					<div className="space-y-2 max-h-48 overflow-y-auto">
+						{remoteBranches.branches.map((branch) => (
+							<label
 								key={branch}
-								className="inline-flex items-center gap-1 px-2 py-1 bg-accent rounded-md text-sm"
+								className="flex items-center gap-3 p-2 rounded-md hover:bg-accent/50 cursor-pointer"
 							>
-								<span className="font-mono">{branch}</span>
-								<button
-									type="button"
-									onClick={() => handleRemoveBranch(branch)}
-									className="text-muted-foreground hover:text-foreground"
-								>
-									<svg
-										className="h-3 w-3"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										strokeWidth="2"
-									>
-										<path d="M18 6L6 18M6 6l12 12" />
-									</svg>
-								</button>
-							</span>
+								<input
+									type="checkbox"
+									checked={branches.includes(branch)}
+									onChange={() => handleBranchToggle(branch)}
+									className="h-4 w-4 rounded border-border text-primary focus:ring-primary/50"
+								/>
+								<span className="font-mono text-sm">{branch}</span>
+								{remoteBranches.current_branch === branch && (
+									<span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">
+										current
+									</span>
+								)}
+							</label>
 						))}
 					</div>
+				) : (
+					<div className="text-sm text-muted-foreground p-3 bg-accent/30 rounded-md">
+						{remoteBranches?.remote_url
+							? "No remote branches found"
+							: "No git remote configured for this project"}
+					</div>
+				)}
+
+				{branches.length > 0 && (
+					<p className="text-xs text-muted-foreground">
+						{branches.length} branch{branches.length !== 1 ? "es" : ""} selected:{" "}
+						<span className="font-mono">{branches.join(", ")}</span>
+					</p>
 				)}
 			</div>
 
-			{/* Models */}
-			<div className="grid grid-cols-2 gap-4">
-				<div className="space-y-2">
-					<label className="text-sm font-medium">Embedding Model</label>
-					<input
-						type="text"
-						value={embeddingModel}
-						onChange={(e) => {
-							setEmbeddingModel(e.target.value);
-							setIsDirty(true);
-						}}
-						placeholder="openai/text-embedding-3-small"
-						className="w-full px-3 py-2 bg-accent border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm font-mono"
-					/>
-				</div>
-				<div className="space-y-2">
-					<label className="text-sm font-medium">Chat Model</label>
-					<input
-						type="text"
-						value={chatModel}
-						onChange={(e) => {
-							setChatModel(e.target.value);
-							setIsDirty(true);
-						}}
-						placeholder="anthropic/claude-3.5-sonnet"
-						className="w-full px-3 py-2 bg-accent border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm font-mono"
-					/>
-				</div>
+			{/* Indexing Status & Controls */}
+			<div className="pt-2 border-t border-border">
+				<WikiIndexProgress indexOnly />
 			</div>
 
 			{/* Auto-sync */}
 			<div className="flex items-center justify-between">
 				<div>
-					<label className="text-sm font-medium">Auto-sync on Push</label>
+					<label htmlFor="wiki-autosync" className="text-sm font-medium">
+						Auto-sync on Push
+					</label>
 					<p className="text-xs text-muted-foreground">
 						Automatically re-index when code is pushed
 					</p>
 				</div>
 				<button
+					id="wiki-autosync"
 					type="button"
 					role="switch"
 					aria-checked={autoSync}

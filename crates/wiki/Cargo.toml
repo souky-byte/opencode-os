@@ -38,9 +38,20 @@ tiktoken-rs = "0.6"
 # Gitignore-aware file walking
 ignore = "0.4"
 
+# Parallel iteration for CPU-bound work
+rayon = "1.10"
+
+# Regex for citation parsing
+regex = { workspace = true }
+
 # Streaming support
 eventsource-stream = { workspace = true }
 bytes = { workspace = true }
+
+# Git remote cloning support
+url = "2.5"
+urlencoding = "2.1"
+tempfile = "3.15"
 
 # Type generation for TypeScript (optional, for API types)
 ts-rs = { workspace = true, optional = true }
@@ -48,7 +59,6 @@ ts-rs = { workspace = true, optional = true }
 [dev-dependencies]
 tokio-test = "0.4"
 wiremock = "0.6"
-tempfile = "3.15"
 
 [features]
 default = []

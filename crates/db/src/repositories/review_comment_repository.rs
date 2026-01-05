@@ -225,10 +225,28 @@ mod tests {
         pool
     }
 
+    async fn create_test_task(pool: &SqlitePool, task_id: &str) {
+        let now = Utc::now().timestamp();
+        sqlx::query(
+            r#"
+            INSERT INTO tasks (id, title, description, status, created_at, updated_at)
+            VALUES (?, 'Test Task', 'Test description', 'todo', ?, ?)
+            "#,
+        )
+        .bind(task_id)
+        .bind(now)
+        .bind(now)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
     #[tokio::test]
     async fn test_create_and_find_comment() {
         let pool = setup_test_db().await;
-        let repo = ReviewCommentRepository::new(pool);
+        let repo = ReviewCommentRepository::new(pool.clone());
+
+        create_test_task(&pool, "task-123").await;
 
         let comment = repo
             .create(
@@ -257,7 +275,10 @@ mod tests {
     #[tokio::test]
     async fn test_find_by_task_id() {
         let pool = setup_test_db().await;
-        let repo = ReviewCommentRepository::new(pool);
+        let repo = ReviewCommentRepository::new(pool.clone());
+
+        create_test_task(&pool, "task-1").await;
+        create_test_task(&pool, "task-2").await;
 
         repo.create("c1", "task-1", "src/a.rs", 1, 5, "new", "Comment 1")
             .await
@@ -276,7 +297,9 @@ mod tests {
     #[tokio::test]
     async fn test_update_status() {
         let pool = setup_test_db().await;
-        let repo = ReviewCommentRepository::new(pool);
+        let repo = ReviewCommentRepository::new(pool.clone());
+
+        create_test_task(&pool, "task-1").await;
 
         repo.create("c1", "task-1", "src/a.rs", 1, 5, "new", "Comment")
             .await
@@ -291,7 +314,9 @@ mod tests {
     #[tokio::test]
     async fn test_delete_comment() {
         let pool = setup_test_db().await;
-        let repo = ReviewCommentRepository::new(pool);
+        let repo = ReviewCommentRepository::new(pool.clone());
+
+        create_test_task(&pool, "task-1").await;
 
         repo.create("c1", "task-1", "src/a.rs", 1, 5, "new", "Comment")
             .await

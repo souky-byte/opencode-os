@@ -9,6 +9,7 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
 	const [svg, setSvg] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
+	const [showSource, setShowSource] = useState(false);
 
 	useEffect(() => {
 		let isMounted = true;
@@ -18,10 +19,8 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
 				setIsLoading(true);
 				setError(null);
 
-				// Dynamically import mermaid to avoid SSR issues
 				const mermaid = await import("mermaid");
 
-				// Initialize mermaid with dark theme
 				mermaid.default.initialize({
 					startOnLoad: false,
 					theme: "dark",
@@ -47,10 +46,7 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
 					},
 				});
 
-				// Generate unique ID for this diagram
 				const id = `mermaid-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-
-				// Render the diagram
 				const { svg: renderedSvg } = await mermaid.default.render(id, chart);
 
 				if (isMounted) {
@@ -99,32 +95,39 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
 
 	if (error) {
 		return (
-			<div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-				<div className="flex items-start gap-2">
-					<svg
-						className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						strokeWidth="2"
-					>
-						<circle cx="12" cy="12" r="10" />
-						<line x1="12" y1="8" x2="12" y2="12" />
-						<line x1="12" y1="16" x2="12.01" y2="16" />
-					</svg>
-					<div>
-						<p className="text-sm font-medium text-destructive">Failed to render diagram</p>
-						<p className="mt-1 text-xs text-muted-foreground">{error}</p>
-						<details className="mt-2">
-							<summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
-								View source
-							</summary>
-							<pre className="mt-2 p-2 bg-accent rounded text-xs overflow-x-auto">
-								<code>{chart}</code>
-							</pre>
-						</details>
+			<div className="my-4 rounded-lg border border-border overflow-hidden">
+				<div className="flex items-center justify-between px-3 py-2 bg-accent/50 border-b border-border">
+					<div className="flex items-center gap-2 text-xs text-muted-foreground">
+						<svg
+							className="h-4 w-4"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth="2"
+						>
+							<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+							<polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+							<line x1="12" y1="22.08" x2="12" y2="12" />
+						</svg>
+						<span>Mermaid Diagram</span>
+						<span className="text-amber-500">(parse error)</span>
 					</div>
+					<button
+						type="button"
+						onClick={() => setShowSource(!showSource)}
+						className="text-xs text-muted-foreground hover:text-foreground"
+					>
+						{showSource ? "Hide error" : "Show error"}
+					</button>
 				</div>
+				{showSource && (
+					<div className="px-3 py-2 bg-amber-500/10 border-b border-border text-xs text-amber-500">
+						{error}
+					</div>
+				)}
+				<pre className="p-3 bg-accent/30 overflow-x-auto text-xs">
+					<code className="text-muted-foreground">{chart}</code>
+				</pre>
 			</div>
 		);
 	}

@@ -13,6 +13,28 @@ const DEFAULT_EXTENSIONS: &[&str] = &[
     "sass", "json", "yaml", "yml", "toml", "xml", "md", "markdown", "txt",
 ];
 
+const ALWAYS_EXCLUDED_DIRS: &[&str] = &[
+    ".worktrees",
+    ".auto-claude",
+    ".opencode",
+    ".opencode-studio",
+    ".claude",
+    ".cursor",
+    ".idea",
+    ".vscode",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "vendor",
+    ".bundle",
+    ".cargo",
+    "target",
+    "Pods",
+    ".build",
+    "DerivedData",
+];
+
 pub struct FileReader {
     extensions: Vec<String>,
     max_file_size: usize,
@@ -55,6 +77,16 @@ impl FileReader {
             .git_global(true)
             .git_exclude(true)
             .require_git(false)
+            .filter_entry(|entry| {
+                if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
+                    let name = entry.file_name().to_string_lossy();
+                    !ALWAYS_EXCLUDED_DIRS
+                        .iter()
+                        .any(|&excluded| name == excluded)
+                } else {
+                    true
+                }
+            })
             .build();
 
         for entry in walker {
@@ -212,5 +244,30 @@ mod tests {
 
         assert_eq!(files.len(), 1);
         assert!(files[0].relative_path.contains("app.js"));
+    }
+
+    #[test]
+    fn test_always_excluded_dirs() {
+        let dir = tempdir().unwrap();
+
+        let worktrees = dir.path().join(".worktrees");
+        fs::create_dir(&worktrees).unwrap();
+        fs::write(worktrees.join("task-1.rs"), "fn task() {}").unwrap();
+
+        let opencode = dir.path().join(".opencode-studio");
+        fs::create_dir(&opencode).unwrap();
+        fs::write(opencode.join("config.json"), "{}").unwrap();
+
+        let pycache = dir.path().join("__pycache__");
+        fs::create_dir(&pycache).unwrap();
+        fs::write(pycache.join("module.pyc"), "compiled").unwrap();
+
+        fs::write(dir.path().join("main.rs"), "fn main() {}").unwrap();
+
+        let reader = FileReader::new(350, 100);
+        let files = reader.read_directory(dir.path()).unwrap();
+
+        assert_eq!(files.len(), 1);
+        assert!(files[0].relative_path.contains("main.rs"));
     }
 }

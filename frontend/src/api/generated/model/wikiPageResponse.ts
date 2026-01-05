@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { WikiPageResponseParentSlug } from './wikiPageResponseParentSlug';
+import type { WikiPageResponseSectionId } from './wikiPageResponseSectionId';
+import type { SourceCitationResponse } from './sourceCitationResponse';
 
 export interface WikiPageResponse {
   content: string;
@@ -16,4 +18,8 @@ export interface WikiPageResponse {
   slug: string;
   title: string;
   updated_at: string;
+  importance: string;
+  related_pages: string[];
+  section_id?: WikiPageResponseSectionId;
+  source_citations: SourceCitationResponse[];
 }

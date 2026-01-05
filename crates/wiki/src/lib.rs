@@ -16,6 +16,7 @@ pub mod chunker;
 pub mod domain;
 pub mod error;
 pub mod generator;
+pub mod git;
 pub mod indexer;
 pub mod openrouter;
 pub mod rag;
@@ -27,7 +28,8 @@ pub use domain::{
     chunk::{ChunkType, CodeChunk},
     index_status::{IndexProgress, IndexState, IndexStatus},
     search_result::SearchResult,
-    wiki_page::{PageType, WikiPage, WikiStructure, WikiTree},
+    wiki_page::{Importance, PageType, SourceCitation, WikiPage, WikiStructure, WikiTree},
+    wiki_section::{GenerationMode, WikiSection},
 };
 pub use error::{WikiError, WikiResult};
 pub use generator::{analyzer::ProjectAnalyzer, WikiGenerator};
@@ -50,10 +52,10 @@ pub struct WikiConfig {
     /// OpenRouter API key
     pub openrouter_api_key: String,
 
-    /// Embedding model (default: text-embedding-3-small)
+    /// Embedding model: openai/text-embedding-3-small
     pub embedding_model: String,
 
-    /// Chat model for generation (default: anthropic/claude-3.5-sonnet)
+    /// Chat model for generation: google/gemini-3-flash-preview
     pub chat_model: String,
 
     /// Path to wiki database
@@ -70,6 +72,15 @@ pub struct WikiConfig {
 
     /// OpenRouter API base URL
     pub api_base_url: String,
+
+    /// Remote repository URL (e.g., "https://github.com/owner/repo")
+    /// If set, branches will be cloned from this URL instead of using local project
+    #[serde(default)]
+    pub repo_url: Option<String>,
+
+    /// Access token for private repositories (GitHub PAT, GitLab token, etc.)
+    #[serde(default)]
+    pub access_token: Option<String>,
 }
 
 impl Default for WikiConfig {
@@ -78,12 +89,14 @@ impl Default for WikiConfig {
             branches: vec!["main".to_string()],
             openrouter_api_key: String::new(),
             embedding_model: "openai/text-embedding-3-small".to_string(),
-            chat_model: "anthropic/claude-3.5-sonnet".to_string(),
+            chat_model: "google/gemini-3-flash-preview".to_string(),
             db_path: PathBuf::from(".opencode-studio/wiki.db"),
             auto_sync: true,
             max_chunk_tokens: 350,
             chunk_overlap: 100,
             api_base_url: "https://openrouter.ai/api/v1".to_string(),
+            repo_url: None,
+            access_token: None,
         }
     }
 }

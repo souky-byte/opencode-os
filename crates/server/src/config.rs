@@ -59,6 +59,12 @@ pub struct WikiConfig {
     /// Auto-sync on git push webhook
     #[serde(default)]
     pub auto_sync: bool,
+    /// Remote repository URL for indexing external repos
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo_url: Option<String>,
+    /// Access token for private repositories
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_token: Option<String>,
 }
 
 impl Default for WikiConfig {
@@ -70,6 +76,8 @@ impl Default for WikiConfig {
             embedding_model: None,
             chat_model: None,
             auto_sync: false,
+            repo_url: None,
+            access_token: None,
         }
     }
 }
