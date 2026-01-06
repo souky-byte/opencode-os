@@ -26,7 +26,9 @@ pub use opencode_events::{
 };
 pub use plan_parser::{extract_phase_summary, parse_plan_phases, ExtractedSummary};
 pub use prompts::UserReviewComment;
-pub use services::{McpManager, MessageParser, ModelSelection, OpenCodeClient, PhaseModels};
+pub use services::{
+    McpManager, MessageParser, ModelSelection, OpenCodeClient, PhaseModels, WikiMcpConfig,
+};
 pub use session_runner::{
     McpConfig, SessionConfig, SessionDependencies, SessionResult, SessionRunner,
 };

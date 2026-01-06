@@ -76,6 +76,25 @@ impl ImplementationPhase {
 
         let working_dir = ctx.working_dir_for_task(task);
 
+        let wiki_setup = if let Some(ref wiki_config) = ctx.config.wiki_config {
+            match ctx
+                .mcp_manager
+                .setup_wiki_server(&working_dir, wiki_config)
+                .await
+            {
+                Ok(()) => {
+                    info!("Wiki MCP server connected for implementation");
+                    true
+                }
+                Err(e) => {
+                    warn!(error = %e, "Failed to setup wiki MCP server, continuing without it");
+                    false
+                }
+            }
+        } else {
+            false
+        };
+
         debug!(
             working_dir = %working_dir.display(),
             has_workspace = task.workspace_path.is_some(),
@@ -145,6 +164,19 @@ impl ImplementationPhase {
 
         ctx.emit_session_ended(session.id, task.id, true);
 
+        if wiki_setup {
+            if let Err(e) = ctx.mcp_manager.cleanup_wiki_server(&working_dir).await {
+                warn!(error = %e, "Failed to cleanup wiki MCP server");
+            }
+        }
+
+        ctx.commit_phase_changes(
+            task,
+            "Implementation",
+            &format!("Implemented: {}", task.title),
+        )
+        .await?;
+
         ctx.transition(task, TaskStatus::AiReview)?;
 
         info!(
@@ -211,7 +243,8 @@ impl ImplementationPhase {
             let activity_store = ctx.get_activity_store(session.id);
             ctx.emit_session_started(&session, task.id);
 
-            let prompt = PhasePrompts::implementation_phase(task, current_phase, &context);
+            let prompt =
+                PhasePrompts::implementation_phase(task, current_phase, &context, &parsed_plan);
 
             let response = client
                 .send_prompt(
@@ -555,7 +588,8 @@ impl ImplementationPhase {
                 (session.id, new_opencode_session_id)
             };
 
-            let prompt = PhasePrompts::implementation_phase(task, current_phase, &context);
+            let prompt =
+                PhasePrompts::implementation_phase(task, current_phase, &context, &parsed_plan);
             let config = SessionConfig {
                 task_id: task.id,
                 task_status: task.status,

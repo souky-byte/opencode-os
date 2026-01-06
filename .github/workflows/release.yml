@@ -41,33 +41,30 @@ jobs:
         working-directory: frontend
         run: pnpm build
 
-      - name: Create frontend zip
-        working-directory: frontend
-        run: |
-          cd out
-          zip -r ../frontend.zip .
-
       - name: Upload frontend artifact
         uses: actions/upload-artifact@v4
         with:
-          name: frontend
-          path: frontend/frontend.zip
+          name: frontend-dist
+          path: frontend/dist
 
-  build-cli:
-    name: Build CLI (${{ matrix.target }})
+  build-server:
+    name: Build Server (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
           - target: x86_64-apple-darwin
-            os: macos-latest
-            name: opencode-studio-darwin-x86_64
+            os: macos-13
+            binary_name: server-darwin-x64
           - target: aarch64-apple-darwin
             os: macos-latest
-            name: opencode-studio-darwin-arm64
+            binary_name: server-darwin-arm64
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            name: opencode-studio-linux-x86_64
+            binary_name: server-linux-x64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            binary_name: server-linux-arm64
     steps:
       - uses: actions/checkout@v4
 
@@ -75,6 +72,12 @@ jobs:
         uses: dtolnay/rust-action@stable
         with:
           targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -87,25 +90,29 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.target }}-cargo-
 
-      - name: Build CLI
-        run: cargo build --release --package opencode-studio --target ${{ matrix.target }}
+      - name: Build server
+        run: |
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+          fi
+          cargo build --release --bin server --target ${{ matrix.target }}
 
-      - name: Package binary (Unix)
+      - name: Package binary
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/opencode-studio dist/${{ matrix.name }}
-          chmod +x dist/${{ matrix.name }}
-          cd dist && tar -czvf ${{ matrix.name }}.tar.gz ${{ matrix.name }}
+          cp target/${{ matrix.target }}/release/server dist/${{ matrix.binary_name }}
+          chmod +x dist/${{ matrix.binary_name }}
+          gzip -9 dist/${{ matrix.binary_name }}
 
-      - name: Upload CLI artifact
+      - name: Upload server artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.name }}
-          path: dist/${{ matrix.name }}.tar.gz
+          name: ${{ matrix.binary_name }}
+          path: dist/${{ matrix.binary_name }}.gz
 
   release:
     name: Create Release
-    needs: [build-frontend, build-cli]
+    needs: [build-frontend, build-server]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -120,10 +127,18 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release
-          cp artifacts/frontend/frontend.zip release/
-          cp artifacts/opencode-studio-darwin-x86_64/opencode-studio-darwin-x86_64.tar.gz release/
-          cp artifacts/opencode-studio-darwin-arm64/opencode-studio-darwin-arm64.tar.gz release/
-          cp artifacts/opencode-studio-linux-x86_64/opencode-studio-linux-x86_64.tar.gz release/
+
+          # Frontend
+          cd artifacts/frontend-dist
+          zip -r ../../release/frontend.zip .
+          cd ../..
+
+          # Server binaries
+          cp artifacts/server-darwin-x64/server-darwin-x64.gz release/
+          cp artifacts/server-darwin-arm64/server-darwin-arm64.gz release/
+          cp artifacts/server-linux-x64/server-linux-x64.gz release/
+          cp artifacts/server-linux-arm64/server-linux-arm64.gz release/
+
           ls -la release/
 
       - name: Get version
@@ -144,45 +159,47 @@ jobs:
           prerelease: false
           files: |
             release/frontend.zip
-            release/opencode-studio-darwin-x86_64.tar.gz
-            release/opencode-studio-darwin-arm64.tar.gz
-            release/opencode-studio-linux-x86_64.tar.gz
+            release/server-darwin-x64.gz
+            release/server-darwin-arm64.gz
+            release/server-linux-x64.gz
+            release/server-linux-arm64.gz
           body: |
             ## OpenCode Studio v${{ steps.version.outputs.version }}
 
-            ### Installation
+            ### Installation via npx (Recommended)
+
+            ```bash
+            npx opencode-studio
+            ```
+
+            ### Manual Installation
+
+            **Prerequisites:** [OpenCode](https://opencode.ai) must be installed.
 
             **macOS (Apple Silicon)**
             ```bash
-            curl -L https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/opencode-studio-darwin-arm64.tar.gz | tar xz
-            sudo mv opencode-studio-darwin-arm64 /usr/local/bin/opencode-studio
+            curl -L https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/server-darwin-arm64.gz | gunzip > /usr/local/bin/opencode-studio-server
+            chmod +x /usr/local/bin/opencode-studio-server
             ```
 
             **macOS (Intel)**
             ```bash
-            curl -L https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/opencode-studio-darwin-x86_64.tar.gz | tar xz
-            sudo mv opencode-studio-darwin-x86_64 /usr/local/bin/opencode-studio
+            curl -L https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/server-darwin-x64.gz | gunzip > /usr/local/bin/opencode-studio-server
+            chmod +x /usr/local/bin/opencode-studio-server
             ```
 
             **Linux (x86_64)**
             ```bash
-            curl -L https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/opencode-studio-linux-x86_64.tar.gz | tar xz
-            sudo mv opencode-studio-linux-x86_64 /usr/local/bin/opencode-studio
+            curl -L https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/server-linux-x64.gz | gunzip > /usr/local/bin/opencode-studio-server
+            chmod +x /usr/local/bin/opencode-studio-server
             ```
 
-            ### Usage
-
+            **Linux (ARM64)**
             ```bash
-            # Navigate to any git/jj project and run:
-            opencode-studio
+            curl -L https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/server-linux-arm64.gz | gunzip > /usr/local/bin/opencode-studio-server
+            chmod +x /usr/local/bin/opencode-studio-server
             ```
 
-<<<<<<< Updated upstream
-            The CLI will automatically:
-            1. Initialize `.opencode-studio/` directory
-            2. Download the frontend app (first run only)
-            3. Start the server and open your browser
-=======
   publish-npm:
     name: Publish to npm
     needs: [release]
@@ -193,7 +210,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10.13.1
+          version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -224,4 +241,3 @@ jobs:
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
->>>>>>> Stashed changes

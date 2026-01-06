@@ -138,6 +138,68 @@ pub enum Event {
     #[serde(rename = "project.closed")]
     ProjectClosed { path: String },
 
+    // Wiki events
+    /// Wiki generation progress update
+    #[serde(rename = "wiki.generation_progress")]
+    WikiGenerationProgress {
+        branch: String,
+        phase: WikiGenerationPhase,
+        current: u32,
+        total: u32,
+        current_item: Option<String>,
+        message: Option<String>,
+    },
+
+    // Roadmap events
+    /// Roadmap generation started
+    #[serde(rename = "roadmap.generation_started")]
+    RoadmapGenerationStarted,
+
+    /// Roadmap generation progress update
+    #[serde(rename = "roadmap.generation_progress")]
+    RoadmapGenerationProgress {
+        /// Current phase (analyzing, discovering, generating, complete, error)
+        phase: String,
+        /// Progress percentage (0-100)
+        progress: u8,
+        /// Status message
+        message: String,
+    },
+
+    /// Roadmap generation completed
+    #[serde(rename = "roadmap.generation_completed")]
+    RoadmapGenerationCompleted {
+        /// Number of features generated
+        feature_count: usize,
+        /// Number of phases generated
+        phase_count: usize,
+    },
+
+    /// Roadmap generation failed
+    #[serde(rename = "roadmap.generation_failed")]
+    RoadmapGenerationFailed {
+        /// Error message
+        error: String,
+    },
+
+    /// Roadmap feature updated
+    #[serde(rename = "roadmap.feature_updated")]
+    RoadmapFeatureUpdated {
+        /// Feature ID
+        feature_id: String,
+        /// New status (if changed)
+        status: Option<String>,
+    },
+
+    /// Roadmap feature converted to task
+    #[serde(rename = "roadmap.feature_converted")]
+    RoadmapFeatureConverted {
+        /// Feature ID
+        feature_id: String,
+        /// Created task ID
+        task_id: Uuid,
+    },
+
     // System events
     /// Generic error event
     #[serde(rename = "error")]
@@ -145,6 +207,18 @@ pub enum Event {
         message: String,
         context: Option<String>,
     },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum WikiGenerationPhase {
+    Analyzing,
+    Planning,
+    GeneratingPages,
+    Completed,
+    Failed,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -190,6 +264,13 @@ impl Event {
             Event::WorkspaceDeleted { task_id } => Some(*task_id),
             Event::ProjectOpened { .. } => None,
             Event::ProjectClosed { .. } => None,
+            Event::WikiGenerationProgress { .. } => None,
+            Event::RoadmapGenerationStarted => None,
+            Event::RoadmapGenerationProgress { .. } => None,
+            Event::RoadmapGenerationCompleted { .. } => None,
+            Event::RoadmapGenerationFailed { .. } => None,
+            Event::RoadmapFeatureUpdated { .. } => None,
+            Event::RoadmapFeatureConverted { task_id, .. } => Some(*task_id),
             Event::Error { .. } => None,
         }
     }

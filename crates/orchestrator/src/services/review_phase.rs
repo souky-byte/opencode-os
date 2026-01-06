@@ -31,9 +31,7 @@ impl ReviewPhase {
 
         debug!("Creating OpenCode session for AI review");
         let client = ctx.opencode_client_for_phase(SessionPhase::Review);
-        let opencode_session = client
-            .create_session(&ctx.config.repo_path)
-            .await?;
+        let opencode_session = client.create_session(&ctx.config.repo_path).await?;
         let session_id_str = opencode_session.id.to_string();
 
         info!(
@@ -48,10 +46,11 @@ impl ReviewPhase {
         ctx.emit_session_started(&session, task.id);
 
         let workspace_path = ctx.working_dir_for_task(task);
+        let project_path = ctx.file_manager.base_path();
 
         if let Err(e) = ctx
             .mcp_manager
-            .setup_findings_server(task.id, session.id, &workspace_path)
+            .setup_findings_server(task.id, session.id, &workspace_path, project_path)
             .await
         {
             warn!(error = %e, "Failed to add MCP server, falling back to JSON parsing");
@@ -312,12 +311,13 @@ impl ReviewPhase {
         info!(task_id = %task.id, "Starting review with SessionRunner");
 
         let working_dir = ctx.working_dir_for_task(task);
+        let project_path = ctx.file_manager.base_path();
 
         let mcp_config = if task.status == TaskStatus::AiReview {
             let temp_session_id = Uuid::new_v4();
             match ctx
                 .mcp_manager
-                .setup_findings_server(task.id, temp_session_id, &working_dir)
+                .setup_findings_server(task.id, temp_session_id, &working_dir, project_path)
                 .await
             {
                 Ok(_) => {

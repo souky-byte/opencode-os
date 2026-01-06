@@ -5,7 +5,9 @@
 use db::{SessionActivityRepository, SessionRepository, TaskRepository};
 use events::EventBus;
 use opencode_client::apis::configuration::Configuration as OpenCodeConfig;
-use orchestrator::{ExecutorConfig, ModelSelection, PhaseModels, SessionActivityRegistry, TaskExecutor};
+use orchestrator::{
+    ExecutorConfig, ModelSelection, PhaseModels, SessionActivityRegistry, TaskExecutor,
+};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::path::{Path, PathBuf};
@@ -306,6 +308,19 @@ impl ProjectContext {
         })
     }
 
+    /// Get the JSON config (phase models, user mode, etc.)
+    pub async fn get_config(&self) -> JsonProjectConfig {
+        JsonProjectConfig::read(&self.project_path).await
+    }
+
+    /// Save the JSON config
+    pub async fn save_config(&self, config: &JsonProjectConfig) -> Result<(), ProjectError> {
+        config
+            .write(&self.project_path)
+            .await
+            .map_err(|e| ProjectError::Config(e.to_string()))
+    }
+
     /// Get project info for API responses.
     pub async fn info(&self) -> ProjectInfo {
         let name = self
@@ -559,6 +574,10 @@ pub struct GlobalConfig {
 
     #[serde(default = "default_max_recent")]
     pub max_recent: usize,
+
+    /// GitHub personal access token for API authentication
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub github_token: Option<String>,
 }
 
 impl Default for GlobalConfig {
@@ -568,6 +587,7 @@ impl Default for GlobalConfig {
             last_project: None,
             auto_open_last: true,
             max_recent: MAX_RECENT_PROJECTS,
+            github_token: None,
         }
     }
 }
@@ -685,6 +705,18 @@ impl GlobalConfigManager {
 
     pub fn should_auto_open_last(&self) -> bool {
         self.load().auto_open_last
+    }
+
+    /// Get the stored GitHub token
+    pub fn get_github_token(&self) -> Option<String> {
+        self.load().github_token
+    }
+
+    /// Set the GitHub token (None to remove it)
+    pub fn set_github_token(&self, token: Option<String>) -> Result<(), ProjectError> {
+        let mut config = self.load();
+        config.github_token = token;
+        self.save(&config)
     }
 }
 

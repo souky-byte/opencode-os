@@ -25,6 +25,26 @@ function getFilename(path: string | undefined): string {
   return path.split("/").pop() || path;
 }
 
+// TodoWrite types
+interface TodoItem {
+  content: string;
+  status: "pending" | "in_progress" | "completed";
+  activeForm?: string;
+}
+
+function isTodoWrite(toolName: string): boolean {
+  return toolName.toLowerCase() === "todowrite";
+}
+
+function parseTodoWriteArgs(
+  args: Record<string, unknown> | null,
+): TodoItem[] | null {
+  if (!args) return null;
+  const todos = args.todos as TodoItem[] | undefined;
+  if (!todos || !Array.isArray(todos)) return null;
+  return todos;
+}
+
 function getToolSubtitle(
   toolName: string,
   args: Record<string, unknown> | null,
@@ -50,7 +70,123 @@ function getToolSubtitle(
   if (tool === "task") {
     return (args.description as string) || (args.subagent_type as string);
   }
+  if (tool === "todowrite") {
+    const todos = parseTodoWriteArgs(args);
+    if (todos) {
+      const completed = todos.filter((t) => t.status === "completed").length;
+      const inProgress = todos.filter((t) => t.status === "in_progress").length;
+      return `${completed}/${todos.length} done${inProgress > 0 ? `, ${inProgress} in progress` : ""}`;
+    }
+  }
   return undefined;
+}
+
+// TodoWrite item - special display with todo list
+function TodoWriteItem({
+  activity,
+  isPending,
+}: {
+  activity: Extract<SessionActivityMsg, { type: "tool_call" | "tool_result" }>;
+  isPending: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const todos = parseTodoWriteArgs(activity.args);
+
+  if (!todos) return null;
+
+  const completed = todos.filter((t) => t.status === "completed").length;
+  const inProgress = todos.filter((t) => t.status === "in_progress").length;
+  const pending = todos.filter((t) => t.status === "pending").length;
+
+  return (
+    <div className="group my-1">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 py-1.5 px-2 -mx-2 rounded hover:bg-muted/30 transition-colors text-left"
+      >
+        {isPending ? (
+          <Icon
+            name="loading"
+            size="xs"
+            spin
+            className="text-blue-400/70 shrink-0"
+          />
+        ) : (
+          <Icon
+            name="check"
+            size="xs"
+            className="text-emerald-500/70 shrink-0"
+          />
+        )}
+        <Icon name="list" size="xs" className="text-blue-400/60 shrink-0" />
+        <span className="text-xs font-medium text-foreground/80">Tasks</span>
+        <div className="flex items-center gap-1.5 text-[10px]">
+          {completed > 0 && (
+            <span className="text-emerald-500/80">{completed} done</span>
+          )}
+          {inProgress > 0 && (
+            <span className="text-blue-400/80">{inProgress} active</span>
+          )}
+          {pending > 0 && (
+            <span className="text-muted-foreground/60">{pending} pending</span>
+          )}
+        </div>
+        <span className="text-[10px] text-muted-foreground/40 ml-auto tabular-nums shrink-0">
+          {formatTime(activity.timestamp)}
+        </span>
+        <Icon
+          name={expanded ? "chevron-down" : "chevron-right"}
+          size="xs"
+          className="text-muted-foreground/40 shrink-0"
+        />
+      </button>
+      {expanded && (
+        <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-blue-400/20 pl-3">
+          {todos.map((todo, index) => (
+            <div
+              key={`${todo.content}-${index}`}
+              className="flex items-start gap-2 py-0.5"
+            >
+              {todo.status === "completed" && (
+                <Icon
+                  name="check-circle"
+                  size="xs"
+                  className="text-emerald-500/70 mt-0.5 shrink-0"
+                />
+              )}
+              {todo.status === "in_progress" && (
+                <Icon
+                  name="loading"
+                  size="xs"
+                  spin
+                  className="text-blue-400/70 mt-0.5 shrink-0"
+                />
+              )}
+              {todo.status === "pending" && (
+                <Icon
+                  name="circle"
+                  size="xs"
+                  className="text-muted-foreground/40 mt-0.5 shrink-0"
+                />
+              )}
+              <span
+                className={cn(
+                  "text-xs leading-relaxed",
+                  todo.status === "completed" &&
+                    "text-muted-foreground/60 line-through",
+                  todo.status === "in_progress" && "text-foreground/90",
+                  todo.status === "pending" && "text-muted-foreground/70",
+                )}
+              >
+                {todo.content}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Compact row for tool calls (pending state)
@@ -59,6 +195,11 @@ function ToolCallItem({
 }: {
   activity: Extract<SessionActivityMsg, { type: "tool_call" }>;
 }) {
+  // Special handling for TodoWrite
+  if (isTodoWrite(activity.tool_name)) {
+    return <TodoWriteItem activity={activity} isPending={true} />;
+  }
+
   const subtitle = getToolSubtitle(activity.tool_name, activity.args);
 
   return (
@@ -91,6 +232,12 @@ function ToolResultItem({
   activity: Extract<SessionActivityMsg, { type: "tool_result" }>;
 }) {
   const [expanded, setExpanded] = useState(false);
+
+  // Special handling for TodoWrite
+  if (isTodoWrite(activity.tool_name)) {
+    return <TodoWriteItem activity={activity} isPending={false} />;
+  }
+
   const subtitle = getToolSubtitle(activity.tool_name, activity.args);
   const iconName = getToolIcon(activity.tool_name);
   const hasResult = activity.result && activity.result.length > 0;

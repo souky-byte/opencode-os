@@ -1,5 +1,35 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
+use utoipa::ToSchema;
+
+// =============================================================================
+// GitHub User
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, ToSchema)]
+#[ts(export)]
+pub struct GitHubUser {
+    pub login: String,
+    pub avatar_url: String,
+    pub html_url: String,
+}
+
+// =============================================================================
+// Labels
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, ToSchema)]
+#[ts(export)]
+pub struct Label {
+    pub name: String,
+    pub color: String,
+    pub description: Option<String>,
+}
+
+// =============================================================================
+// Pull Request
+// =============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PullRequest {
@@ -16,7 +46,8 @@ pub struct PullRequest {
     pub ci_status: Option<CiStatus>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
+#[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum PrState {
     Open,
@@ -62,14 +93,16 @@ impl IssueState {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS, ToSchema)]
+#[ts(export)]
 pub struct CiStatus {
     pub state: CiState,
     pub total_count: u32,
     pub checks: Vec<CheckRun>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
+#[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum CiState {
     Pending,
@@ -89,7 +122,8 @@ impl CiState {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS, ToSchema)]
+#[ts(export)]
 pub struct CheckRun {
     pub name: String,
     pub status: String,
@@ -187,4 +221,209 @@ impl RepoConfig {
         let url = String::from_utf8_lossy(&output.stdout);
         Self::from_git_url(&url)
     }
+}
+
+// =============================================================================
+// Pull Request Detail (Extended)
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, ToSchema)]
+#[ts(export)]
+pub struct PullRequestDetail {
+    pub number: u64,
+    pub title: String,
+    pub body: Option<String>,
+    pub state: PrState,
+    pub head_branch: String,
+    pub base_branch: String,
+    pub html_url: String,
+    #[ts(type = "string")]
+    pub created_at: DateTime<Utc>,
+    #[ts(type = "string")]
+    pub updated_at: DateTime<Utc>,
+    #[ts(type = "string | null")]
+    pub merged_at: Option<DateTime<Utc>>,
+    pub ci_status: Option<CiStatus>,
+    pub user: GitHubUser,
+    pub additions: u32,
+    pub deletions: u32,
+    pub changed_files: u32,
+    pub mergeable: Option<bool>,
+    pub mergeable_state: Option<String>,
+    pub labels: Vec<Label>,
+    pub requested_reviewers: Vec<GitHubUser>,
+    pub draft: bool,
+    pub comments_count: u32,
+    pub review_comments_count: u32,
+}
+
+// =============================================================================
+// PR Review Comments (Line Comments)
+// =============================================================================
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
+#[ts(export)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum DiffSide {
+    Left,
+    Right,
+}
+
+impl DiffSide {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            DiffSide::Left => "LEFT",
+            DiffSide::Right => "RIGHT",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, ToSchema)]
+#[ts(export)]
+pub struct PrReviewComment {
+    pub id: u64,
+    pub body: String,
+    pub path: String,
+    pub line: Option<u32>,
+    pub original_line: Option<u32>,
+    pub side: DiffSide,
+    pub commit_id: String,
+    pub user: GitHubUser,
+    #[ts(type = "string")]
+    pub created_at: DateTime<Utc>,
+    #[ts(type = "string")]
+    pub updated_at: DateTime<Utc>,
+    pub html_url: String,
+    pub in_reply_to_id: Option<u64>,
+    pub reactions: Option<Reactions>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, ToSchema)]
+#[ts(export)]
+pub struct Reactions {
+    pub total_count: u32,
+    #[serde(rename = "+1")]
+    pub plus_one: u32,
+    #[serde(rename = "-1")]
+    pub minus_one: u32,
+    pub laugh: u32,
+    pub hooray: u32,
+    pub confused: u32,
+    pub heart: u32,
+    pub rocket: u32,
+    pub eyes: u32,
+}
+
+// =============================================================================
+// PR Issue Comments (General Discussion)
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, ToSchema)]
+#[ts(export)]
+pub struct PrIssueComment {
+    pub id: u64,
+    pub body: String,
+    pub user: GitHubUser,
+    #[ts(type = "string")]
+    pub created_at: DateTime<Utc>,
+    #[ts(type = "string")]
+    pub updated_at: DateTime<Utc>,
+    pub html_url: String,
+    pub reactions: Option<Reactions>,
+}
+
+// =============================================================================
+// PR Files
+// =============================================================================
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum FileStatus {
+    Added,
+    Removed,
+    Modified,
+    Renamed,
+    Copied,
+    Changed,
+    Unchanged,
+}
+
+impl FileStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            FileStatus::Added => "added",
+            FileStatus::Removed => "removed",
+            FileStatus::Modified => "modified",
+            FileStatus::Renamed => "renamed",
+            FileStatus::Copied => "copied",
+            FileStatus::Changed => "changed",
+            FileStatus::Unchanged => "unchanged",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, ToSchema)]
+#[ts(export)]
+pub struct PrFile {
+    pub filename: String,
+    pub status: FileStatus,
+    pub additions: u32,
+    pub deletions: u32,
+    pub changes: u32,
+    pub patch: Option<String>,
+    pub previous_filename: Option<String>,
+}
+
+// =============================================================================
+// PR Reviews
+// =============================================================================
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
+#[ts(export)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ReviewState {
+    Approved,
+    ChangesRequested,
+    Commented,
+    Pending,
+    Dismissed,
+}
+
+impl ReviewState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ReviewState::Approved => "APPROVED",
+            ReviewState::ChangesRequested => "CHANGES_REQUESTED",
+            ReviewState::Commented => "COMMENTED",
+            ReviewState::Pending => "PENDING",
+            ReviewState::Dismissed => "DISMISSED",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, ToSchema)]
+#[ts(export)]
+pub struct PrReview {
+    pub id: u64,
+    pub user: GitHubUser,
+    pub state: ReviewState,
+    pub body: Option<String>,
+    #[ts(type = "string | null")]
+    pub submitted_at: Option<DateTime<Utc>>,
+    pub html_url: String,
+}
+
+// =============================================================================
+// Create Review Comment Request
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateReviewCommentRequest {
+    pub path: String,
+    pub line: u32,
+    pub side: DiffSide,
+    pub body: String,
+    pub commit_id: String,
+    pub in_reply_to: Option<u64>,
 }

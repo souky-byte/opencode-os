@@ -40,7 +40,9 @@ pub struct ProvidersResponse {
     ),
     tag = "opencode"
 )]
-pub async fn get_providers(State(state): State<AppState>) -> Result<Json<ProvidersResponse>, AppError> {
+pub async fn get_providers(
+    State(state): State<AppState>,
+) -> Result<Json<ProvidersResponse>, AppError> {
     debug!("Fetching providers from OpenCode");
 
     let project = state.project().await?;
@@ -74,7 +76,10 @@ pub async fn get_providers(State(state): State<AppState>) -> Result<Json<Provide
         })
         .collect();
 
-    debug!(provider_count = providers.len(), "Providers fetched successfully");
+    debug!(
+        provider_count = providers.len(),
+        "Providers fetched successfully"
+    );
 
     Ok(Json(ProvidersResponse { providers }))
 }

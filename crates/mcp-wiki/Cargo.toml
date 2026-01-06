@@ -1,0 +1,42 @@
+[package]
+name = "mcp-wiki"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "MCP server for wiki search, documentation, and RAG Q&A"
+
+[[bin]]
+name = "opencode-mcp-wiki"
+path = "src/main.rs"
+
+[dependencies]
+# MCP SDK
+rmcp = { version = "0.3", features = ["server", "transport-io"] }
+
+# Internal crates
+wiki = { path = "../wiki" }
+
+# Async runtime
+tokio = { workspace = true }
+futures = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+schemars = "1.0"
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Utils
+uuid = { workspace = true }
+chrono = { workspace = true }
+async-trait = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.10"

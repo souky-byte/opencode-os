@@ -15,7 +15,7 @@ export async function customFetch<T>(url: string, options?: RequestInit): Promis
 		throw new Error(`API Error ${status}: ${error}`);
 	}
 
-	if (status === 204) {
+	if (status === 204 || status === 202) {
 		return { data: undefined, status, headers } as T;
 	}
 

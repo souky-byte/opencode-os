@@ -4,7 +4,9 @@ use tokio::process::Command;
 use tracing::{debug, warn};
 
 use crate::error::{Result, VcsError};
-use crate::traits::{ConflictFile, ConflictType, MergeResult, VersionControl, Workspace};
+use crate::traits::{
+    ConflictFile, ConflictType, DiffSummary, MergeResult, VersionControl, Workspace,
+};
 
 pub struct JujutsuVcs {
     repo_path: PathBuf,
@@ -268,6 +270,66 @@ impl VersionControl for JujutsuVcs {
         .await?;
 
         Ok(())
+    }
+
+    async fn get_diff_summary(&self, workspace: &Workspace) -> Result<DiffSummary> {
+        if !workspace.path.exists() {
+            return Err(VcsError::WorkspaceNotFound(workspace.task_id.clone()));
+        }
+
+        // Get diff stats using jj diff --stat
+        let output = self
+            .run_jj(&["diff", "--from", "main", "--stat"], &workspace.path)
+            .await?;
+
+        let mut files_changed: u32 = 0;
+        let mut additions: u32 = 0;
+        let mut deletions: u32 = 0;
+
+        // Parse jj diff --stat output
+        // Last line is summary: "X files changed, Y insertions(+), Z deletions(-)"
+        for line in output.lines() {
+            if line.contains("files changed") || line.contains("file changed") {
+                // Parse summary line
+                for part in line.split(',') {
+                    let part = part.trim();
+                    if part.contains("file") {
+                        if let Some(num) = part.split_whitespace().next() {
+                            files_changed = num.parse().unwrap_or(0);
+                        }
+                    } else if part.contains("insertion") {
+                        if let Some(num) = part.split_whitespace().next() {
+                            additions = num.parse().unwrap_or(0);
+                        }
+                    } else if part.contains("deletion") {
+                        if let Some(num) = part.split_whitespace().next() {
+                            deletions = num.parse().unwrap_or(0);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(DiffSummary {
+            files_changed,
+            additions,
+            deletions,
+        })
+    }
+
+    fn main_branch(&self) -> &str {
+        "main"
+    }
+
+    async fn has_uncommitted_changes(&self, workspace: &Workspace) -> Result<bool> {
+        if !workspace.path.exists() {
+            return Err(VcsError::WorkspaceNotFound(workspace.task_id.clone()));
+        }
+
+        // In jj, check if there are any changes in the working copy
+        let status = self.get_status(workspace).await?;
+        // jj status shows "Working copy changes:" if there are changes
+        Ok(status.contains("Working copy changes:"))
     }
 }
 

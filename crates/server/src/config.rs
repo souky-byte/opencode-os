@@ -36,14 +36,86 @@ pub struct PhaseModels {
     pub fix: Option<ModelSelection>,
 }
 
+/// Wiki feature configuration
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+pub struct WikiConfig {
+    /// Whether wiki feature is enabled
+    #[serde(default)]
+    pub enabled: bool,
+    /// Branches to index (e.g., ["main", "develop"])
+    #[serde(default)]
+    pub branches: Vec<String>,
+    /// OpenRouter API key for embeddings and chat
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub openrouter_api_key: Option<String>,
+    /// Embedding model (default: "openai/text-embedding-3-small")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_model: Option<String>,
+    /// Chat model for RAG (default: "anthropic/claude-3.5-sonnet")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chat_model: Option<String>,
+    /// Auto-sync on git push webhook
+    #[serde(default)]
+    pub auto_sync: bool,
+    /// Remote repository URL for indexing external repos
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo_url: Option<String>,
+    /// Access token for private repositories
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_token: Option<String>,
+}
+
+impl Default for WikiConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            branches: vec!["main".to_string()],
+            openrouter_api_key: None,
+            embedding_model: None,
+            chat_model: None,
+            auto_sync: false,
+            repo_url: None,
+            access_token: None,
+        }
+    }
+}
+
+/// User interface mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+#[serde(rename_all = "lowercase")]
+pub enum UserMode {
+    /// Full control with all options visible
+    #[default]
+    Developer,
+    /// Simplified interface for non-developers
+    Basic,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+pub struct RoadmapConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<ModelSelection>,
+}
+
 /// Project-level configuration stored in .opencode-studio/config.json
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[cfg_attr(feature = "typescript", ts(export))]
 pub struct ProjectConfig {
-    /// Per-phase model settings
     #[serde(default)]
     pub phase_models: PhaseModels,
+    #[serde(default)]
+    pub user_mode: UserMode,
+    #[serde(default)]
+    pub wiki: WikiConfig,
+    #[serde(default)]
+    pub roadmap: RoadmapConfig,
 }
 
 impl ProjectConfig {
@@ -131,6 +203,9 @@ mod tests {
                 }),
                 fix: None,
             },
+            user_mode: UserMode::default(),
+            wiki: WikiConfig::default(),
+            roadmap: RoadmapConfig::default(),
         };
 
         config.write(temp_dir.path()).await.unwrap();

@@ -11,7 +11,7 @@ use vcs::WorkspaceManager;
 use crate::activity_store::{SessionActivityRegistry, SessionActivityStore};
 use crate::error::{OrchestratorError, Result};
 use crate::files::FileManager;
-use crate::services::{McpManager, OpenCodeClient};
+use crate::services::{McpManager, OpenCodeClient, WikiMcpConfig};
 use crate::state_machine::TaskStateMachine;
 
 #[derive(Debug, Clone, Default)]
@@ -44,6 +44,7 @@ pub struct ExecutorConfig {
     pub max_review_iterations: u32,
     pub repo_path: PathBuf,
     pub phase_models: PhaseModels,
+    pub wiki_config: Option<WikiMcpConfig>,
 }
 
 impl Default for ExecutorConfig {
@@ -54,6 +55,7 @@ impl Default for ExecutorConfig {
             max_review_iterations: 3,
             repo_path: PathBuf::from("."),
             phase_models: PhaseModels::default(),
+            wiki_config: None,
         }
     }
 }
@@ -83,6 +85,11 @@ impl ExecutorConfig {
 
     pub fn with_phase_models(mut self, phase_models: PhaseModels) -> Self {
         self.phase_models = phase_models;
+        self
+    }
+
+    pub fn with_wiki_config(mut self, wiki_config: WikiMcpConfig) -> Self {
+        self.wiki_config = Some(wiki_config);
         self
     }
 }
@@ -162,7 +169,10 @@ impl ExecutorContext {
         };
 
         match model {
-            Some(m) => self.opencode_client.clone().with_model(&m.provider_id, &m.model_id),
+            Some(m) => self
+                .opencode_client
+                .clone()
+                .with_model(&m.provider_id, &m.model_id),
             None => self.opencode_client.clone(),
         }
     }
@@ -287,5 +297,56 @@ impl ExecutorContext {
             task_id,
             success,
         });
+    }
+
+    /// Commit changes after a phase completes
+    pub async fn commit_phase_changes(
+        &self,
+        task: &Task,
+        phase: &str,
+        description: &str,
+    ) -> Result<()> {
+        if let Some(ref wm) = self.workspace_manager {
+            if task.workspace_path.is_some() {
+                // Find workspace by task ID from list
+                let task_id_str = task.id.to_string();
+                let workspaces = wm.list_workspaces().await.map_err(|e| {
+                    OrchestratorError::ExecutionFailed(format!("Failed to list workspaces: {}", e))
+                })?;
+
+                let workspace = workspaces.into_iter().find(|ws| ws.task_id == task_id_str);
+
+                if let Some(ws) = workspace {
+                    // Build commit message
+                    let commit_message = format!("[{}] {}", phase, description);
+
+                    match wm.commit(&ws, &commit_message).await {
+                        Ok(commit_id) => {
+                            info!(
+                                task_id = %task.id,
+                                phase = %phase,
+                                commit_id = %commit_id,
+                                "Phase changes committed"
+                            );
+                        }
+                        Err(e) => {
+                            // Don't fail the phase if commit fails - just log warning
+                            tracing::warn!(
+                                task_id = %task.id,
+                                phase = %phase,
+                                error = %e,
+                                "Failed to commit phase changes (continuing anyway)"
+                            );
+                        }
+                    }
+                } else {
+                    debug!(
+                        task_id = %task.id,
+                        "No workspace found for commit"
+                    );
+                }
+            }
+        }
+        Ok(())
     }
 }

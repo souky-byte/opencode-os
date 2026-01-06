@@ -4,10 +4,12 @@ use tracing::{debug, info};
 
 use crate::error::{GitHubError, Result};
 use crate::types::{
-    CheckRun, CiState, CiStatus, CreatePrRequest, Issue, IssueState, PrState, PullRequest,
-    RepoConfig,
+    CheckRun, CiState, CiStatus, CreatePrRequest, CreateReviewCommentRequest, DiffSide, FileStatus,
+    GitHubUser, Issue, IssueState, Label, PrFile, PrIssueComment, PrReview, PrReviewComment,
+    PrState, PullRequest, PullRequestDetail, Reactions, RepoConfig, ReviewState,
 };
 
+#[derive(Clone)]
 pub struct GitHubClient {
     octocrab: Octocrab,
     repo: RepoConfig,
@@ -27,6 +29,19 @@ impl GitHubClient {
         let token = std::env::var("GITHUB_TOKEN")
             .map_err(|_| GitHubError::Authentication("GITHUB_TOKEN not set".to_string()))?;
         Self::new(&token, repo)
+    }
+
+    /// Create a new GitHub client using the provided token or falling back to GITHUB_TOKEN env var
+    pub fn from_token_or_env(token: Option<String>, repo: RepoConfig) -> Result<Self> {
+        let resolved_token = token
+            .filter(|t| !t.trim().is_empty())
+            .or_else(|| std::env::var("GITHUB_TOKEN").ok())
+            .ok_or_else(|| {
+                GitHubError::Authentication(
+                    "No GitHub token configured. Set GITHUB_TOKEN environment variable or configure token in Settings.".to_string()
+                )
+            })?;
+        Self::new(&resolved_token, repo)
     }
 
     pub fn repo(&self) -> &RepoConfig {
@@ -154,7 +169,504 @@ impl GitHubClient {
             ci_status: None,
         }
     }
+
+    fn convert_pr_detail(&self, pr: octocrab::models::pulls::PullRequest) -> PullRequestDetail {
+        let state = if pr.merged_at.is_some() {
+            PrState::Merged
+        } else {
+            match &pr.state {
+                Some(s) => match s {
+                    OctocrabIssueState::Closed => PrState::Closed,
+                    OctocrabIssueState::Open => PrState::Open,
+                    _ => PrState::Open,
+                },
+                None => PrState::Open,
+            }
+        };
+
+        let user = pr
+            .user
+            .as_ref()
+            .map(|u| GitHubUser {
+                login: u.login.clone(),
+                avatar_url: u.avatar_url.to_string(),
+                html_url: u.html_url.to_string(),
+            })
+            .unwrap_or_else(|| GitHubUser {
+                login: "unknown".to_string(),
+                avatar_url: String::new(),
+                html_url: String::new(),
+            });
+
+        let labels = pr
+            .labels
+            .as_ref()
+            .map(|labels| {
+                labels
+                    .iter()
+                    .map(|l| Label {
+                        name: l.name.clone(),
+                        color: l.color.clone(),
+                        description: l.description.clone(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let requested_reviewers = pr
+            .requested_reviewers
+            .as_ref()
+            .map(|reviewers| {
+                reviewers
+                    .iter()
+                    .map(|u| GitHubUser {
+                        login: u.login.clone(),
+                        avatar_url: u.avatar_url.to_string(),
+                        html_url: u.html_url.to_string(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        PullRequestDetail {
+            number: pr.number,
+            title: pr.title.clone().unwrap_or_default(),
+            body: pr.body.clone(),
+            state,
+            head_branch: pr.head.ref_field.clone(),
+            base_branch: pr.base.ref_field.clone(),
+            html_url: pr
+                .html_url
+                .as_ref()
+                .map(|u| u.to_string())
+                .unwrap_or_default(),
+            created_at: pr.created_at.unwrap_or_default(),
+            updated_at: pr.updated_at.unwrap_or_default(),
+            merged_at: pr.merged_at,
+            ci_status: None,
+            user,
+            additions: pr.additions.unwrap_or(0) as u32,
+            deletions: pr.deletions.unwrap_or(0) as u32,
+            changed_files: pr.changed_files.unwrap_or(0) as u32,
+            mergeable: pr.mergeable,
+            mergeable_state: pr.mergeable_state.as_ref().map(|s| format!("{:?}", s)),
+            labels,
+            requested_reviewers,
+            draft: pr.draft.unwrap_or(false),
+            comments_count: pr.comments.unwrap_or(0) as u32,
+            review_comments_count: pr.review_comments.unwrap_or(0) as u32,
+        }
+    }
 }
+
+// =============================================================================
+// Pull Request Detail & Extended Info
+// =============================================================================
+
+impl GitHubClient {
+    /// Get detailed information about a PR including additions, deletions, labels, reviewers
+    pub async fn get_pull_request_detail(&self, number: u64) -> Result<PullRequestDetail> {
+        debug!("Getting PR detail #{}", number);
+
+        let pr = self
+            .octocrab
+            .pulls(&self.repo.owner, &self.repo.repo)
+            .get(number)
+            .await?;
+
+        Ok(self.convert_pr_detail(pr))
+    }
+
+    /// List pull requests with detailed information
+    pub async fn list_pull_requests_detail(
+        &self,
+        state: Option<PrState>,
+    ) -> Result<Vec<PullRequestDetail>> {
+        debug!("Listing PRs detail with state: {:?}", state);
+
+        let pulls_handler = self.octocrab.pulls(&self.repo.owner, &self.repo.repo);
+
+        let prs = match state {
+            Some(PrState::Open) => {
+                pulls_handler
+                    .list()
+                    .state(octocrab::params::State::Open)
+                    .send()
+                    .await?
+            }
+            Some(PrState::Closed) | Some(PrState::Merged) => {
+                pulls_handler
+                    .list()
+                    .state(octocrab::params::State::Closed)
+                    .send()
+                    .await?
+            }
+            None => pulls_handler.list().send().await?,
+        };
+
+        Ok(prs
+            .items
+            .into_iter()
+            .map(|pr| self.convert_pr_detail(pr))
+            .collect())
+    }
+
+    /// Get PR diff as raw text
+    pub async fn get_pr_diff(&self, number: u64) -> Result<String> {
+        debug!("Getting PR diff #{}", number);
+
+        // Use gh CLI to get diff since octocrab doesn't support raw diff format easily
+        let output = tokio::process::Command::new("gh")
+            .args([
+                "pr",
+                "diff",
+                &number.to_string(),
+                "--repo",
+                &format!("{}/{}", self.repo.owner, self.repo.repo),
+            ])
+            .output()
+            .await
+            .map_err(|e| GitHubError::Api(format!("Failed to run gh command: {}", e)))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(GitHubError::Api(format!("gh pr diff failed: {}", stderr)));
+        }
+
+        let diff = String::from_utf8_lossy(&output.stdout).to_string();
+        Ok(diff)
+    }
+
+    /// Get list of files changed in a PR
+    pub async fn get_pr_files(&self, number: u64) -> Result<Vec<PrFile>> {
+        debug!("Getting PR files #{}", number);
+
+        let url = format!(
+            "https://api.github.com/repos/{}/{}/pulls/{}/files",
+            self.repo.owner, self.repo.repo, number
+        );
+
+        let response: Vec<serde_json::Value> = self
+            .octocrab
+            .get(&url, None::<&()>)
+            .await
+            .map_err(|e| GitHubError::Api(e.to_string()))?;
+
+        let files = response
+            .into_iter()
+            .map(|f| {
+                let status_str = f["status"].as_str().unwrap_or("modified");
+                let status = match status_str {
+                    "added" => FileStatus::Added,
+                    "removed" => FileStatus::Removed,
+                    "modified" => FileStatus::Modified,
+                    "renamed" => FileStatus::Renamed,
+                    "copied" => FileStatus::Copied,
+                    "changed" => FileStatus::Changed,
+                    _ => FileStatus::Modified,
+                };
+
+                PrFile {
+                    filename: f["filename"].as_str().unwrap_or("").to_string(),
+                    status,
+                    additions: f["additions"].as_u64().unwrap_or(0) as u32,
+                    deletions: f["deletions"].as_u64().unwrap_or(0) as u32,
+                    changes: f["changes"].as_u64().unwrap_or(0) as u32,
+                    patch: f["patch"].as_str().map(|s| s.to_string()),
+                    previous_filename: f["previous_filename"].as_str().map(|s| s.to_string()),
+                }
+            })
+            .collect();
+
+        Ok(files)
+    }
+}
+
+// =============================================================================
+// Pull Request Review Comments (Line Comments)
+// =============================================================================
+
+impl GitHubClient {
+    /// Get review comments (comments on specific lines of code)
+    pub async fn get_pr_review_comments(&self, number: u64) -> Result<Vec<PrReviewComment>> {
+        debug!("Getting PR review comments #{}", number);
+
+        let url = format!(
+            "https://api.github.com/repos/{}/{}/pulls/{}/comments",
+            self.repo.owner, self.repo.repo, number
+        );
+
+        let response: Vec<serde_json::Value> = self
+            .octocrab
+            .get(&url, None::<&()>)
+            .await
+            .map_err(|e| GitHubError::Api(e.to_string()))?;
+
+        let comments = response
+            .into_iter()
+            .map(|c| self.convert_review_comment(&c))
+            .collect();
+
+        Ok(comments)
+    }
+
+    /// Get issue comments (general discussion comments on PR)
+    pub async fn get_pr_issue_comments(&self, number: u64) -> Result<Vec<PrIssueComment>> {
+        debug!("Getting PR issue comments #{}", number);
+
+        let url = format!(
+            "https://api.github.com/repos/{}/{}/issues/{}/comments",
+            self.repo.owner, self.repo.repo, number
+        );
+
+        let response: Vec<serde_json::Value> = self
+            .octocrab
+            .get(&url, None::<&()>)
+            .await
+            .map_err(|e| GitHubError::Api(e.to_string()))?;
+
+        let comments = response
+            .into_iter()
+            .map(|c| self.convert_issue_comment(&c))
+            .collect();
+
+        Ok(comments)
+    }
+
+    /// Create a review comment on a specific line
+    pub async fn create_review_comment(
+        &self,
+        number: u64,
+        request: CreateReviewCommentRequest,
+    ) -> Result<PrReviewComment> {
+        info!(
+            "Creating review comment on PR #{} at {}:{}",
+            number, request.path, request.line
+        );
+
+        let url = format!(
+            "https://api.github.com/repos/{}/{}/pulls/{}/comments",
+            self.repo.owner, self.repo.repo, number
+        );
+
+        let body = serde_json::json!({
+            "body": request.body,
+            "commit_id": request.commit_id,
+            "path": request.path,
+            "line": request.line,
+            "side": request.side.as_str(),
+        });
+
+        let response: serde_json::Value = self
+            .octocrab
+            .post(&url, Some(&body))
+            .await
+            .map_err(|e| GitHubError::Api(e.to_string()))?;
+
+        Ok(self.convert_review_comment(&response))
+    }
+
+    /// Reply to a review comment thread
+    pub async fn reply_to_review_comment(
+        &self,
+        number: u64,
+        comment_id: u64,
+        body: &str,
+    ) -> Result<PrReviewComment> {
+        info!(
+            "Replying to review comment {} on PR #{}",
+            comment_id, number
+        );
+
+        let url = format!(
+            "https://api.github.com/repos/{}/{}/pulls/{}/comments/{}/replies",
+            self.repo.owner, self.repo.repo, number, comment_id
+        );
+
+        let request_body = serde_json::json!({
+            "body": body,
+        });
+
+        let response: serde_json::Value = self
+            .octocrab
+            .post(&url, Some(&request_body))
+            .await
+            .map_err(|e| GitHubError::Api(e.to_string()))?;
+
+        Ok(self.convert_review_comment(&response))
+    }
+
+    fn convert_review_comment(&self, c: &serde_json::Value) -> PrReviewComment {
+        let user = c["user"]
+            .as_object()
+            .map(|u| GitHubUser {
+                login: u["login"].as_str().unwrap_or("").to_string(),
+                avatar_url: u["avatar_url"].as_str().unwrap_or("").to_string(),
+                html_url: u["html_url"].as_str().unwrap_or("").to_string(),
+            })
+            .unwrap_or_else(|| GitHubUser {
+                login: "unknown".to_string(),
+                avatar_url: String::new(),
+                html_url: String::new(),
+            });
+
+        let side = match c["side"].as_str().unwrap_or("RIGHT") {
+            "LEFT" => DiffSide::Left,
+            _ => DiffSide::Right,
+        };
+
+        let reactions = c["reactions"].as_object().map(|r| Reactions {
+            total_count: r["total_count"].as_u64().unwrap_or(0) as u32,
+            plus_one: r["+1"].as_u64().unwrap_or(0) as u32,
+            minus_one: r["-1"].as_u64().unwrap_or(0) as u32,
+            laugh: r["laugh"].as_u64().unwrap_or(0) as u32,
+            hooray: r["hooray"].as_u64().unwrap_or(0) as u32,
+            confused: r["confused"].as_u64().unwrap_or(0) as u32,
+            heart: r["heart"].as_u64().unwrap_or(0) as u32,
+            rocket: r["rocket"].as_u64().unwrap_or(0) as u32,
+            eyes: r["eyes"].as_u64().unwrap_or(0) as u32,
+        });
+
+        PrReviewComment {
+            id: c["id"].as_u64().unwrap_or(0),
+            body: c["body"].as_str().unwrap_or("").to_string(),
+            path: c["path"].as_str().unwrap_or("").to_string(),
+            line: c["line"].as_u64().map(|l| l as u32),
+            original_line: c["original_line"].as_u64().map(|l| l as u32),
+            side,
+            commit_id: c["commit_id"].as_str().unwrap_or("").to_string(),
+            user,
+            created_at: c["created_at"]
+                .as_str()
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .unwrap_or_else(chrono::Utc::now),
+            updated_at: c["updated_at"]
+                .as_str()
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .unwrap_or_else(chrono::Utc::now),
+            html_url: c["html_url"].as_str().unwrap_or("").to_string(),
+            in_reply_to_id: c["in_reply_to_id"].as_u64(),
+            reactions,
+        }
+    }
+
+    fn convert_issue_comment(&self, c: &serde_json::Value) -> PrIssueComment {
+        let user = c["user"]
+            .as_object()
+            .map(|u| GitHubUser {
+                login: u["login"].as_str().unwrap_or("").to_string(),
+                avatar_url: u["avatar_url"].as_str().unwrap_or("").to_string(),
+                html_url: u["html_url"].as_str().unwrap_or("").to_string(),
+            })
+            .unwrap_or_else(|| GitHubUser {
+                login: "unknown".to_string(),
+                avatar_url: String::new(),
+                html_url: String::new(),
+            });
+
+        let reactions = c["reactions"].as_object().map(|r| Reactions {
+            total_count: r["total_count"].as_u64().unwrap_or(0) as u32,
+            plus_one: r["+1"].as_u64().unwrap_or(0) as u32,
+            minus_one: r["-1"].as_u64().unwrap_or(0) as u32,
+            laugh: r["laugh"].as_u64().unwrap_or(0) as u32,
+            hooray: r["hooray"].as_u64().unwrap_or(0) as u32,
+            confused: r["confused"].as_u64().unwrap_or(0) as u32,
+            heart: r["heart"].as_u64().unwrap_or(0) as u32,
+            rocket: r["rocket"].as_u64().unwrap_or(0) as u32,
+            eyes: r["eyes"].as_u64().unwrap_or(0) as u32,
+        });
+
+        PrIssueComment {
+            id: c["id"].as_u64().unwrap_or(0),
+            body: c["body"].as_str().unwrap_or("").to_string(),
+            user,
+            created_at: c["created_at"]
+                .as_str()
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .unwrap_or_else(chrono::Utc::now),
+            updated_at: c["updated_at"]
+                .as_str()
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .unwrap_or_else(chrono::Utc::now),
+            html_url: c["html_url"].as_str().unwrap_or("").to_string(),
+            reactions,
+        }
+    }
+}
+
+// =============================================================================
+// Pull Request Reviews
+// =============================================================================
+
+impl GitHubClient {
+    /// Get reviews for a PR
+    pub async fn get_pr_reviews(&self, number: u64) -> Result<Vec<PrReview>> {
+        debug!("Getting PR reviews #{}", number);
+
+        let url = format!(
+            "https://api.github.com/repos/{}/{}/pulls/{}/reviews",
+            self.repo.owner, self.repo.repo, number
+        );
+
+        let response: Vec<serde_json::Value> = self
+            .octocrab
+            .get(&url, None::<&()>)
+            .await
+            .map_err(|e| GitHubError::Api(e.to_string()))?;
+
+        let reviews = response
+            .into_iter()
+            .map(|r| {
+                let user = r["user"]
+                    .as_object()
+                    .map(|u| GitHubUser {
+                        login: u["login"].as_str().unwrap_or("").to_string(),
+                        avatar_url: u["avatar_url"].as_str().unwrap_or("").to_string(),
+                        html_url: u["html_url"].as_str().unwrap_or("").to_string(),
+                    })
+                    .unwrap_or_else(|| GitHubUser {
+                        login: "unknown".to_string(),
+                        avatar_url: String::new(),
+                        html_url: String::new(),
+                    });
+
+                let state = match r["state"].as_str().unwrap_or("COMMENTED") {
+                    "APPROVED" => ReviewState::Approved,
+                    "CHANGES_REQUESTED" => ReviewState::ChangesRequested,
+                    "COMMENTED" => ReviewState::Commented,
+                    "PENDING" => ReviewState::Pending,
+                    "DISMISSED" => ReviewState::Dismissed,
+                    _ => ReviewState::Commented,
+                };
+
+                PrReview {
+                    id: r["id"].as_u64().unwrap_or(0),
+                    user,
+                    state,
+                    body: r["body"]
+                        .as_str()
+                        .filter(|s| !s.is_empty())
+                        .map(|s| s.to_string()),
+                    submitted_at: r["submitted_at"]
+                        .as_str()
+                        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                        .map(|dt| dt.with_timezone(&chrono::Utc)),
+                    html_url: r["html_url"].as_str().unwrap_or("").to_string(),
+                }
+            })
+            .collect();
+
+        Ok(reviews)
+    }
+}
+
+// =============================================================================
+// CI Status
+// =============================================================================
 
 impl GitHubClient {
     pub async fn get_ci_status(&self, ref_name: &str) -> Result<CiStatus> {
