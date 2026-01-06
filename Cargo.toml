@@ -11,6 +11,8 @@ members = [
     "crates/events",
     "crates/github",
     "crates/mcp-findings",
+    "crates/mcp-wiki",
+    "crates/wiki",
 ]
 
 [workspace.package]
@@ -28,6 +30,8 @@ vcs = { path = "crates/vcs" }
 events = { path = "crates/events" }
 github = { path = "crates/github" }
 mcp-findings = { path = "crates/mcp-findings" }
+mcp-wiki = { path = "crates/mcp-wiki" }
+wiki = { path = "crates/wiki" }
 
 # HTTP client
 reqwest = { version = "0.12", features = ["json", "stream"] }
@@ -61,6 +65,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 async-trait = "0.1"
+regex = "1.11"
 
 # Type generation for TypeScript
 ts-rs = { version = "10.1", features = ["uuid-impl", "chrono-impl", "serde-compat"] }

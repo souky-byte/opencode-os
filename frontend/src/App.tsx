@@ -4,11 +4,13 @@ import { useGetCurrentProject } from "@/api/generated/projects/projects";
 import { useExecuteTask, useListTasks } from "@/api/generated/tasks/tasks";
 import { CreateTaskDialog } from "@/components/dialogs/CreateTaskDialog";
 import { ProjectPickerDialog } from "@/components/dialogs/ProjectPickerDialog";
-import { ModelSettings } from "@/components/settings/ModelSettings";
+import { SettingsView } from "@/components/settings/SettingsView";
 import { KanbanView } from "@/components/kanban/KanbanView";
+import { WikiView } from "@/components/wiki";
+import { RoadmapView } from "@/components/roadmap";
 import { SessionsList } from "@/components/sessions/SessionsList";
+import { PullRequestsView } from "@/components/pull-requests";
 import { TaskDetailPanel } from "@/components/task-detail/TaskDetailPanel";
-import { Badge } from "@/components/ui/badge";
 import { Loader } from "@/components/ui/loader";
 import { ToastContainer } from "@/components/ui/toast";
 import { useEventStream } from "@/hooks/useEventStream";
@@ -30,6 +32,22 @@ const icons = {
 			<rect x="3" y="3" width="5" height="18" rx="1" />
 			<rect x="10" y="3" width="5" height="12" rx="1" />
 			<rect x="17" y="3" width="5" height="8" rx="1" />
+		</svg>
+	),
+	pull_requests: (
+		<svg
+			className="w-5 h-5"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.5"
+		>
+			<circle cx="6" cy="6" r="3" />
+			<circle cx="6" cy="18" r="3" />
+			<circle cx="18" cy="18" r="3" />
+			<path d="M6 9v6" />
+			<path d="M18 9a3 3 0 00-3-3h-4" />
+			<path d="M18 15v-6" />
 		</svg>
 	),
 	sessions: (
@@ -54,6 +72,33 @@ const icons = {
 		>
 			<circle cx="12" cy="12" r="3" />
 			<path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
+		</svg>
+	),
+	wiki: (
+		<svg
+			className="w-5 h-5"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.5"
+		>
+			<path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+			<path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+			<path d="M8 7h8" />
+			<path d="M8 11h8" />
+			<path d="M8 15h5" />
+		</svg>
+	),
+	roadmap: (
+		<svg
+			className="w-5 h-5"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.5"
+		>
+			<path d="M9 11l3 3L22 4" />
+			<path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
 		</svg>
 	),
 	folder: (
@@ -143,9 +188,32 @@ export default function App() {
 		setSelectedTaskId(task.id);
 	};
 
-	const handleClosePanel = () => {
+	const handleClosePanel = useCallback(() => {
 		setSelectedTaskId(null);
-	};
+	}, []);
+
+	// Global Escape key handler to close panel
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "Escape" && selectedTaskId) {
+				handleClosePanel();
+			}
+		};
+		document.addEventListener("keydown", handleKeyDown);
+		return () => document.removeEventListener("keydown", handleKeyDown);
+	}, [selectedTaskId, handleClosePanel]);
+
+	// Cmd+B to toggle sidebar
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if ((e.metaKey || e.ctrlKey) && e.key === "b") {
+				e.preventDefault();
+				toggleCollapsed();
+			}
+		};
+		document.addEventListener("keydown", handleKeyDown);
+		return () => document.removeEventListener("keydown", handleKeyDown);
+	}, [toggleCollapsed]);
 
 	const handleAddTask = () => {
 		void CreateTaskDialog.show({});
@@ -172,11 +240,11 @@ export default function App() {
 			<ToastContainer />
 			<aside
 				className={`flex flex-col border-r border-border bg-card/50 transition-all duration-200 ${
-					collapsed ? "w-16" : "w-60"
+					collapsed ? "w-12" : "w-48"
 				}`}
 			>
 				{/* Header with project info */}
-				<div className="flex h-14 items-center border-b border-border px-3">
+				<div className="flex h-11 items-center border-b border-border px-2">
 					{!collapsed ? (
 						<button
 							type="button"
@@ -216,37 +284,43 @@ export default function App() {
 				</div>
 
 				{/* Navigation */}
-				<nav className="flex-1 p-2 space-y-1">
-					{(["kanban", "sessions", "settings"] as const).map((view) => (
-						<button
-							key={view}
-							type="button"
-							onClick={() => setActiveView(view)}
-							className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
-								activeView === view
-									? "bg-primary/10 text-primary"
-									: "text-muted-foreground hover:bg-accent hover:text-foreground"
-							} ${collapsed ? "justify-center" : ""}`}
-						>
-							<span className={activeView === view ? "text-primary" : ""}>{icons[view]}</span>
-							{!collapsed && <span className="capitalize">{view}</span>}
-						</button>
-					))}
+				<nav className="flex-1 p-1.5 space-y-0.5">
+					{(["kanban", "pull_requests", "sessions", "wiki", "roadmap", "settings"] as const).map(
+						(view) => (
+							<button
+								key={view}
+								type="button"
+								onClick={() => setActiveView(view)}
+								className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+									activeView === view
+										? "bg-primary/10 text-primary"
+										: "text-muted-foreground hover:bg-accent hover:text-foreground"
+								} ${collapsed ? "justify-center" : ""}`}
+							>
+								<span className={activeView === view ? "text-primary" : ""}>{icons[view]}</span>
+								{!collapsed && (
+									<span className="capitalize truncate">
+										{view === "pull_requests" ? "PRs" : view}
+									</span>
+								)}
+							</button>
+						),
+					)}
 				</nav>
 
 				{/* Connection status */}
-				<div className="border-t border-border p-3">
-					<div className={`flex items-center gap-2.5 ${collapsed ? "justify-center" : "px-2"}`}>
+				<div className="border-t border-border p-2">
+					<div className={`flex items-center gap-2 ${collapsed ? "justify-center" : "px-1.5"}`}>
 						<div className="relative">
 							<div
-								className={`h-2 w-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`}
+								className={`h-1.5 w-1.5 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`}
 							/>
 							{isConnected && (
-								<div className="absolute inset-0 h-2 w-2 rounded-full bg-green-500 animate-ping opacity-75" />
+								<div className="absolute inset-0 h-1.5 w-1.5 rounded-full bg-green-500 animate-ping opacity-75" />
 							)}
 						</div>
 						{!collapsed && (
-							<span className="text-xs text-muted-foreground">
+							<span className="text-[10px] text-muted-foreground">
 								{isConnected ? "Connected" : "Disconnected"}
 							</span>
 						)}
@@ -274,16 +348,37 @@ export default function App() {
 						)}
 
 						{selectedTask && (
-							<div
-								className={cn(
-									"border-l border-border bg-card transition-all duration-200",
-									isDiffExpanded ? "w-full" : "w-full lg:w-[480px] xl:w-[560px]",
-								)}
-							>
-								<TaskDetailPanel task={selectedTask} onClose={handleClosePanel} />
-							</div>
+							<>
+								{/* Backdrop overlay - visible on mobile/tablet when panel is open */}
+								<div
+									className="fixed inset-0 bg-background/80 backdrop-blur-sm lg:hidden z-40"
+									onClick={handleClosePanel}
+									onKeyDown={(e) => {
+										if (e.key === "Escape") handleClosePanel();
+									}}
+									role="button"
+									tabIndex={0}
+									aria-label="Close panel"
+								/>
+								<div
+									className={cn(
+										"border-l border-border bg-card transition-all duration-200 z-50",
+										isDiffExpanded ? "w-full" : "w-full lg:w-[480px] xl:w-[560px]",
+										// On mobile, make it a fixed overlay
+										"fixed lg:relative inset-0 lg:inset-auto",
+									)}
+								>
+									<TaskDetailPanel task={selectedTask} onClose={handleClosePanel} />
+								</div>
+							</>
 						)}
 					</>
+				)}
+
+				{activeView === "pull_requests" && (
+					<div className="flex-1 overflow-hidden">
+						<PullRequestsView />
+					</div>
 				)}
 
 				{activeView === "sessions" && (
@@ -298,28 +393,21 @@ export default function App() {
 					</div>
 				)}
 
+				{activeView === "wiki" && (
+					<div className="flex-1 overflow-hidden">
+						<WikiView />
+					</div>
+				)}
+
+				{activeView === "roadmap" && (
+					<div className="flex-1 overflow-hidden">
+						<RoadmapView />
+					</div>
+				)}
+
 				{activeView === "settings" && (
-					<div className="flex-1 overflow-auto p-6">
-						<div className="mx-auto max-w-4xl">
-							<h1 className="text-2xl font-bold">Settings</h1>
-							<p className="mt-2 text-muted-foreground">Configure your preferences.</p>
-
-							<div className="mt-6 space-y-4">
-								<div className="rounded-lg border p-4">
-									<h3 className="font-medium">Connection Status</h3>
-									<div className="mt-2 flex items-center gap-2">
-										<Badge variant={isConnected ? "success" : "destructive"}>
-											{isConnected ? "Connected" : "Disconnected"}
-										</Badge>
-										<span className="text-sm text-muted-foreground">
-											WebSocket connection to backend
-										</span>
-									</div>
-								</div>
-
-								<ModelSettings />
-							</div>
-						</div>
+					<div className="flex-1 overflow-hidden">
+						<SettingsView />
 					</div>
 				)}
 			</main>

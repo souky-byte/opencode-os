@@ -42,7 +42,8 @@ impl TaskStateMachine {
             }
             // Fix goes back to AiReview for re-review after fixing
             TaskStatus::Fix => vec![TaskStatus::AiReview],
-            TaskStatus::Review => vec![TaskStatus::Done, TaskStatus::InProgress],
+            // Review can go to: Done (approved), InProgress (request changes), Fix (fix remaining findings)
+            TaskStatus::Review => vec![TaskStatus::Done, TaskStatus::InProgress, TaskStatus::Fix],
             TaskStatus::Done => vec![],
         }
     }

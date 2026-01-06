@@ -1,6 +1,0 @@
-[project]
-name = "opencode-os"
-
-[server]
-port = 3001
-opencode_url = "http://localhost:4096"

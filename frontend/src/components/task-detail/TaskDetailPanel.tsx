@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Session, Task, TaskStatus } from "@/api/generated/model";
+import { FindingStatus } from "@/api/generated/model/findingStatus";
 import { useListSessionsForTask } from "@/api/generated/sessions/sessions";
 import {
   getListTasksQueryKey,
@@ -24,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSessionActivitySSE } from "@/hooks/useSessionActivitySSE";
 import { cn } from "@/lib/utils";
 import { useIsTaskExecuting } from "@/stores/useExecutingTasksStore";
+import { CompleteTaskDialog } from "@/components/dialogs/CompleteTaskDialog";
 
 const NEXT_STATUS: Partial<Record<TaskStatus, TaskStatus>> = {
   todo: "planning",
@@ -84,10 +86,9 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
 
   const hasPlan = planData?.data?.exists && planData.data.content;
 
-  // Fetch findings for AI Review
+  // Fetch findings - show them if they exist regardless of task status
   const { data: findingsData } = useGetTaskFindings(task.id, {
     query: {
-      enabled: task.status === "ai_review" || task.status === "fix",
       staleTime: 10000,
     },
   });
@@ -97,22 +98,21 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
     findingsData.data.exists &&
     findingsData.data.findings.length > 0;
 
+  // Count only pending findings for badge
+  const pendingFindingsCount = useMemo(() => {
+    if (!hasFindings || findingsData?.status !== 200) return 0;
+    return findingsData.data.findings.filter(
+      (f) =>
+        f.status !== FindingStatus.fixed && f.status !== FindingStatus.skipped,
+    ).length;
+  }, [hasFindings, findingsData]);
+
   const latestRunningSession = useMemo(
     () => taskSessions.find((s: Session) => s.status === "running") ?? null,
     [taskSessions],
   );
 
   const isExecuting = useIsTaskExecuting(task.id);
-  const prevExecutingRef = useRef(isExecuting);
-
-  // Auto-switch to Activity tab when execution starts
-  useEffect(() => {
-    // Only switch when transitioning from not-executing to executing
-    if (isExecuting && !prevExecutingRef.current) {
-      setActiveTab("activity");
-    }
-    prevExecutingRef.current = isExecuting;
-  }, [isExecuting]);
 
   // Auto-select the latest running session when it appears
   useEffect(() => {
@@ -302,22 +302,27 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
         );
 
       case "review":
-        // Human review - can approve (done) or request changes
+        // Human review - can approve (done) via CompleteTaskDialog or request changes
         return (
           <>
             <Button
               size="sm"
-              onClick={() => handleTransition("done")}
+              onClick={async () => {
+                try {
+                  const result = await CompleteTaskDialog.show({ task });
+                  if (result?.success) {
+                    // Task was completed successfully - invalidate queries to refresh UI
+                    void queryClient.invalidateQueries({
+                      queryKey: getListTasksQueryKey(),
+                    });
+                  }
+                } catch {
+                  // Dialog was cancelled - no action needed
+                }
+              }}
               disabled={isPending}
             >
-              {isPending ? (
-                <>
-                  <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Completing...
-                </>
-              ) : (
-                "Approve & Complete"
-              )}
+              Approve & Complete
             </Button>
             <Button
               size="sm"
@@ -405,23 +410,44 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
         <TabsList className="mx-4 mt-2 w-fit shrink-0">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="activity" className="relative">
-            Activity
-            {latestRunningSession && (
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            {latestRunningSession ? (
+              <>
+                {latestRunningSession.implementation_phase_number
+                  ? `Phase ${latestRunningSession.implementation_phase_number}`
+                  : latestRunningSession.phase}
+                <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              </>
+            ) : (
+              "Activity"
             )}
           </TabsTrigger>
           <TabsTrigger value="plan">Plan</TabsTrigger>
           {hasFindings && (
             <TabsTrigger value="problems" className="relative">
               Problems
-              <Badge
-                variant="destructive"
-                className="ml-1.5 h-5 px-1.5 text-xs"
-              >
-                {findingsData?.status === 200
-                  ? findingsData.data.findings.length
-                  : 0}
-              </Badge>
+              {pendingFindingsCount > 0 ? (
+                <Badge
+                  variant="destructive"
+                  className="ml-1.5 h-5 px-1.5 text-xs"
+                >
+                  {pendingFindingsCount}
+                </Badge>
+              ) : (
+                <Badge
+                  variant="outline"
+                  className="ml-1.5 h-5 px-1.5 text-xs border-green-500/50 text-green-500"
+                >
+                  <svg
+                    className="w-3 h-3"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </Badge>
+              )}
             </TabsTrigger>
           )}
           <TabsTrigger value="sessions">Sessions</TabsTrigger>
@@ -442,24 +468,38 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
             <div className="flex flex-col flex-1 min-h-0">
               {taskSessions.length > 1 && (
                 <div className="flex gap-1 px-4 py-2 border-b overflow-x-auto shrink-0">
-                  {taskSessions.map((session: Session) => (
-                    <button
-                      key={session.id}
-                      type="button"
-                      onClick={() => setSelectedSessionId(session.id)}
-                      className={cn(
-                        "px-2 py-1 text-xs rounded-md shrink-0 transition-colors",
-                        activeSessionId === session.id
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted hover:bg-muted/80",
-                      )}
-                    >
-                      {session.phase}
-                      {session.status === "running" && (
-                        <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                      )}
-                    </button>
-                  ))}
+                  {taskSessions.map((session: Session) => {
+                    // Build session label with phase info
+                    let label: string = session.phase;
+                    if (
+                      session.implementation_phase_number &&
+                      session.implementation_phase_title
+                    ) {
+                      label = `${session.implementation_phase_number}. ${session.implementation_phase_title}`;
+                    } else if (session.implementation_phase_number) {
+                      label = `Phase ${session.implementation_phase_number}`;
+                    }
+
+                    return (
+                      <button
+                        key={session.id}
+                        type="button"
+                        onClick={() => setSelectedSessionId(session.id)}
+                        className={cn(
+                          "px-2 py-1 text-xs rounded-md shrink-0 transition-colors",
+                          activeSessionId === session.id
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted hover:bg-muted/80",
+                        )}
+                        title={`${session.phase} - ${session.id.slice(0, 8)}`}
+                      >
+                        {label}
+                        {session.status === "running" && (
+                          <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
               <ScrollArea className="flex-1">
@@ -540,28 +580,68 @@ function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
                 <button
                   type="button"
                   onClick={() => setActiveTab("problems")}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg border border-red-500/30 bg-red-500/5 hover:bg-red-500/10 transition-colors text-left group"
+                  className={cn(
+                    "w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left group",
+                    pendingFindingsCount > 0
+                      ? "border-red-500/30 bg-red-500/5 hover:bg-red-500/10"
+                      : "border-green-500/30 bg-green-500/5 hover:bg-green-500/10",
+                  )}
                 >
-                  <div className="w-8 h-8 rounded-md bg-red-500/10 flex items-center justify-center shrink-0">
-                    <svg
-                      className="w-4 h-4 text-red-500/70"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="12" y1="8" x2="12" y2="12" />
-                      <line x1="12" y1="16" x2="12.01" y2="16" />
-                    </svg>
+                  <div
+                    className={cn(
+                      "w-8 h-8 rounded-md flex items-center justify-center shrink-0",
+                      pendingFindingsCount > 0
+                        ? "bg-red-500/10"
+                        : "bg-green-500/10",
+                    )}
+                  >
+                    {pendingFindingsCount > 0 ? (
+                      <svg
+                        className="w-4 h-4 text-red-500/70"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                    ) : (
+                      <svg
+                        className="w-4 h-4 text-green-500/70"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-red-500/80">
-                      {findingsData.data.findings.length} issues found
-                    </span>
-                    <p className="text-xs text-muted-foreground/60">
-                      Review and fix problems
-                    </p>
+                    {pendingFindingsCount > 0 ? (
+                      <>
+                        <span className="text-sm font-medium text-red-500/80">
+                          {pendingFindingsCount} issue
+                          {pendingFindingsCount !== 1 ? "s" : ""} to fix
+                        </span>
+                        <p className="text-xs text-muted-foreground/60">
+                          Review and fix problems
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-sm font-medium text-green-500/80">
+                          All issues fixed
+                        </span>
+                        <p className="text-xs text-muted-foreground/60">
+                          {findingsData.data.findings.length} finding
+                          {findingsData.data.findings.length !== 1 ? "s" : ""}{" "}
+                          resolved
+                        </p>
+                      </>
+                    )}
                   </div>
                   <svg
                     className="w-4 h-4 text-muted-foreground/40 group-hover:text-muted-foreground/60"

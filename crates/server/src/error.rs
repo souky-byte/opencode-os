@@ -15,6 +15,7 @@ pub enum AppError {
     Database(db::DbError),
     Vcs(vcs::VcsError),
     Project(ProjectError),
+    Orchestrator(orchestrator::OrchestratorError),
 }
 
 #[derive(Serialize)]
@@ -98,6 +99,19 @@ impl IntoResponse for AppError {
                     ),
                 }
             }
+            AppError::Orchestrator(err) => {
+                tracing::error!("Orchestrator error: {:?}", err);
+                match &err {
+                    orchestrator::OrchestratorError::NotFound(msg) => {
+                        (StatusCode::NOT_FOUND, "not_found", msg.clone())
+                    }
+                    _ => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "orchestrator_error",
+                        err.to_string(),
+                    ),
+                }
+            }
         };
 
         let body = Json(ErrorResponse {
@@ -124,5 +138,11 @@ impl From<vcs::VcsError> for AppError {
 impl From<ProjectError> for AppError {
     fn from(err: ProjectError) -> Self {
         AppError::Project(err)
+    }
+}
+
+impl From<orchestrator::OrchestratorError> for AppError {
+    fn from(err: orchestrator::OrchestratorError) -> Self {
+        AppError::Orchestrator(err)
     }
 }

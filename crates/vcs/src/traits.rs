@@ -85,6 +85,19 @@ pub enum ConflictType {
     Rename,
 }
 
+/// Summary of changes in a workspace
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+pub struct DiffSummary {
+    /// Number of files changed
+    pub files_changed: u32,
+    /// Number of lines added
+    pub additions: u32,
+    /// Number of lines deleted
+    pub deletions: u32,
+}
+
 /// Trait for version control system operations
 #[async_trait]
 pub trait VersionControl: Send + Sync {
@@ -123,6 +136,15 @@ pub trait VersionControl: Send + Sync {
 
     /// Push changes to remote (if applicable)
     async fn push(&self, workspace: &Workspace, remote: &str) -> Result<()>;
+
+    /// Get a summary of changes in a workspace (files changed, additions, deletions)
+    async fn get_diff_summary(&self, workspace: &Workspace) -> Result<DiffSummary>;
+
+    /// Get the main/default branch name
+    fn main_branch(&self) -> &str;
+
+    /// Check if there are uncommitted changes in a workspace
+    async fn has_uncommitted_changes(&self, workspace: &Workspace) -> Result<bool>;
 }
 
 #[cfg(test)]

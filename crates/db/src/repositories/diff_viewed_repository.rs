@@ -92,12 +92,30 @@ mod tests {
         pool
     }
 
+    /// Create a task in the database for foreign key constraints
+    async fn create_test_task(pool: &SqlitePool, task_id: &str) {
+        let now = Utc::now().timestamp();
+        sqlx::query(
+            r#"
+            INSERT INTO tasks (id, title, description, status, created_at, updated_at)
+            VALUES (?, 'Test Task', 'Test description', 'todo', ?, ?)
+            "#,
+        )
+        .bind(task_id)
+        .bind(now)
+        .bind(now)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
     #[tokio::test]
     async fn test_mark_and_get_viewed_files() {
         let pool = setup_test_db().await;
-        let repo = DiffViewedRepository::new(pool);
+        let repo = DiffViewedRepository::new(pool.clone());
 
         let task_id = "test-task-123";
+        create_test_task(&pool, task_id).await;
 
         // Initially no viewed files
         let viewed = repo.get_viewed_files(task_id).await.unwrap();
@@ -116,9 +134,10 @@ mod tests {
     #[tokio::test]
     async fn test_unmark_viewed() {
         let pool = setup_test_db().await;
-        let repo = DiffViewedRepository::new(pool);
+        let repo = DiffViewedRepository::new(pool.clone());
 
         let task_id = "test-task-456";
+        create_test_task(&pool, task_id).await;
 
         repo.mark_viewed(task_id, "src/main.rs").await.unwrap();
         repo.mark_viewed(task_id, "src/lib.rs").await.unwrap();
@@ -133,9 +152,10 @@ mod tests {
     #[tokio::test]
     async fn test_clear_viewed_files() {
         let pool = setup_test_db().await;
-        let repo = DiffViewedRepository::new(pool);
+        let repo = DiffViewedRepository::new(pool.clone());
 
         let task_id = "test-task-789";
+        create_test_task(&pool, task_id).await;
 
         repo.mark_viewed(task_id, "src/main.rs").await.unwrap();
         repo.mark_viewed(task_id, "src/lib.rs").await.unwrap();
@@ -149,9 +169,10 @@ mod tests {
     #[tokio::test]
     async fn test_mark_viewed_idempotent() {
         let pool = setup_test_db().await;
-        let repo = DiffViewedRepository::new(pool);
+        let repo = DiffViewedRepository::new(pool.clone());
 
         let task_id = "test-task-idempotent";
+        create_test_task(&pool, task_id).await;
 
         // Mark same file twice should not fail
         repo.mark_viewed(task_id, "src/main.rs").await.unwrap();

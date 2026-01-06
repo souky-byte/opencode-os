@@ -1,29 +1,48 @@
 {
-	"name": "opencode-os",
+	"name": "opencode-studio",
 	"version": "0.0.1",
-	"private": true,
+	"description": "AI-powered code analysis and documentation studio",
+	"type": "module",
+	"bin": {
+		"opencode-studio": "./bin/opencode-studio.mjs"
+	},
 	"scripts": {
 		"dev": "concurrently \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
 		"dev:frontend": "cd frontend && pnpm run dev",
-		"dev:backend": "cargo watch -w crates -x 'run --bin server'",
+		"dev:backend": "OPENCODE_URL=http://localhost:4199 cargo watch -w crates -x 'run --bin server'",
 		"build": "pnpm run build:frontend && pnpm run build:backend",
 		"build:frontend": "cd frontend && pnpm run build",
 		"build:backend": "cargo build --release",
+		"build:dist": "pnpm run build && node scripts/prepare-dist.mjs",
 		"lint": "concurrently \"pnpm run lint:frontend\" \"pnpm run lint:backend\"",
 		"lint:frontend": "biome check .",
 		"lint:backend": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write . && cargo fmt --all",
 		"check": "pnpm run lint && pnpm run typecheck",
-		"typecheck": "cd frontend && pnpm run typecheck"
+		"typecheck": "cd frontend && pnpm run typecheck",
+		"postinstall": "node scripts/postinstall.mjs || true",
+		"prepublishOnly": "pnpm run build:dist"
 	},
+	"files": [
+		"bin/",
+		"dist/",
+		"scripts/postinstall.mjs"
+	],
 	"devDependencies": {
 		"@biomejs/biome": "^2.3.10",
 		"concurrently": "^8.2.2"
 	},
 	"engines": {
-		"node": ">=18",
-		"pnpm": ">=8"
+		"node": ">=18"
+	},
+	"os": ["darwin", "linux", "win32"],
+	"cpu": ["x64", "arm64"],
+	"keywords": ["opencode", "ai", "code-analysis", "documentation"],
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/souky-byte/opencode-os"
 	},
 	"packageManager": "pnpm@10.13.1"
 }
