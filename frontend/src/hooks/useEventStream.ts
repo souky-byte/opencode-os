@@ -349,6 +349,12 @@ export function useEventStream(options: UseEventStreamOptions = {}) {
 				"project.closed",
 				"error",
 				"wiki.generation_progress",
+				"roadmap.generation_started",
+				"roadmap.generation_progress",
+				"roadmap.generation_completed",
+				"roadmap.generation_failed",
+				"roadmap.feature_updated",
+				"roadmap.feature_converted",
 			];
 
 			for (const eventType of eventTypes) {

@@ -94,10 +94,7 @@ impl OpenRouterClient {
                 }
                 Err(e) => {
                     if retries > 0 {
-                        info!(
-                            "{} failed after {} retries: {}",
-                            operation_name, retries, e
-                        );
+                        info!("{} failed after {} retries: {}", operation_name, retries, e);
                     }
                     return Err(e);
                 }
@@ -113,10 +110,13 @@ impl OpenRouterClient {
             || async {
                 let texts = vec![text.clone()];
                 let embeddings = self.create_embeddings_batch_inner(&texts, &model).await?;
-                embeddings.into_iter().next().ok_or_else(|| WikiError::OpenRouterApi {
-                    message: "No embedding returned".to_string(),
-                    status_code: None,
-                })
+                embeddings
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| WikiError::OpenRouterApi {
+                        message: "No embedding returned".to_string(),
+                        status_code: None,
+                    })
             },
             "create_embedding",
         )
@@ -357,9 +357,9 @@ impl OpenRouterClient {
             });
         }
 
-        let byte_stream = response.bytes_stream().map(|r| {
-            r.map_err(std::io::Error::other)
-        });
+        let byte_stream = response
+            .bytes_stream()
+            .map(|r| r.map_err(std::io::Error::other));
 
         let event_stream = byte_stream.eventsource();
 

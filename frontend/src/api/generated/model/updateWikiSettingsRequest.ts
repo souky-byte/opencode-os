@@ -5,18 +5,22 @@
  * API for OpenCode Studio - AI-powered development platform
  * OpenAPI spec version: 0.1.0
  */
+import type { UpdateWikiSettingsRequestAccessToken } from './updateWikiSettingsRequestAccessToken';
 import type { UpdateWikiSettingsRequestAutoSync } from './updateWikiSettingsRequestAutoSync';
 import type { UpdateWikiSettingsRequestBranches } from './updateWikiSettingsRequestBranches';
 import type { UpdateWikiSettingsRequestChatModel } from './updateWikiSettingsRequestChatModel';
 import type { UpdateWikiSettingsRequestEmbeddingModel } from './updateWikiSettingsRequestEmbeddingModel';
 import type { UpdateWikiSettingsRequestEnabled } from './updateWikiSettingsRequestEnabled';
 import type { UpdateWikiSettingsRequestOpenrouterApiKey } from './updateWikiSettingsRequestOpenrouterApiKey';
+import type { UpdateWikiSettingsRequestRepoUrl } from './updateWikiSettingsRequestRepoUrl';
 
 export interface UpdateWikiSettingsRequest {
+  access_token?: UpdateWikiSettingsRequestAccessToken;
   auto_sync?: UpdateWikiSettingsRequestAutoSync;
   branches?: UpdateWikiSettingsRequestBranches;
   chat_model?: UpdateWikiSettingsRequestChatModel;
   embedding_model?: UpdateWikiSettingsRequestEmbeddingModel;
   enabled?: UpdateWikiSettingsRequestEnabled;
   openrouter_api_key?: UpdateWikiSettingsRequestOpenrouterApiKey;
+  repo_url?: UpdateWikiSettingsRequestRepoUrl;
 }

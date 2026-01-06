@@ -111,7 +111,11 @@ impl PlanningPhase {
         .await?;
 
         if wiki_setup {
-            if let Err(e) = ctx.mcp_manager.cleanup_wiki_server(&ctx.config.repo_path).await {
+            if let Err(e) = ctx
+                .mcp_manager
+                .cleanup_wiki_server(&ctx.config.repo_path)
+                .await
+            {
                 warn!(error = %e, "Failed to cleanup wiki MCP server");
             }
         }

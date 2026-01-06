@@ -27,8 +27,10 @@ import type {
 import type {
   GitHubSettingsResponse,
   PhaseModelsResponse,
+  RoadmapSettingsResponse,
   UpdateGitHubTokenRequest,
   UpdatePhaseModelsRequest,
+  UpdateRoadmapSettingsRequest,
   UpdateUserModeRequest,
   UpdateWikiSettingsRequest,
   UserModeResponse,
@@ -509,6 +511,189 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
 
       const mutationOptions = getUpdatePhaseModelsMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    export type getRoadmapSettingsResponse200 = {
+  data: RoadmapSettingsResponse
+  status: 200
+}
+    
+export type getRoadmapSettingsResponseSuccess = (getRoadmapSettingsResponse200) & {
+  headers: Headers;
+};
+;
+
+export type getRoadmapSettingsResponse = (getRoadmapSettingsResponseSuccess)
+
+export const getGetRoadmapSettingsUrl = () => {
+
+
+  
+
+  return `/api/settings/roadmap`
+}
+
+export const getRoadmapSettings = async ( options?: RequestInit): Promise<getRoadmapSettingsResponse> => {
+  
+  return customFetch<getRoadmapSettingsResponse>(getGetRoadmapSettingsUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+
+
+export const getGetRoadmapSettingsQueryKey = () => {
+    return [
+    `/api/settings/roadmap`
+    ] as const;
+    }
+
+    
+export const getGetRoadmapSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getRoadmapSettings>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoadmapSettings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRoadmapSettingsQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRoadmapSettings>>> = ({ signal }) => getRoadmapSettings({ signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRoadmapSettings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetRoadmapSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getRoadmapSettings>>>
+export type GetRoadmapSettingsQueryError = unknown
+
+
+export function useGetRoadmapSettings<TData = Awaited<ReturnType<typeof getRoadmapSettings>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoadmapSettings>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRoadmapSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getRoadmapSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRoadmapSettings<TData = Awaited<ReturnType<typeof getRoadmapSettings>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoadmapSettings>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRoadmapSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getRoadmapSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRoadmapSettings<TData = Awaited<ReturnType<typeof getRoadmapSettings>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoadmapSettings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetRoadmapSettings<TData = Awaited<ReturnType<typeof getRoadmapSettings>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoadmapSettings>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetRoadmapSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+export type updateRoadmapSettingsResponse200 = {
+  data: RoadmapSettingsResponse
+  status: 200
+}
+    
+export type updateRoadmapSettingsResponseSuccess = (updateRoadmapSettingsResponse200) & {
+  headers: Headers;
+};
+;
+
+export type updateRoadmapSettingsResponse = (updateRoadmapSettingsResponseSuccess)
+
+export const getUpdateRoadmapSettingsUrl = () => {
+
+
+  
+
+  return `/api/settings/roadmap`
+}
+
+export const updateRoadmapSettings = async (updateRoadmapSettingsRequest: UpdateRoadmapSettingsRequest, options?: RequestInit): Promise<updateRoadmapSettingsResponse> => {
+  
+  return customFetch<updateRoadmapSettingsResponse>(getUpdateRoadmapSettingsUrl(),
+  {      
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateRoadmapSettingsRequest,)
+  }
+);}
+
+
+
+
+export const getUpdateRoadmapSettingsMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRoadmapSettings>>, TError,{data: UpdateRoadmapSettingsRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateRoadmapSettings>>, TError,{data: UpdateRoadmapSettingsRequest}, TContext> => {
+
+const mutationKey = ['updateRoadmapSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateRoadmapSettings>>, {data: UpdateRoadmapSettingsRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateRoadmapSettings(data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateRoadmapSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateRoadmapSettings>>>
+    export type UpdateRoadmapSettingsMutationBody = UpdateRoadmapSettingsRequest
+    export type UpdateRoadmapSettingsMutationError = unknown
+
+    export const useUpdateRoadmapSettings = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRoadmapSettings>>, TError,{data: UpdateRoadmapSettingsRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateRoadmapSettings>>,
+        TError,
+        {data: UpdateRoadmapSettingsRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getUpdateRoadmapSettingsMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }

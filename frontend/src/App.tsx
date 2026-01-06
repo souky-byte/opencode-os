@@ -4,14 +4,13 @@ import { useGetCurrentProject } from "@/api/generated/projects/projects";
 import { useExecuteTask, useListTasks } from "@/api/generated/tasks/tasks";
 import { CreateTaskDialog } from "@/components/dialogs/CreateTaskDialog";
 import { ProjectPickerDialog } from "@/components/dialogs/ProjectPickerDialog";
-import { GitHubSettings } from "@/components/settings/GitHubSettings";
-import { ModelSettings } from "@/components/settings/ModelSettings";
+import { SettingsView } from "@/components/settings/SettingsView";
 import { KanbanView } from "@/components/kanban/KanbanView";
-import { WikiView, WikiSettings } from "@/components/wiki";
+import { WikiView } from "@/components/wiki";
+import { RoadmapView } from "@/components/roadmap";
 import { SessionsList } from "@/components/sessions/SessionsList";
 import { PullRequestsView } from "@/components/pull-requests";
 import { TaskDetailPanel } from "@/components/task-detail/TaskDetailPanel";
-import { Badge } from "@/components/ui/badge";
 import { Loader } from "@/components/ui/loader";
 import { ToastContainer } from "@/components/ui/toast";
 import { useEventStream } from "@/hooks/useEventStream";
@@ -88,6 +87,18 @@ const icons = {
 			<path d="M8 7h8" />
 			<path d="M8 11h8" />
 			<path d="M8 15h5" />
+		</svg>
+	),
+	roadmap: (
+		<svg
+			className="w-5 h-5"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.5"
+		>
+			<path d="M9 11l3 3L22 4" />
+			<path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
 		</svg>
 	),
 	folder: (
@@ -274,25 +285,27 @@ export default function App() {
 
 				{/* Navigation */}
 				<nav className="flex-1 p-1.5 space-y-0.5">
-					{(["kanban", "pull_requests", "sessions", "wiki", "settings"] as const).map((view) => (
-						<button
-							key={view}
-							type="button"
-							onClick={() => setActiveView(view)}
-							className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-								activeView === view
-									? "bg-primary/10 text-primary"
-									: "text-muted-foreground hover:bg-accent hover:text-foreground"
-							} ${collapsed ? "justify-center" : ""}`}
-						>
-							<span className={activeView === view ? "text-primary" : ""}>{icons[view]}</span>
-							{!collapsed && (
-								<span className="capitalize truncate">
-									{view === "pull_requests" ? "PRs" : view}
-								</span>
-							)}
-						</button>
-					))}
+					{(["kanban", "pull_requests", "sessions", "wiki", "roadmap", "settings"] as const).map(
+						(view) => (
+							<button
+								key={view}
+								type="button"
+								onClick={() => setActiveView(view)}
+								className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+									activeView === view
+										? "bg-primary/10 text-primary"
+										: "text-muted-foreground hover:bg-accent hover:text-foreground"
+								} ${collapsed ? "justify-center" : ""}`}
+							>
+								<span className={activeView === view ? "text-primary" : ""}>{icons[view]}</span>
+								{!collapsed && (
+									<span className="capitalize truncate">
+										{view === "pull_requests" ? "PRs" : view}
+									</span>
+								)}
+							</button>
+						),
+					)}
 				</nav>
 
 				{/* Connection status */}
@@ -386,30 +399,15 @@ export default function App() {
 					</div>
 				)}
 
+				{activeView === "roadmap" && (
+					<div className="flex-1 overflow-hidden">
+						<RoadmapView />
+					</div>
+				)}
+
 				{activeView === "settings" && (
-					<div className="flex-1 overflow-auto p-6">
-						<div className="mx-auto max-w-4xl">
-							<h1 className="text-2xl font-bold">Settings</h1>
-							<p className="mt-2 text-muted-foreground">Configure your preferences.</p>
-
-							<div className="mt-6 space-y-4">
-								<div className="rounded-lg border p-4">
-									<h3 className="font-medium">Connection Status</h3>
-									<div className="mt-2 flex items-center gap-2">
-										<Badge variant={isConnected ? "success" : "destructive"}>
-											{isConnected ? "Connected" : "Disconnected"}
-										</Badge>
-										<span className="text-sm text-muted-foreground">
-											WebSocket connection to backend
-										</span>
-									</div>
-								</div>
-
-								<GitHubSettings />
-								<ModelSettings />
-								<WikiSettings />
-							</div>
-						</div>
+					<div className="flex-1 overflow-hidden">
+						<SettingsView />
 					</div>
 				)}
 			</main>

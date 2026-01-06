@@ -13,13 +13,13 @@ export interface WikiPageResponse {
   content: string;
   file_paths: string[];
   has_diagrams: boolean;
+  importance: string;
   page_type: string;
   parent_slug?: WikiPageResponseParentSlug;
-  slug: string;
-  title: string;
-  updated_at: string;
-  importance: string;
   related_pages: string[];
   section_id?: WikiPageResponseSectionId;
+  slug: string;
   source_citations: SourceCitationResponse[];
+  title: string;
+  updated_at: string;
 }

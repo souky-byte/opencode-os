@@ -14,7 +14,9 @@ use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 
 use crate::domain::index_status::IndexProgress;
-use crate::domain::wiki_page::{Importance, PageType, SourceCitation, WikiPage, WikiStructure, WikiTree};
+use crate::domain::wiki_page::{
+    Importance, PageType, SourceCitation, WikiPage, WikiStructure, WikiTree,
+};
 use crate::domain::wiki_section::{GenerationMode, WikiSection};
 use crate::error::{WikiError, WikiResult};
 use crate::openrouter::{ChatMessage, OpenRouterClient};
@@ -91,7 +93,10 @@ impl WikiGenerator {
         commit_sha: &str,
         progress_tx: Option<broadcast::Sender<IndexProgress>>,
     ) -> WikiResult<WikiStructure> {
-        info!("Generating wiki for project '{}' on branch '{}'", project_name, branch);
+        info!(
+            "Generating wiki for project '{}' on branch '{}'",
+            project_name, branch
+        );
 
         let send_progress = |current: u32, total: u32, page: &str| {
             if let Some(ref tx) = progress_tx {
@@ -115,20 +120,28 @@ impl WikiGenerator {
         let mut current_page = 0u32;
 
         send_progress(current_page, total_pages as u32, "overview");
-        let overview = self.generate_overview(&structure, branch, commit_sha).await?;
+        let overview = self
+            .generate_overview(&structure, branch, commit_sha)
+            .await?;
         self.vector_store.insert_wiki_page(&overview)?;
         current_page += 1;
 
         let mut module_pages = Vec::new();
         for module in top_modules {
             send_progress(current_page, total_pages as u32, &module.name);
-            match self.generate_module_page(root_path, module, branch, commit_sha).await {
+            match self
+                .generate_module_page(root_path, module, branch, commit_sha)
+                .await
+            {
                 Ok(page) => {
                     self.vector_store.insert_wiki_page(&page)?;
                     module_pages.push(page);
                 }
                 Err(e) => {
-                    warn!("Failed to generate page for module '{}': {}", module.name, e);
+                    warn!(
+                        "Failed to generate page for module '{}': {}",
+                        module.name, e
+                    );
                 }
             }
             current_page += 1;
@@ -137,24 +150,26 @@ impl WikiGenerator {
         let mut file_pages = Vec::new();
         for key_file in critical_files.iter().take(10) {
             send_progress(current_page, total_pages as u32, &key_file.name);
-            match self.generate_file_page(root_path, key_file, branch, commit_sha).await {
+            match self
+                .generate_file_page(root_path, key_file, branch, commit_sha)
+                .await
+            {
                 Ok(page) => {
                     self.vector_store.insert_wiki_page(&page)?;
                     file_pages.push(page);
                 }
                 Err(e) => {
-                    warn!("Failed to generate page for file '{}': {}", key_file.name, e);
+                    warn!(
+                        "Failed to generate page for file '{}': {}",
+                        key_file.name, e
+                    );
                 }
             }
             current_page += 1;
         }
 
-        let wiki_structure = self.build_wiki_structure(
-            branch,
-            &overview,
-            &module_pages,
-            &file_pages,
-        );
+        let wiki_structure =
+            self.build_wiki_structure(branch, &overview, &module_pages, &file_pages);
         self.vector_store.save_wiki_structure(&wiki_structure)?;
 
         info!(
@@ -207,7 +222,12 @@ impl WikiGenerator {
 
         let content = self
             .openrouter
-            .chat_completion(messages, &self.chat_model, Some(TEMPERATURE_CONTENT_CREATIVE), Some(4000))
+            .chat_completion(
+                messages,
+                &self.chat_model,
+                Some(TEMPERATURE_CONTENT_CREATIVE),
+                Some(4000),
+            )
             .await?;
 
         let content = self.validate_and_fix_mermaid(&content).await;
@@ -260,7 +280,12 @@ impl WikiGenerator {
 
         let content = self
             .openrouter
-            .chat_completion(messages, &self.chat_model, Some(TEMPERATURE_CONTENT_CREATIVE), Some(3000))
+            .chat_completion(
+                messages,
+                &self.chat_model,
+                Some(TEMPERATURE_CONTENT_CREATIVE),
+                Some(3000),
+            )
             .await?;
 
         let content = self.validate_and_fix_mermaid(&content).await;
@@ -306,7 +331,12 @@ impl WikiGenerator {
 
         let generated = self
             .openrouter
-            .chat_completion(messages, &self.chat_model, Some(TEMPERATURE_CONTENT_CREATIVE), Some(3000))
+            .chat_completion(
+                messages,
+                &self.chat_model,
+                Some(TEMPERATURE_CONTENT_CREATIVE),
+                Some(3000),
+            )
             .await?;
 
         let generated = self.validate_and_fix_mermaid(&generated).await;
@@ -462,7 +492,9 @@ impl WikiGenerator {
             }
             Err(e) => {
                 warn!(branch = %branch, error = %e, "Advanced wiki structure generation failed, falling back to simple generation");
-                return self.generate_wiki(root_path, project_name, branch, commit_sha, progress_tx).await;
+                return self
+                    .generate_wiki(root_path, project_name, branch, commit_sha, progress_tx)
+                    .await;
             }
         };
 
@@ -572,7 +604,12 @@ impl WikiGenerator {
 
             let response = self
                 .openrouter
-                .chat_completion(messages, &self.chat_model, Some(TEMPERATURE_STRUCTURE_LOW), Some(4000))
+                .chat_completion(
+                    messages,
+                    &self.chat_model,
+                    Some(TEMPERATURE_STRUCTURE_LOW),
+                    Some(4000),
+                )
                 .await?;
 
             info!(project = %project_name, attempt = attempt, "AI response received, parsing...");
@@ -645,7 +682,12 @@ impl WikiGenerator {
 
         let content = self
             .openrouter
-            .chat_completion(messages, &self.chat_model, Some(TEMPERATURE_CONTENT_CREATIVE), Some(4000))
+            .chat_completion(
+                messages,
+                &self.chat_model,
+                Some(TEMPERATURE_CONTENT_CREATIVE),
+                Some(4000),
+            )
             .await?;
 
         let content = self.validate_and_fix_mermaid(&content).await;
@@ -679,12 +721,19 @@ impl WikiGenerator {
                 tree.push_str(&format!("  {}\n", file));
             }
             if module.key_files.len() > 5 {
-                tree.push_str(&format!("  ... ({} more files)\n", module.key_files.len() - 5));
+                tree.push_str(&format!(
+                    "  ... ({} more files)\n",
+                    module.key_files.len() - 5
+                ));
             }
         }
 
         for key_file in structure.key_files.iter().take(20) {
-            if !structure.modules.iter().any(|m| key_file.path.starts_with(&m.path)) {
+            if !structure
+                .modules
+                .iter()
+                .any(|m| key_file.path.starts_with(&m.path))
+            {
                 tree.push_str(&format!("{}\n", key_file.path));
             }
         }
@@ -714,7 +763,10 @@ impl WikiGenerator {
             if let Ok(content) = std::fs::read_to_string(&full_path) {
                 let truncated = Self::truncate_content(&content, per_file_limit);
                 let extension = full_path.extension().and_then(|e| e.to_str()).unwrap_or("");
-                contents.push_str(&format!("### {}\n```{}\n{}\n```\n\n", path, extension, truncated));
+                contents.push_str(&format!(
+                    "### {}\n```{}\n{}\n```\n\n",
+                    path, extension, truncated
+                ));
             }
         }
 
@@ -782,10 +834,18 @@ impl WikiGenerator {
 
         let sections_re = Regex::new(r#""sections"\s*:\s*\[(.*?)\]"#).ok()?;
         if let Some(sections_match) = sections_re.captures(content).and_then(|c| c.get(1)) {
-            let section_obj_re = Regex::new(r#"\{[^{}]*"id"\s*:\s*"([^"]+)"[^{}]*"title"\s*:\s*"([^"]+)"[^{}]*\}"#).ok()?;
+            let section_obj_re =
+                Regex::new(r#"\{[^{}]*"id"\s*:\s*"([^"]+)"[^{}]*"title"\s*:\s*"([^"]+)"[^{}]*\}"#)
+                    .ok()?;
             for cap in section_obj_re.captures_iter(sections_match.as_str()) {
-                let id = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
-                let section_title = cap.get(2).map(|m| m.as_str().to_string()).unwrap_or_default();
+                let id = cap
+                    .get(1)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default();
+                let section_title = cap
+                    .get(2)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default();
                 if !id.is_empty() {
                     sections.push(SectionPlan {
                         id: id.clone(),
@@ -802,12 +862,21 @@ impl WikiGenerator {
             let page_id_re = Regex::new(r#""id"\s*:\s*"([^"]+)""#).ok()?;
             let page_title_re = Regex::new(r#""title"\s*:\s*"([^"]+)""#).ok()?;
             let section_id_re = Regex::new(r#""section_id"\s*:\s*"([^"]+)""#).ok()?;
-            
+
             for page_block in pages_match.as_str().split("},") {
-                let id = page_id_re.captures(page_block).and_then(|c| c.get(1)).map(|m| m.as_str().to_string());
-                let page_title = page_title_re.captures(page_block).and_then(|c| c.get(1)).map(|m| m.as_str().to_string());
-                let section_id = section_id_re.captures(page_block).and_then(|c| c.get(1)).map(|m| m.as_str().to_string());
-                
+                let id = page_id_re
+                    .captures(page_block)
+                    .and_then(|c| c.get(1))
+                    .map(|m| m.as_str().to_string());
+                let page_title = page_title_re
+                    .captures(page_block)
+                    .and_then(|c| c.get(1))
+                    .map(|m| m.as_str().to_string());
+                let section_id = section_id_re
+                    .captures(page_block)
+                    .and_then(|c| c.get(1))
+                    .map(|m| m.as_str().to_string());
+
                 if let (Some(id), Some(page_title)) = (id, page_title) {
                     pages.push(PagePlan {
                         id,
@@ -951,7 +1020,10 @@ impl WikiGenerator {
         let mut citations = Vec::new();
 
         for cap in re.captures_iter(content) {
-            let file_path = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
+            let file_path = cap
+                .get(1)
+                .map(|m| m.as_str().to_string())
+                .unwrap_or_default();
             let start_line: Option<u32> = cap.get(2).and_then(|m| m.as_str().parse().ok());
             let end_line: Option<u32> = cap.get(3).and_then(|m| m.as_str().parse().ok());
 
@@ -1007,7 +1079,12 @@ impl WikiGenerator {
 
             root
         } else {
-            WikiTree::new("wiki".to_string(), "Wiki".to_string(), PageType::Overview, 0)
+            WikiTree::new(
+                "wiki".to_string(),
+                "Wiki".to_string(),
+                PageType::Overview,
+                0,
+            )
         };
 
         WikiStructure::with_sections(branch.to_string(), root, sections)
@@ -1101,11 +1178,20 @@ File only: [README.md]()
 
     #[test]
     fn test_infer_page_type() {
-        assert_eq!(WikiGenerator::infer_page_type("overview"), PageType::Overview);
-        assert_eq!(WikiGenerator::infer_page_type("architecture"), PageType::Architecture);
+        assert_eq!(
+            WikiGenerator::infer_page_type("overview"),
+            PageType::Overview
+        );
+        assert_eq!(
+            WikiGenerator::infer_page_type("architecture"),
+            PageType::Architecture
+        );
         assert_eq!(WikiGenerator::infer_page_type("backend"), PageType::Module);
         assert_eq!(WikiGenerator::infer_page_type("frontend"), PageType::Module);
-        assert_eq!(WikiGenerator::infer_page_type("deployment"), PageType::Custom);
+        assert_eq!(
+            WikiGenerator::infer_page_type("deployment"),
+            PageType::Custom
+        );
     }
 
     #[test]

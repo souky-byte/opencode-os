@@ -7,7 +7,7 @@
  */
 
 export interface GenerateWikiResponse {
-  started: boolean;
   branch: string;
   message: string;
+  started: boolean;
 }

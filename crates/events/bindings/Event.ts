@@ -39,4 +39,44 @@ next_phase_number: number,
 /**
  * Total number of phases
  */
-total_phases: number, } | { "type": "agent.message", session_id: string, task_id: string, message: AgentMessageData, } | { "type": "tool.execution", session_id: string, task_id: string, tool: ToolExecutionData, } | { "type": "workspace.created", task_id: string, path: string, } | { "type": "workspace.merged", task_id: string, success: boolean, } | { "type": "workspace.deleted", task_id: string, } | { "type": "project.opened", path: string, name: string, was_initialized: boolean, } | { "type": "project.closed", path: string, } | { "type": "wiki.generation_progress", branch: string, phase: WikiGenerationPhase, current: number, total: number, current_item: string | null, message: string | null, } | { "type": "error", message: string, context: string | null, };
+total_phases: number, } | { "type": "agent.message", session_id: string, task_id: string, message: AgentMessageData, } | { "type": "tool.execution", session_id: string, task_id: string, tool: ToolExecutionData, } | { "type": "workspace.created", task_id: string, path: string, } | { "type": "workspace.merged", task_id: string, success: boolean, } | { "type": "workspace.deleted", task_id: string, } | { "type": "project.opened", path: string, name: string, was_initialized: boolean, } | { "type": "project.closed", path: string, } | { "type": "wiki.generation_progress", branch: string, phase: WikiGenerationPhase, current: number, total: number, current_item: string | null, message: string | null, } | { "type": "roadmap.generation_started" } | { "type": "roadmap.generation_progress", 
+/**
+ * Current phase (analyzing, discovering, generating, complete, error)
+ */
+phase: string, 
+/**
+ * Progress percentage (0-100)
+ */
+progress: number, 
+/**
+ * Status message
+ */
+message: string, } | { "type": "roadmap.generation_completed", 
+/**
+ * Number of features generated
+ */
+feature_count: number, 
+/**
+ * Number of phases generated
+ */
+phase_count: number, } | { "type": "roadmap.generation_failed", 
+/**
+ * Error message
+ */
+error: string, } | { "type": "roadmap.feature_updated", 
+/**
+ * Feature ID
+ */
+feature_id: string, 
+/**
+ * New status (if changed)
+ */
+status: string | null, } | { "type": "roadmap.feature_converted", 
+/**
+ * Feature ID
+ */
+feature_id: string, 
+/**
+ * Created task ID
+ */
+task_id: string, } | { "type": "error", message: string, context: string | null, };

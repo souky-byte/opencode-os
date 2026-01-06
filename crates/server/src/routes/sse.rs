@@ -92,6 +92,12 @@ fn envelope_to_sse_event(envelope: &events::EventEnvelope) -> Result<Event, Infa
         events::Event::ProjectOpened { .. } => "project.opened",
         events::Event::ProjectClosed { .. } => "project.closed",
         events::Event::WikiGenerationProgress { .. } => "wiki.generation_progress",
+        events::Event::RoadmapGenerationStarted => "roadmap.generation_started",
+        events::Event::RoadmapGenerationProgress { .. } => "roadmap.generation_progress",
+        events::Event::RoadmapGenerationCompleted { .. } => "roadmap.generation_completed",
+        events::Event::RoadmapGenerationFailed { .. } => "roadmap.generation_failed",
+        events::Event::RoadmapFeatureUpdated { .. } => "roadmap.feature_updated",
+        events::Event::RoadmapFeatureConverted { .. } => "roadmap.feature_converted",
         events::Event::Error { .. } => "error",
     };
 

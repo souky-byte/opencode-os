@@ -5,13 +5,41 @@ use serde::{Deserialize, Serialize};
 
 /// Predefined main sections for wiki structure
 pub const MAIN_SECTIONS: &[(&str, &str, &str)] = &[
-    ("overview", "Overview", "General project information and introduction"),
-    ("architecture", "System Architecture", "Design patterns, component relationships, and system design"),
-    ("core-features", "Core Features", "Key functionality and main features"),
-    ("data-flow", "Data Management", "Data storage, pipelines, and state management"),
-    ("backend", "Backend Systems", "Server-side components, APIs, and services"),
-    ("frontend", "Frontend Components", "UI components, pages, and user interactions"),
-    ("deployment", "Deployment & Infrastructure", "Build, deployment, and infrastructure setup"),
+    (
+        "overview",
+        "Overview",
+        "General project information and introduction",
+    ),
+    (
+        "architecture",
+        "System Architecture",
+        "Design patterns, component relationships, and system design",
+    ),
+    (
+        "core-features",
+        "Core Features",
+        "Key functionality and main features",
+    ),
+    (
+        "data-flow",
+        "Data Management",
+        "Data storage, pipelines, and state management",
+    ),
+    (
+        "backend",
+        "Backend Systems",
+        "Server-side components, APIs, and services",
+    ),
+    (
+        "frontend",
+        "Frontend Components",
+        "UI components, pages, and user interactions",
+    ),
+    (
+        "deployment",
+        "Deployment & Infrastructure",
+        "Build, deployment, and infrastructure setup",
+    ),
 ];
 
 /// A section in the wiki that groups related pages
@@ -190,8 +218,14 @@ mod tests {
         assert_eq!(GenerationMode::Comprehensive.page_count_range(), (6, 8));
         assert_eq!(GenerationMode::Concise.page_count_range(), (3, 5));
 
-        assert_eq!(GenerationMode::parse("comprehensive"), Some(GenerationMode::Comprehensive));
-        assert_eq!(GenerationMode::parse("concise"), Some(GenerationMode::Concise));
+        assert_eq!(
+            GenerationMode::parse("comprehensive"),
+            Some(GenerationMode::Comprehensive)
+        );
+        assert_eq!(
+            GenerationMode::parse("concise"),
+            Some(GenerationMode::Concise)
+        );
         assert_eq!(GenerationMode::parse("invalid"), None);
     }
 }

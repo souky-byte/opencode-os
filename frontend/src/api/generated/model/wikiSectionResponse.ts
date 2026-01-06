@@ -8,10 +8,10 @@
 import type { WikiSectionResponseDescription } from './wikiSectionResponseDescription';
 
 export interface WikiSectionResponse {
-  id: string;
-  title: string;
   description?: WikiSectionResponseDescription;
-  page_slugs: string[];
+  id: string;
   /** @minimum 0 */
   order: number;
+  page_slugs: string[];
+  title: string;
 }

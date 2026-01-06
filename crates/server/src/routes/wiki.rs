@@ -8,14 +8,14 @@ use std::time::Instant;
 use tracing::{debug, error, info};
 use utoipa::ToSchema;
 
-use crate::config::WikiConfig as ProjectWikiConfig;
 use crate::config::ProjectConfig;
+use crate::config::WikiConfig as ProjectWikiConfig;
 use crate::error::AppError;
 use crate::state::AppState;
 
 use wiki::{
-    CodeIndexer, GenerationMode, IndexStatus, SearchResult, SourceCitation, WikiConfig as WikiEngineConfig,
-    WikiEngine, WikiPage, WikiSection, WikiStructure, WikiTree,
+    CodeIndexer, GenerationMode, IndexStatus, SearchResult, SourceCitation,
+    WikiConfig as WikiEngineConfig, WikiEngine, WikiPage, WikiSection, WikiStructure, WikiTree,
 };
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -159,7 +159,11 @@ impl From<WikiStructure> for WikiStructureResponse {
             branch: structure.branch,
             root: WikiTreeNode::from(structure.root),
             page_count: structure.page_count,
-            sections: structure.sections.into_iter().map(WikiSectionResponse::from).collect(),
+            sections: structure
+                .sections
+                .into_iter()
+                .map(WikiSectionResponse::from)
+                .collect(),
         }
     }
 }
@@ -215,7 +219,11 @@ impl From<WikiPage> for WikiPageResponse {
             importance: page.importance.as_str().to_string(),
             related_pages: page.related_pages,
             section_id: page.section_id,
-            source_citations: page.source_citations.into_iter().map(SourceCitationResponse::from).collect(),
+            source_citations: page
+                .source_citations
+                .into_iter()
+                .map(SourceCitationResponse::from)
+                .collect(),
         }
     }
 }
@@ -389,7 +397,9 @@ fn create_wiki_engine(
     ),
     tag = "wiki"
 )]
-pub async fn get_wiki_status(State(state): State<AppState>) -> Result<Json<WikiStatusResponse>, AppError> {
+pub async fn get_wiki_status(
+    State(state): State<AppState>,
+) -> Result<Json<WikiStatusResponse>, AppError> {
     debug!("Getting wiki status");
 
     let project = state.project().await?;
@@ -430,7 +440,9 @@ pub async fn get_wiki_status(State(state): State<AppState>) -> Result<Json<WikiS
     ),
     tag = "wiki"
 )]
-pub async fn get_remote_branches(State(state): State<AppState>) -> Result<Json<RemoteBranchesResponse>, AppError> {
+pub async fn get_remote_branches(
+    State(state): State<AppState>,
+) -> Result<Json<RemoteBranchesResponse>, AppError> {
     debug!("Getting remote branches");
 
     let project = state.project().await?;
@@ -474,9 +486,14 @@ pub async fn start_indexing(
         return Err(AppError::BadRequest("Wiki is not enabled".to_string()));
     }
 
-    let branch = payload
-        .branch
-        .unwrap_or_else(|| config.wiki.branches.first().cloned().unwrap_or_else(|| "main".to_string()));
+    let branch = payload.branch.unwrap_or_else(|| {
+        config
+            .wiki
+            .branches
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "main".to_string())
+    });
 
     let force = payload.force.unwrap_or(false);
     let mode = payload
@@ -512,7 +529,15 @@ pub async fn start_indexing(
             let result = if index_only {
                 run_code_indexing(project_path, wiki_config, branch_clone.clone(), force).await
             } else {
-                run_full_indexing(project_path, wiki_config, branch_clone.clone(), force, mode, Some(event_bus)).await
+                run_full_indexing(
+                    project_path,
+                    wiki_config,
+                    branch_clone.clone(),
+                    force,
+                    mode,
+                    Some(event_bus),
+                )
+                .await
             };
             if let Err(e) = result {
                 error!(error = %e, branch = %branch_clone, "Indexing failed");
@@ -557,9 +582,14 @@ pub async fn generate_wiki(
         return Err(AppError::BadRequest("Wiki is not enabled".to_string()));
     }
 
-    let branch = payload
-        .branch
-        .unwrap_or_else(|| config.wiki.branches.first().cloned().unwrap_or_else(|| "main".to_string()));
+    let branch = payload.branch.unwrap_or_else(|| {
+        config
+            .wiki
+            .branches
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "main".to_string())
+    });
 
     let mode = payload
         .mode
@@ -599,7 +629,15 @@ pub async fn generate_wiki(
     std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
         rt.block_on(async {
-            if let Err(e) = run_wiki_generation(project_path, wiki_config, branch_clone.clone(), mode, event_bus).await {
+            if let Err(e) = run_wiki_generation(
+                project_path,
+                wiki_config,
+                branch_clone.clone(),
+                mode,
+                event_bus,
+            )
+            .await
+            {
                 error!(error = %e, branch = %branch_clone, "Wiki generation failed");
             }
         });
@@ -620,7 +658,7 @@ async fn run_code_indexing(
     force: bool,
 ) -> Result<(), wiki::WikiError> {
     use wiki::IndexState;
-    
+
     let is_remote = wiki_config.repo_url.is_some();
     info!(branch = %branch, force = force, remote = is_remote, "Starting code indexing");
 
@@ -655,20 +693,17 @@ async fn run_code_indexing(
         .embedding_model
         .unwrap_or_else(|| "openai/text-embedding-3-small".to_string());
 
-    let openrouter = Arc::new(wiki::OpenRouterClient::new(api_key, "https://openrouter.ai/api/v1".to_string()));
+    let openrouter = Arc::new(wiki::OpenRouterClient::new(
+        api_key,
+        "https://openrouter.ai/api/v1".to_string(),
+    ));
 
     if force {
         info!(branch = %branch, "Force flag set, clearing existing data");
         vector_store.clear_branch(&branch)?;
     }
-    
-    let indexer = CodeIndexer::new(
-        openrouter,
-        vector_store.clone(),
-        embedding_model,
-        350,
-        100,
-    );
+
+    let indexer = CodeIndexer::new(openrouter, vector_store.clone(), embedding_model, 350, 100);
 
     let result = if let Some(repo_url) = wiki_config.repo_url {
         info!(repo_url = %repo_url, branch = %branch, "Indexing remote repository");
@@ -681,8 +716,11 @@ async fn run_code_indexing(
             )
             .await
     } else {
-        let commit_sha = get_current_commit_sha(&project_path).unwrap_or_else(|| "unknown".to_string());
-        indexer.index_branch(&project_path, &branch, &commit_sha, None).await
+        let commit_sha =
+            get_current_commit_sha(&project_path).unwrap_or_else(|| "unknown".to_string());
+        indexer
+            .index_branch(&project_path, &branch, &commit_sha, None)
+            .await
     };
 
     if let Err(e) = result {
@@ -690,7 +728,9 @@ async fn run_code_indexing(
         return Err(e);
     }
 
-    let status = vector_store.get_index_status(&branch)?.unwrap_or_else(|| wiki::IndexStatus::new(branch.clone()));
+    let status = vector_store
+        .get_index_status(&branch)?
+        .unwrap_or_else(|| wiki::IndexStatus::new(branch.clone()));
     info!(
         branch = %branch,
         files = status.file_count,
@@ -710,21 +750,29 @@ async fn run_wiki_generation(
     event_bus: events::EventBus,
 ) -> Result<(), wiki::WikiError> {
     use wiki::IndexState;
-    
+
     info!(branch = %branch, mode = ?mode, "Starting wiki generation");
 
     let db_path = get_wiki_db_path(&project_path);
     let vector_store = Arc::new(wiki::VectorStore::new(&db_path)?);
 
-    let emit_progress = |event_bus: &events::EventBus, branch: &str, phase: events::WikiGenerationPhase, current: u32, total: u32, current_item: Option<&str>, message: Option<&str>| {
-        event_bus.publish(events::EventEnvelope::new(events::Event::WikiGenerationProgress {
-            branch: branch.to_string(),
-            phase,
-            current,
-            total,
-            current_item: current_item.map(|s| s.to_string()),
-            message: message.map(|s| s.to_string()),
-        }));
+    let emit_progress = |event_bus: &events::EventBus,
+                         branch: &str,
+                         phase: events::WikiGenerationPhase,
+                         current: u32,
+                         total: u32,
+                         current_item: Option<&str>,
+                         message: Option<&str>| {
+        event_bus.publish(events::EventEnvelope::new(
+            events::Event::WikiGenerationProgress {
+                branch: branch.to_string(),
+                phase,
+                current,
+                total,
+                current_item: current_item.map(|s| s.to_string()),
+                message: message.map(|s| s.to_string()),
+            },
+        ));
     };
 
     let update_failed_status = |vs: &wiki::VectorStore, branch: &str, error: &str| {
@@ -747,7 +795,15 @@ async fn run_wiki_generation(
         None => {
             let err = "API key not configured";
             update_failed_status(&vector_store, &branch, err);
-            emit_progress(&event_bus, &branch, events::WikiGenerationPhase::Failed, 0, 0, None, Some(err));
+            emit_progress(
+                &event_bus,
+                &branch,
+                events::WikiGenerationPhase::Failed,
+                0,
+                0,
+                None,
+                Some(err),
+            );
             return Err(wiki::WikiError::InvalidConfig(err.to_string()));
         }
     };
@@ -756,17 +812,37 @@ async fn run_wiki_generation(
         .chat_model
         .unwrap_or_else(|| "anthropic/claude-sonnet-4-20250514".to_string());
 
-    let openrouter = Arc::new(wiki::OpenRouterClient::new(api_key, "https://openrouter.ai/api/v1".to_string()));
+    let openrouter = Arc::new(wiki::OpenRouterClient::new(
+        api_key,
+        "https://openrouter.ai/api/v1".to_string(),
+    ));
 
     let current_status = vector_store.get_index_status(&branch)?;
-    if current_status.is_none() || current_status.as_ref().map(|s| s.chunk_count).unwrap_or(0) == 0 {
+    if current_status.is_none() || current_status.as_ref().map(|s| s.chunk_count).unwrap_or(0) == 0
+    {
         let err = "No indexed content found. Please run code indexing first.";
         update_failed_status(&vector_store, &branch, err);
-        emit_progress(&event_bus, &branch, events::WikiGenerationPhase::Failed, 0, 0, None, Some(err));
+        emit_progress(
+            &event_bus,
+            &branch,
+            events::WikiGenerationPhase::Failed,
+            0,
+            0,
+            None,
+            Some(err),
+        );
         return Err(wiki::WikiError::InvalidConfig(err.to_string()));
     }
 
-    emit_progress(&event_bus, &branch, events::WikiGenerationPhase::Analyzing, 0, 0, None, Some("Analyzing project structure..."));
+    emit_progress(
+        &event_bus,
+        &branch,
+        events::WikiGenerationPhase::Analyzing,
+        0,
+        0,
+        None,
+        Some("Analyzing project structure..."),
+    );
 
     let mut status = current_status.unwrap();
     status.state = IndexState::Generating;
@@ -775,13 +851,8 @@ async fn run_wiki_generation(
     vector_store.update_index_status(&status)?;
     info!(branch = %branch, "Wiki generation started");
 
-    let generator = wiki::WikiGenerator::new(
-        openrouter,
-        vector_store.clone(),
-        chat_model,
-        350,
-        100,
-    );
+    let generator =
+        wiki::WikiGenerator::new(openrouter, vector_store.clone(), chat_model, 350, 100);
 
     let project_name = project_path
         .file_name()
@@ -789,60 +860,90 @@ async fn run_wiki_generation(
         .unwrap_or("project");
 
     let commit_sha = get_current_commit_sha(&project_path).unwrap_or_else(|| "unknown".to_string());
-    
+
     info!(branch = %branch, project = project_name, mode = ?mode, "Calling wiki generator...");
-    
-    let (progress_tx, mut progress_rx) = tokio::sync::broadcast::channel::<wiki::IndexProgress>(100);
-    
+
+    let (progress_tx, mut progress_rx) =
+        tokio::sync::broadcast::channel::<wiki::IndexProgress>(100);
+
     let event_bus_clone = event_bus.clone();
     let branch_clone = branch.clone();
     let progress_forwarder = tokio::spawn(async move {
         while let Ok(progress) = progress_rx.recv().await {
             match progress {
-                wiki::IndexProgress::GeneratingWiki { current, total, current_page } => {
-                    event_bus_clone.publish(events::EventEnvelope::new(events::Event::WikiGenerationProgress {
-                        branch: branch_clone.clone(),
-                        phase: events::WikiGenerationPhase::GeneratingPages,
-                        current,
-                        total,
-                        current_item: Some(current_page),
-                        message: None,
-                    }));
+                wiki::IndexProgress::GeneratingWiki {
+                    current,
+                    total,
+                    current_page,
+                } => {
+                    event_bus_clone.publish(events::EventEnvelope::new(
+                        events::Event::WikiGenerationProgress {
+                            branch: branch_clone.clone(),
+                            phase: events::WikiGenerationPhase::GeneratingPages,
+                            current,
+                            total,
+                            current_item: Some(current_page),
+                            message: None,
+                        },
+                    ));
                 }
                 wiki::IndexProgress::Completed { page_count, .. } => {
-                    event_bus_clone.publish(events::EventEnvelope::new(events::Event::WikiGenerationProgress {
-                        branch: branch_clone.clone(),
-                        phase: events::WikiGenerationPhase::Completed,
-                        current: page_count,
-                        total: page_count,
-                        current_item: None,
-                        message: Some(format!("Generated {} pages", page_count)),
-                    }));
+                    event_bus_clone.publish(events::EventEnvelope::new(
+                        events::Event::WikiGenerationProgress {
+                            branch: branch_clone.clone(),
+                            phase: events::WikiGenerationPhase::Completed,
+                            current: page_count,
+                            total: page_count,
+                            current_item: None,
+                            message: Some(format!("Generated {} pages", page_count)),
+                        },
+                    ));
                 }
                 wiki::IndexProgress::Failed { error, .. } => {
-                    event_bus_clone.publish(events::EventEnvelope::new(events::Event::WikiGenerationProgress {
-                        branch: branch_clone.clone(),
-                        phase: events::WikiGenerationPhase::Failed,
-                        current: 0,
-                        total: 0,
-                        current_item: None,
-                        message: Some(error),
-                    }));
+                    event_bus_clone.publish(events::EventEnvelope::new(
+                        events::Event::WikiGenerationProgress {
+                            branch: branch_clone.clone(),
+                            phase: events::WikiGenerationPhase::Failed,
+                            current: 0,
+                            total: 0,
+                            current_item: None,
+                            message: Some(error),
+                        },
+                    ));
                 }
                 _ => {}
             }
         }
     });
-    
-    emit_progress(&event_bus, &branch, events::WikiGenerationPhase::Planning, 0, 0, None, Some("Planning wiki structure..."));
-    
-    let result = generator.generate_wiki_advanced(&project_path, project_name, &branch, &commit_sha, mode, Some(progress_tx)).await;
+
+    emit_progress(
+        &event_bus,
+        &branch,
+        events::WikiGenerationPhase::Planning,
+        0,
+        0,
+        None,
+        Some("Planning wiki structure..."),
+    );
+
+    let result = generator
+        .generate_wiki_advanced(
+            &project_path,
+            project_name,
+            &branch,
+            &commit_sha,
+            mode,
+            Some(progress_tx),
+        )
+        .await;
 
     drop(progress_forwarder);
 
     info!(branch = %branch, success = result.is_ok(), "Wiki generator returned");
 
-    let mut final_status = vector_store.get_index_status(&branch)?.unwrap_or_else(|| wiki::IndexStatus::new(branch.clone()));
+    let mut final_status = vector_store
+        .get_index_status(&branch)?
+        .unwrap_or_else(|| wiki::IndexStatus::new(branch.clone()));
     match &result {
         Ok(structure) => {
             final_status.state = IndexState::Indexed;
@@ -852,7 +953,15 @@ async fn run_wiki_generation(
             final_status.current_item = None;
             final_status.last_indexed_at = Some(chrono::Utc::now());
             vector_store.update_index_status(&final_status)?;
-            emit_progress(&event_bus, &branch, events::WikiGenerationPhase::Completed, structure.page_count, structure.page_count, None, Some(&format!("Generated {} pages", structure.page_count)));
+            emit_progress(
+                &event_bus,
+                &branch,
+                events::WikiGenerationPhase::Completed,
+                structure.page_count,
+                structure.page_count,
+                None,
+                Some(&format!("Generated {} pages", structure.page_count)),
+            );
             info!(
                 branch = %branch,
                 pages = structure.page_count,
@@ -866,7 +975,15 @@ async fn run_wiki_generation(
             final_status.current_phase = None;
             final_status.current_item = None;
             vector_store.update_index_status(&final_status)?;
-            emit_progress(&event_bus, &branch, events::WikiGenerationPhase::Failed, 0, 0, None, Some(&e.to_string()));
+            emit_progress(
+                &event_bus,
+                &branch,
+                events::WikiGenerationPhase::Failed,
+                0,
+                0,
+                None,
+                Some(&e.to_string()),
+            );
             error!(branch = %branch, error = %e, "Wiki generation failed");
         }
     }
@@ -883,7 +1000,13 @@ async fn run_full_indexing(
     mode: GenerationMode,
     event_bus: Option<events::EventBus>,
 ) -> Result<(), wiki::WikiError> {
-    run_code_indexing(project_path.clone(), wiki_config.clone(), branch.clone(), force).await?;
+    run_code_indexing(
+        project_path.clone(),
+        wiki_config.clone(),
+        branch.clone(),
+        force,
+    )
+    .await?;
     if let Some(bus) = event_bus {
         run_wiki_generation(project_path, wiki_config, branch, mode, bus).await
     } else {
@@ -935,17 +1058,23 @@ pub async fn get_wiki_structure(
         return Err(AppError::BadRequest("Wiki is not enabled".to_string()));
     }
 
-    let branch = params
-        .get("branch")
-        .cloned()
-        .unwrap_or_else(|| config.wiki.branches.first().cloned().unwrap_or_else(|| "main".to_string()));
+    let branch = params.get("branch").cloned().unwrap_or_else(|| {
+        config
+            .wiki
+            .branches
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "main".to_string())
+    });
 
     let engine = create_wiki_engine(&project.project_path, &config.wiki)?;
 
     let structure = engine
         .get_structure(&branch)
         .map_err(|e| AppError::Internal(format!("Failed to get structure: {}", e)))?
-        .ok_or_else(|| AppError::NotFound(format!("Wiki structure not found for branch: {}", branch)))?;
+        .ok_or_else(|| {
+            AppError::NotFound(format!("Wiki structure not found for branch: {}", branch))
+        })?;
 
     Ok(Json(WikiStructureResponse::from(structure)))
 }
@@ -1025,8 +1154,9 @@ pub async fn search_wiki(
     let limit = payload.limit.unwrap_or(10);
 
     let start = Instant::now();
-    
-    let openrouter = wiki::OpenRouterClient::new(api_key, "https://openrouter.ai/api/v1".to_string());
+
+    let openrouter =
+        wiki::OpenRouterClient::new(api_key, "https://openrouter.ai/api/v1".to_string());
     let query_embedding = openrouter
         .create_embedding(&query, &embedding_model)
         .await
@@ -1045,7 +1175,8 @@ pub async fn search_wiki(
     let duration_ms = start.elapsed().as_millis() as u64;
 
     let total_count = results.len() as u32;
-    let search_results: Vec<WikiSearchResult> = results.into_iter().map(WikiSearchResult::from).collect();
+    let search_results: Vec<WikiSearchResult> =
+        results.into_iter().map(WikiSearchResult::from).collect();
 
     Ok(Json(WikiSearchResponse {
         query: payload.query,
@@ -1096,10 +1227,13 @@ pub async fn ask_wiki(
         .unwrap_or_else(|| "anthropic/claude-3.5-sonnet".to_string());
     let db_path = get_wiki_db_path(&project.project_path);
     let question = payload.question.clone();
-    let conversation_id = payload.conversation_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let conversation_id = payload
+        .conversation_id
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
-    let openrouter = wiki::OpenRouterClient::new(api_key, "https://openrouter.ai/api/v1".to_string());
-    
+    let openrouter =
+        wiki::OpenRouterClient::new(api_key, "https://openrouter.ai/api/v1".to_string());
+
     let query_embedding = openrouter
         .create_embedding(&question, &embedding_model)
         .await
@@ -1117,7 +1251,9 @@ pub async fn ask_wiki(
 
     if search_results.is_empty() {
         return Ok(Json(AskResponse {
-            answer: "I couldn't find any relevant code in the indexed codebase to answer your question.".to_string(),
+            answer:
+                "I couldn't find any relevant code in the indexed codebase to answer your question."
+                    .to_string(),
             sources: Vec::new(),
             conversation_id,
         }));
@@ -1253,7 +1389,14 @@ pub async fn handle_push_webhook(
 
     std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
-        if let Err(e) = rt.block_on(run_full_indexing(project_path, wiki_config, branch_clone, true, GenerationMode::default(), Some(event_bus))) {
+        if let Err(e) = rt.block_on(run_full_indexing(
+            project_path,
+            wiki_config,
+            branch_clone,
+            true,
+            GenerationMode::default(),
+            Some(event_bus),
+        )) {
             error!(error = %e, "Auto-sync indexing failed");
         }
     });
@@ -1272,7 +1415,9 @@ pub async fn handle_push_webhook(
     ),
     tag = "settings"
 )]
-pub async fn get_wiki_settings(State(state): State<AppState>) -> Result<Json<WikiSettingsResponse>, AppError> {
+pub async fn get_wiki_settings(
+    State(state): State<AppState>,
+) -> Result<Json<WikiSettingsResponse>, AppError> {
     debug!("Getting wiki settings");
 
     let project = state.project().await?;
@@ -1316,7 +1461,11 @@ pub async fn update_wiki_settings(
         config.wiki.branches = branches;
     }
     if let Some(api_key) = payload.openrouter_api_key {
-        config.wiki.openrouter_api_key = if api_key.is_empty() { None } else { Some(api_key) };
+        config.wiki.openrouter_api_key = if api_key.is_empty() {
+            None
+        } else {
+            Some(api_key)
+        };
     }
     if let Some(model) = payload.embedding_model {
         config.wiki.embedding_model = if model.is_empty() { None } else { Some(model) };
@@ -1328,10 +1477,18 @@ pub async fn update_wiki_settings(
         config.wiki.auto_sync = auto_sync;
     }
     if let Some(repo_url) = payload.repo_url {
-        config.wiki.repo_url = if repo_url.is_empty() { None } else { Some(repo_url) };
+        config.wiki.repo_url = if repo_url.is_empty() {
+            None
+        } else {
+            Some(repo_url)
+        };
     }
     if let Some(access_token) = payload.access_token {
-        config.wiki.access_token = if access_token.is_empty() { None } else { Some(access_token) };
+        config.wiki.access_token = if access_token.is_empty() {
+            None
+        } else {
+            Some(access_token)
+        };
     }
 
     config.write(&project.project_path).await.map_err(|e| {

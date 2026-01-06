@@ -95,6 +95,14 @@ pub enum UserMode {
     Basic,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript", ts(export))]
+pub struct RoadmapConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<ModelSelection>,
+}
+
 /// Project-level configuration stored in .opencode-studio/config.json
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
@@ -106,6 +114,8 @@ pub struct ProjectConfig {
     pub user_mode: UserMode,
     #[serde(default)]
     pub wiki: WikiConfig,
+    #[serde(default)]
+    pub roadmap: RoadmapConfig,
 }
 
 impl ProjectConfig {
@@ -195,6 +205,7 @@ mod tests {
             },
             user_mode: UserMode::default(),
             wiki: WikiConfig::default(),
+            roadmap: RoadmapConfig::default(),
         };
 
         config.write(temp_dir.path()).await.unwrap();

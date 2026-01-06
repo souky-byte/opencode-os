@@ -7,6 +7,7 @@
  */
 import type { WikiSettingsResponseChatModel } from './wikiSettingsResponseChatModel';
 import type { WikiSettingsResponseEmbeddingModel } from './wikiSettingsResponseEmbeddingModel';
+import type { WikiSettingsResponseRepoUrl } from './wikiSettingsResponseRepoUrl';
 
 export interface WikiSettingsResponse {
   auto_sync: boolean;
@@ -14,5 +15,7 @@ export interface WikiSettingsResponse {
   chat_model?: WikiSettingsResponseChatModel;
   embedding_model?: WikiSettingsResponseEmbeddingModel;
   enabled: boolean;
+  has_access_token: boolean;
   has_api_key: boolean;
+  repo_url?: WikiSettingsResponseRepoUrl;
 }

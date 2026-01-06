@@ -5,13 +5,13 @@
  * API for OpenCode Studio - AI-powered development platform
  * OpenAPI spec version: 0.1.0
  */
-import type { SourceCitationResponseStartLine } from './sourceCitationResponseStartLine';
 import type { SourceCitationResponseEndLine } from './sourceCitationResponseEndLine';
+import type { SourceCitationResponseStartLine } from './sourceCitationResponseStartLine';
 
 export interface SourceCitationResponse {
+  /** @minimum 0 */
+  end_line?: SourceCitationResponseEndLine;
   file_path: string;
   /** @minimum 0 */
   start_line?: SourceCitationResponseStartLine;
-  /** @minimum 0 */
-  end_line?: SourceCitationResponseEndLine;
 }

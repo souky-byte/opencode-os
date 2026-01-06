@@ -93,7 +93,9 @@ impl OpenCodeManager {
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| anyhow::anyhow!("Failed to start OpenCode server from {:?}: {}", binary, e))?;
+            .map_err(|e| {
+                anyhow::anyhow!("Failed to start OpenCode server from {:?}: {}", binary, e)
+            })?;
 
         self.child = Some(child);
 

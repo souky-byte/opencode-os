@@ -104,7 +104,12 @@ pub struct SearchResponse {
 
 impl SearchResponse {
     /// Create a new SearchResponse
-    pub fn new(query: String, results: Vec<SearchResult>, total_count: u32, duration_ms: u64) -> Self {
+    pub fn new(
+        query: String,
+        results: Vec<SearchResult>,
+        total_count: u32,
+        duration_ms: u64,
+    ) -> Self {
         Self {
             query,
             results,

@@ -62,7 +62,11 @@ impl ProjectAnalyzer {
         }
     }
 
-    pub fn analyze(&self, root_path: &Path, project_name: &str) -> std::io::Result<ProjectStructure> {
+    pub fn analyze(
+        &self,
+        root_path: &Path,
+        project_name: &str,
+    ) -> std::io::Result<ProjectStructure> {
         let reader = FileReader::new(self.max_chunk_tokens, self.chunk_overlap);
         let files = reader.read_directory(root_path)?;
 
@@ -177,10 +181,21 @@ impl ProjectAnalyzer {
 
         if matches!(
             name.as_str(),
-            "lib.rs" | "main.rs" | "mod.rs" | "app.rs" | "server.rs"
-                | "main.py" | "app.py" | "__init__.py"
-                | "index.ts" | "index.js" | "index.tsx" | "app.tsx" | "app.ts"
-                | "main.go" | "app.go"
+            "lib.rs"
+                | "main.rs"
+                | "mod.rs"
+                | "app.rs"
+                | "server.rs"
+                | "main.py"
+                | "app.py"
+                | "__init__.py"
+                | "index.ts"
+                | "index.js"
+                | "index.tsx"
+                | "app.tsx"
+                | "app.ts"
+                | "main.go"
+                | "app.go"
         ) {
             return FileImportance::Critical;
         }
@@ -228,7 +243,11 @@ impl ProjectAnalyzer {
             .collect()
     }
 
-    pub fn get_top_modules<'a>(&self, structure: &'a ProjectStructure, limit: usize) -> Vec<&'a ModuleInfo> {
+    pub fn get_top_modules<'a>(
+        &self,
+        structure: &'a ProjectStructure,
+        limit: usize,
+    ) -> Vec<&'a ModuleInfo> {
         let mut modules: Vec<_> = structure.modules.iter().collect();
         modules.sort_by(|a, b| b.file_count.cmp(&a.file_count));
         modules.into_iter().take(limit).collect()
@@ -251,12 +270,30 @@ mod tests {
     fn test_assess_importance() {
         let analyzer = ProjectAnalyzer::new(350, 100);
 
-        assert_eq!(analyzer.assess_importance("src/lib.rs"), FileImportance::Critical);
-        assert_eq!(analyzer.assess_importance("src/main.rs"), FileImportance::Critical);
-        assert_eq!(analyzer.assess_importance("config/settings.toml"), FileImportance::High);
-        assert_eq!(analyzer.assess_importance("src/models/user.rs"), FileImportance::High);
-        assert_eq!(analyzer.assess_importance("src/utils/helpers.rs"), FileImportance::Medium);
-        assert_eq!(analyzer.assess_importance("tests/test_main.rs"), FileImportance::Low);
+        assert_eq!(
+            analyzer.assess_importance("src/lib.rs"),
+            FileImportance::Critical
+        );
+        assert_eq!(
+            analyzer.assess_importance("src/main.rs"),
+            FileImportance::Critical
+        );
+        assert_eq!(
+            analyzer.assess_importance("config/settings.toml"),
+            FileImportance::High
+        );
+        assert_eq!(
+            analyzer.assess_importance("src/models/user.rs"),
+            FileImportance::High
+        );
+        assert_eq!(
+            analyzer.assess_importance("src/utils/helpers.rs"),
+            FileImportance::Medium
+        );
+        assert_eq!(
+            analyzer.assess_importance("tests/test_main.rs"),
+            FileImportance::Low
+        );
     }
 
     #[test]

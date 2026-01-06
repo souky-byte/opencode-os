@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type SidebarView = "kanban" | "pull_requests" | "sessions" | "wiki" | "settings";
+export type SidebarView = "kanban" | "pull_requests" | "sessions" | "wiki" | "roadmap" | "settings";
 
 type State = {
 	collapsed: boolean;

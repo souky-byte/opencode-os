@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PhaseModels } from './phaseModels';
+import type { RoadmapConfig } from './roadmapConfig';
 import type { UserMode } from './userMode';
 import type { WikiConfig } from './wikiConfig';
 
@@ -14,6 +15,7 @@ import type { WikiConfig } from './wikiConfig';
  */
 export interface ProjectConfig {
   phase_models?: PhaseModels;
+  roadmap?: RoadmapConfig;
   user_mode?: UserMode;
   wiki?: WikiConfig;
 }

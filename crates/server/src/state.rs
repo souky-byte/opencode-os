@@ -2,8 +2,14 @@ use crate::project_manager::{GlobalConfigManager, ProjectContext, ProjectError, 
 use crate::routes::sse::{EventBuffer, SharedEventBuffer, DEFAULT_EVENT_BUFFER_SIZE};
 use events::EventBus;
 use github::{GitHubClient, RepoConfig};
+use opencode_core::RoadmapGenerationStatus;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, RwLock};
+use tokio::sync::RwLock as TokioRwLock;
+
+pub type SharedRoadmapStatus = Arc<TokioRwLock<RoadmapGenerationStatus>>;
+pub type GenerationId = Arc<AtomicU64>;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -15,6 +21,9 @@ pub struct AppState {
     pub app_dir: Option<PathBuf>,
     /// Cached GitHub client - token hash is stored to detect when token changes
     github_client: Arc<RwLock<Option<(String, GitHubClient)>>>,
+    pub roadmap_status: SharedRoadmapStatus,
+    /// Current roadmap generation ID - incremented on each new generation to invalidate old tasks
+    pub roadmap_generation_id: GenerationId,
 }
 
 impl AppState {
@@ -35,6 +44,8 @@ impl AppState {
             opencode_url: opencode_url.to_string(),
             app_dir: None,
             github_client: Arc::new(RwLock::new(None)),
+            roadmap_status: Arc::new(TokioRwLock::new(RoadmapGenerationStatus::default())),
+            roadmap_generation_id: Arc::new(AtomicU64::new(0)),
         }
     }
 

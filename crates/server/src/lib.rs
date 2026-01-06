@@ -94,6 +94,15 @@ use state::AppState;
         routes::wiki::handle_push_webhook,
         routes::wiki::get_wiki_settings,
         routes::wiki::update_wiki_settings,
+        routes::roadmap::get_roadmap,
+        routes::roadmap::generate_roadmap,
+        routes::roadmap::get_generation_status,
+        routes::roadmap::get_feature,
+        routes::roadmap::update_feature,
+        routes::roadmap::convert_feature_to_task,
+        routes::roadmap::delete_roadmap,
+        routes::roadmap::get_roadmap_settings,
+        routes::roadmap::update_roadmap_settings,
     ),
     components(schemas(
         routes::HealthResponse,
@@ -193,6 +202,27 @@ use state::AppState;
         opencode_core::Session,
         opencode_core::SessionPhase,
         opencode_core::SessionStatus,
+        opencode_core::Roadmap,
+        opencode_core::RoadmapFeature,
+        opencode_core::RoadmapPhase,
+        opencode_core::RoadmapMilestone,
+        opencode_core::RoadmapPriority,
+        opencode_core::RoadmapComplexity,
+        opencode_core::RoadmapImpact,
+        opencode_core::RoadmapFeatureStatus,
+        opencode_core::RoadmapPhaseStatus,
+        opencode_core::RoadmapStatus,
+        opencode_core::RoadmapGenerationPhase,
+        opencode_core::RoadmapGenerationStatus,
+        opencode_core::RoadmapStats,
+        opencode_core::TargetAudience,
+        opencode_core::GenerateRoadmapRequest,
+        opencode_core::UpdateFeatureRequest,
+        routes::roadmap::RoadmapResponse,
+        routes::roadmap::ConvertToTaskResponse,
+        routes::roadmap::RoadmapSettingsResponse,
+        routes::roadmap::UpdateRoadmapSettingsRequest,
+        config::RoadmapConfig,
     )),
     tags(
         (name = "health", description = "Health check endpoints"),
@@ -209,6 +239,7 @@ use state::AppState;
         (name = "complete", description = "Task completion and Git workflow endpoints"),
         (name = "pull-requests", description = "GitHub Pull Request management endpoints"),
         (name = "wiki", description = "Wiki documentation and search endpoints"),
+        (name = "roadmap", description = "Roadmap generation and management endpoints"),
     )
 )]
 pub struct ApiDoc;
@@ -365,14 +396,14 @@ pub fn create_router(state: AppState) -> Router {
             post(routes::pull_requests::fix_from_pr_comments),
         )
         .route("/api/wiki/status", get(routes::wiki::get_wiki_status))
-        .route("/api/wiki/remote-branches", get(routes::wiki::get_remote_branches))
+        .route(
+            "/api/wiki/remote-branches",
+            get(routes::wiki::get_remote_branches),
+        )
         .route("/api/wiki/index", post(routes::wiki::start_indexing))
         .route("/api/wiki/generate", post(routes::wiki::generate_wiki))
         .route("/api/wiki/structure", get(routes::wiki::get_wiki_structure))
-        .route(
-            "/api/wiki/pages/{slug}",
-            get(routes::wiki::get_wiki_page),
-        )
+        .route("/api/wiki/pages/{slug}", get(routes::wiki::get_wiki_page))
         .route("/api/wiki/search", post(routes::wiki::search_wiki))
         .route("/api/wiki/ask", post(routes::wiki::ask_wiki))
         .route(
@@ -382,6 +413,31 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/settings/wiki",
             get(routes::wiki::get_wiki_settings).put(routes::wiki::update_wiki_settings),
+        )
+        .route(
+            "/api/roadmap",
+            get(routes::roadmap::get_roadmap).delete(routes::roadmap::delete_roadmap),
+        )
+        .route(
+            "/api/roadmap/generate",
+            post(routes::roadmap::generate_roadmap),
+        )
+        .route(
+            "/api/roadmap/status",
+            get(routes::roadmap::get_generation_status),
+        )
+        .route(
+            "/api/roadmap/features/{feature_id}",
+            get(routes::roadmap::get_feature).patch(routes::roadmap::update_feature),
+        )
+        .route(
+            "/api/roadmap/features/{feature_id}/convert-to-task",
+            post(routes::roadmap::convert_feature_to_task),
+        )
+        .route(
+            "/api/settings/roadmap",
+            get(routes::roadmap::get_roadmap_settings)
+                .put(routes::roadmap::update_roadmap_settings),
         )
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())

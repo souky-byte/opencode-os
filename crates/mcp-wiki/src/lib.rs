@@ -356,9 +356,7 @@ impl WikiService {
             if let Some(conversation) = conversations.get(conv_id) {
                 for msg in &conversation.messages {
                     match msg.role {
-                        wiki::MessageRole::User => {
-                            messages.push(ChatMessage::user(&msg.content))
-                        }
+                        wiki::MessageRole::User => messages.push(ChatMessage::user(&msg.content)),
                         wiki::MessageRole::Assistant => {
                             messages.push(ChatMessage::assistant(&msg.content))
                         }
@@ -684,8 +682,8 @@ mod tests {
 
     #[test]
     fn test_build_context() {
-        use wiki::ChunkType;
         use uuid::Uuid;
+        use wiki::ChunkType;
 
         let results = vec![SearchResult::new(
             Uuid::new_v4(),

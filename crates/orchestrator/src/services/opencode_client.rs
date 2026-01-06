@@ -6,7 +6,7 @@ use opencode_client::models::{
 };
 use std::path::Path;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::activity_store::SessionActivityStore;
 use crate::error::{OrchestratorError, Result};
@@ -104,11 +104,34 @@ impl OpenCodeClient {
             OrchestratorError::OpenCodeError(format!("Failed to send message: {}", e))
         })?;
 
+        // Debug log the response structure
+        info!(
+            parts_count = response.parts.len(),
+            "OpenCode response received"
+        );
+        for (i, part) in response.parts.iter().enumerate() {
+            debug!(
+                part_index = i,
+                part_type = ?part.r#type,
+                has_text = part.text.is_some(),
+                text_len = part.text.as_ref().map(|t| t.len()).unwrap_or(0),
+                "Response part details"
+            );
+        }
+
         if let Some(store) = activity_store {
             Self::push_activities_to_store(store, &response.parts);
         }
 
-        Ok(MessageParser::extract_text_from_parts(&response.parts))
+        let extracted_text = MessageParser::extract_text_from_parts(&response.parts);
+        if extracted_text.is_empty() {
+            error!(
+                parts_count = response.parts.len(),
+                "No text extracted from OpenCode response - response may be empty or contain only non-text parts"
+            );
+        }
+
+        Ok(extracted_text)
     }
 
     pub async fn send_prompt_sync(

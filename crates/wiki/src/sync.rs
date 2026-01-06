@@ -148,14 +148,22 @@ impl WikiSyncService {
             .unwrap_or("project");
 
         match generator
-            .generate_wiki(root_path, project_name, branch, current_commit, progress_tx.clone())
+            .generate_wiki(
+                root_path,
+                project_name,
+                branch,
+                current_commit,
+                progress_tx.clone(),
+            )
             .await
         {
             Ok(structure) => {
                 let duration = start_time.elapsed();
                 info!(
                     "Wiki generation complete for branch '{}': {} pages in {:.1}s",
-                    branch, structure.page_count, duration.as_secs_f64()
+                    branch,
+                    structure.page_count,
+                    duration.as_secs_f64()
                 );
 
                 if let Some(tx) = &progress_tx {

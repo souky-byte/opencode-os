@@ -571,8 +571,18 @@ mod tests {
             0,
         );
 
-        let child1 = WikiTree::new("child1".to_string(), "Child 1".to_string(), PageType::Module, 1);
-        let child2 = WikiTree::new("child2".to_string(), "Child 2".to_string(), PageType::Module, 0);
+        let child1 = WikiTree::new(
+            "child1".to_string(),
+            "Child 1".to_string(),
+            PageType::Module,
+            1,
+        );
+        let child2 = WikiTree::new(
+            "child2".to_string(),
+            "Child 2".to_string(),
+            PageType::Module,
+            0,
+        );
 
         root.add_child(child1);
         root.add_child(child2);
@@ -586,7 +596,12 @@ mod tests {
 
     #[test]
     fn test_wiki_structure_with_sections() {
-        let root = WikiTree::new("overview".to_string(), "Overview".to_string(), PageType::Overview, 0);
+        let root = WikiTree::new(
+            "overview".to_string(),
+            "Overview".to_string(),
+            PageType::Overview,
+            0,
+        );
 
         let mut section = WikiSection::from_main_section("overview", "main").unwrap();
         section.add_page("overview".to_string());

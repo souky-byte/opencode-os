@@ -215,7 +215,10 @@ pub struct WikiMcpConfig {
 
 impl WikiMcpConfig {
     /// Create a new WikiMcpConfig with required fields
-    pub fn new(openrouter_api_key: impl Into<String>, db_path: impl Into<std::path::PathBuf>) -> Self {
+    pub fn new(
+        openrouter_api_key: impl Into<String>,
+        db_path: impl Into<std::path::PathBuf>,
+    ) -> Self {
         Self {
             openrouter_api_key: openrouter_api_key.into(),
             db_path: db_path.into(),

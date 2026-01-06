@@ -5,24 +5,24 @@
  * API for OpenCode Studio - AI-powered development platform
  * OpenAPI spec version: 0.1.0
  */
+import type { BranchStatusCurrentItem } from './branchStatusCurrentItem';
+import type { BranchStatusCurrentPhase } from './branchStatusCurrentPhase';
 import type { BranchStatusErrorMessage } from './branchStatusErrorMessage';
 import type { BranchStatusLastIndexedAt } from './branchStatusLastIndexedAt';
-import type { BranchStatusCurrentPhase } from './branchStatusCurrentPhase';
-import type { BranchStatusCurrentItem } from './branchStatusCurrentItem';
 
 export interface BranchStatus {
   branch: string;
   /** @minimum 0 */
   chunk_count: number;
+  current_item?: BranchStatusCurrentItem;
+  current_phase?: BranchStatusCurrentPhase;
   error_message?: BranchStatusErrorMessage;
   /** @minimum 0 */
   file_count: number;
   last_indexed_at?: BranchStatusLastIndexedAt;
   /** @minimum 0 */
+  page_count: number;
+  /** @minimum 0 */
   progress_percent: number;
   state: string;
-  /** @minimum 0 */
-  page_count: number;
-  current_phase?: BranchStatusCurrentPhase;
-  current_item?: BranchStatusCurrentItem;
 }

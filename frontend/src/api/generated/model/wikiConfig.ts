@@ -5,14 +5,18 @@
  * API for OpenCode Studio - AI-powered development platform
  * OpenAPI spec version: 0.1.0
  */
+import type { WikiConfigAccessToken } from './wikiConfigAccessToken';
 import type { WikiConfigChatModel } from './wikiConfigChatModel';
 import type { WikiConfigEmbeddingModel } from './wikiConfigEmbeddingModel';
 import type { WikiConfigOpenrouterApiKey } from './wikiConfigOpenrouterApiKey';
+import type { WikiConfigRepoUrl } from './wikiConfigRepoUrl';
 
 /**
  * Wiki feature configuration
  */
 export interface WikiConfig {
+  /** Access token for private repositories */
+  access_token?: WikiConfigAccessToken;
   /** Auto-sync on git push webhook */
   auto_sync?: boolean;
   /** Branches to index (e.g., ["main", "develop"]) */
@@ -25,4 +29,6 @@ export interface WikiConfig {
   enabled?: boolean;
   /** OpenRouter API key for embeddings and chat */
   openrouter_api_key?: WikiConfigOpenrouterApiKey;
+  /** Remote repository URL for indexing external repos */
+  repo_url?: WikiConfigRepoUrl;
 }

@@ -8,9 +8,11 @@
 import type { IndexRequestBranch } from './indexRequestBranch';
 import type { IndexRequestForce } from './indexRequestForce';
 import type { IndexRequestIndexOnly } from './indexRequestIndexOnly';
+import type { IndexRequestMode } from './indexRequestMode';
 
 export interface IndexRequest {
   branch?: IndexRequestBranch;
   force?: IndexRequestForce;
   index_only?: IndexRequestIndexOnly;
+  mode?: IndexRequestMode;
 }

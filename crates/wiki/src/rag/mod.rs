@@ -207,7 +207,9 @@ impl<'a> RagEngine<'a> {
             .await?;
 
         // 2. Search for similar chunks
-        let search_results = self.vector_store.search_similar(&query_embedding, self.top_k)?;
+        let search_results = self
+            .vector_store
+            .search_similar(&query_embedding, self.top_k)?;
 
         if search_results.is_empty() {
             return Ok(RagResponse {
@@ -217,10 +219,7 @@ impl<'a> RagEngine<'a> {
             });
         }
 
-        debug!(
-            "Found {} relevant chunks for query",
-            search_results.len()
-        );
+        debug!("Found {} relevant chunks for query", search_results.len());
 
         // 3. Build context from search results
         let context = build_context(&search_results);
@@ -266,7 +265,9 @@ impl<'a> RagEngine<'a> {
             .await?;
 
         // 2. Search for similar chunks
-        let search_results = self.vector_store.search_similar(&query_embedding, self.top_k)?;
+        let search_results = self
+            .vector_store
+            .search_similar(&query_embedding, self.top_k)?;
 
         if search_results.is_empty() {
             let answer = "I couldn't find any relevant code in the indexed codebase to answer your question.".to_string();
@@ -286,7 +287,11 @@ impl<'a> RagEngine<'a> {
         let mut messages = vec![ChatMessage::system(RAG_SYSTEM_PROMPT)];
 
         // Add conversation history (skip the last user message, we'll add it with context)
-        for msg in conversation.messages.iter().take(conversation.messages.len() - 1) {
+        for msg in conversation
+            .messages
+            .iter()
+            .take(conversation.messages.len() - 1)
+        {
             match msg.role {
                 MessageRole::User => messages.push(ChatMessage::user(&msg.content)),
                 MessageRole::Assistant => messages.push(ChatMessage::assistant(&msg.content)),
@@ -316,10 +321,7 @@ impl<'a> RagEngine<'a> {
     pub async fn ask_stream(
         &self,
         query: &str,
-    ) -> WikiResult<(
-        mpsc::Receiver<WikiResult<String>>,
-        Vec<RagSource>,
-    )> {
+    ) -> WikiResult<(mpsc::Receiver<WikiResult<String>>, Vec<RagSource>)> {
         info!("RAG streaming query: {}", query);
 
         // 1. Create embedding for the query
@@ -329,7 +331,9 @@ impl<'a> RagEngine<'a> {
             .await?;
 
         // 2. Search for similar chunks
-        let search_results = self.vector_store.search_similar(&query_embedding, self.top_k)?;
+        let search_results = self
+            .vector_store
+            .search_similar(&query_embedding, self.top_k)?;
 
         let sources: Vec<RagSource> = search_results.iter().map(RagSource::from).collect();
 
@@ -382,10 +386,7 @@ impl<'a> RagEngine<'a> {
         &self,
         query: &str,
         conversation: &Conversation,
-    ) -> WikiResult<(
-        mpsc::Receiver<WikiResult<String>>,
-        Vec<RagSource>,
-    )> {
+    ) -> WikiResult<(mpsc::Receiver<WikiResult<String>>, Vec<RagSource>)> {
         info!(
             "RAG streaming query with history (conversation {}): {}",
             conversation.id, query
@@ -398,7 +399,9 @@ impl<'a> RagEngine<'a> {
             .await?;
 
         // 2. Search for similar chunks
-        let search_results = self.vector_store.search_similar(&query_embedding, self.top_k)?;
+        let search_results = self
+            .vector_store
+            .search_similar(&query_embedding, self.top_k)?;
 
         let sources: Vec<RagSource> = search_results.iter().map(RagSource::from).collect();
 
@@ -474,10 +477,7 @@ fn build_context(results: &[SearchResult]) -> String {
 
         // Check if adding this chunk would exceed max length
         if total_length + chunk_total > MAX_CONTEXT_LENGTH {
-            debug!(
-                "Context truncated at {} chunks due to length limit",
-                i
-            );
+            debug!("Context truncated at {} chunks due to length limit", i);
             break;
         }
 
@@ -527,10 +527,10 @@ mod tests {
     #[test]
     fn test_conversation_messages() {
         let mut conv = Conversation::new();
-        
+
         conv.add_user_message("What does this function do?");
         conv.add_assistant_message("This function processes data...");
-        
+
         assert_eq!(conv.len(), 2);
         assert_eq!(conv.messages[0].role, MessageRole::User);
         assert_eq!(conv.messages[1].role, MessageRole::Assistant);
@@ -539,11 +539,11 @@ mod tests {
     #[test]
     fn test_conversation_last_user_message() {
         let mut conv = Conversation::new();
-        
+
         conv.add_user_message("First question");
         conv.add_assistant_message("First answer");
         conv.add_user_message("Second question");
-        
+
         assert_eq!(conv.last_user_message(), Some("Second question"));
     }
 
@@ -606,7 +606,7 @@ mod tests {
         ];
 
         let context = build_context(&results);
-        
+
         assert!(context.contains("src/lib.rs"));
         assert!(context.contains("lines 1-10"));
         assert!(context.contains("fn main() {}"));
@@ -618,9 +618,9 @@ mod tests {
     fn test_format_user_prompt() {
         let query = "What does this do?";
         let context = "fn test() {}";
-        
+
         let prompt = format_user_prompt(query, context);
-        
+
         assert!(prompt.contains(query));
         assert!(prompt.contains(context));
         assert!(prompt.contains("Question:"));
@@ -644,7 +644,7 @@ mod tests {
         );
 
         let source = RagSource::from(&result);
-        
+
         assert_eq!(source.file_path, "src/main.rs");
         assert_eq!(source.start_line, 5);
         assert_eq!(source.end_line, 15);

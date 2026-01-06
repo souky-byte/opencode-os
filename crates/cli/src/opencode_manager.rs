@@ -31,11 +31,7 @@ impl OpenCodeManager {
 
     /// Ensure OpenCode server is running, starting it if necessary
     pub async fn ensure_running(&mut self) -> Result<()> {
-        println!(
-            "  {} {}",
-            "●".cyan(),
-            "Checking OpenCode server...".white()
-        );
+        println!("  {} {}", "●".cyan(), "Checking OpenCode server...".white());
 
         // First, check if server is already running
         if self.health_check().await {

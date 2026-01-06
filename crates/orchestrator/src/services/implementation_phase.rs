@@ -243,7 +243,8 @@ impl ImplementationPhase {
             let activity_store = ctx.get_activity_store(session.id);
             ctx.emit_session_started(&session, task.id);
 
-            let prompt = PhasePrompts::implementation_phase(task, current_phase, &context, &parsed_plan);
+            let prompt =
+                PhasePrompts::implementation_phase(task, current_phase, &context, &parsed_plan);
 
             let response = client
                 .send_prompt(
@@ -587,7 +588,8 @@ impl ImplementationPhase {
                 (session.id, new_opencode_session_id)
             };
 
-            let prompt = PhasePrompts::implementation_phase(task, current_phase, &context, &parsed_plan);
+            let prompt =
+                PhasePrompts::implementation_phase(task, current_phase, &context, &parsed_plan);
             let config = SessionConfig {
                 task_id: task.id,
                 task_status: task.status,

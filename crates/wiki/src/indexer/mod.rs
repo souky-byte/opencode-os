@@ -54,7 +54,10 @@ impl CodeIndexer {
         commit_sha: &str,
         progress_tx: Option<broadcast::Sender<IndexProgress>>,
     ) -> WikiResult<IndexStatus> {
-        info!("Starting indexing for branch '{}' at {:?}", branch, root_path);
+        info!(
+            "Starting indexing for branch '{}' at {:?}",
+            branch, root_path
+        );
 
         let send_progress = |progress: IndexProgress| {
             if let Some(ref tx) = progress_tx {
@@ -66,7 +69,10 @@ impl CodeIndexer {
             if existing.last_commit_sha.as_deref() == Some(commit_sha)
                 && existing.state == IndexState::Indexed
             {
-                info!("Branch '{}' already indexed at commit {}", branch, commit_sha);
+                info!(
+                    "Branch '{}' already indexed at commit {}",
+                    branch, commit_sha
+                );
                 return Ok(existing);
             }
         }
@@ -118,7 +124,12 @@ impl CodeIndexer {
             .flat_map(|file| {
                 let count = processed_count.fetch_add(1, Ordering::Relaxed);
                 if count % 50 == 0 {
-                    debug!("Processing file {}/{}: {}", count + 1, total_files, file.relative_path);
+                    debug!(
+                        "Processing file {}/{}: {}",
+                        count + 1,
+                        total_files,
+                        file.relative_path
+                    );
                 }
                 Self::create_chunks_from_file_static(
                     file,
@@ -136,7 +147,10 @@ impl CodeIndexer {
         });
 
         let total_chunks = all_chunks.len();
-        info!("Created {} chunks from {} files (parallel)", total_chunks, total_files);
+        info!(
+            "Created {} chunks from {} files (parallel)",
+            total_chunks, total_files
+        );
 
         self.vector_store.insert_chunks_batch(&all_chunks)?;
 
@@ -170,7 +184,8 @@ impl CodeIndexer {
             );
 
             let batch_vec: Vec<String> = batch.to_vec();
-            let batch_chunk_ids: Vec<_> = chunk_ids[batch_start..batch_start + batch.len()].to_vec();
+            let batch_chunk_ids: Vec<_> =
+                chunk_ids[batch_start..batch_start + batch.len()].to_vec();
 
             let embeddings = match self
                 .openrouter
@@ -277,9 +292,8 @@ impl CodeIndexer {
             }
         };
 
-        let temp_dir = tempfile::tempdir().map_err(|e| {
-            WikiError::IoError(format!("Failed to create temp directory: {}", e))
-        })?;
+        let temp_dir = tempfile::tempdir()
+            .map_err(|e| WikiError::IoError(format!("Failed to create temp directory: {}", e)))?;
         let clone_path = temp_dir.path();
 
         send_progress(IndexProgress::Started {

@@ -32,6 +32,7 @@ import type {
   GetWikiStructureParams,
   IndexRequest,
   IndexResponse,
+  RemoteBranchesResponse,
   SearchRequest,
   WebhookPushRequest,
   WebhookResponse,
@@ -134,6 +135,95 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
 
       const mutationOptions = getAskWikiMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    export type generateWikiResponse200 = {
+  data: GenerateWikiResponse
+  status: 200
+}
+
+export type generateWikiResponse400 = {
+  data: void
+  status: 400
+}
+
+export type generateWikiResponse500 = {
+  data: void
+  status: 500
+}
+    
+export type generateWikiResponseSuccess = (generateWikiResponse200) & {
+  headers: Headers;
+};
+export type generateWikiResponseError = (generateWikiResponse400 | generateWikiResponse500) & {
+  headers: Headers;
+};
+
+export type generateWikiResponse = (generateWikiResponseSuccess | generateWikiResponseError)
+
+export const getGenerateWikiUrl = () => {
+
+
+  
+
+  return `/api/wiki/generate`
+}
+
+export const generateWiki = async (generateWikiRequest: GenerateWikiRequest, options?: RequestInit): Promise<generateWikiResponse> => {
+  
+  return customFetch<generateWikiResponse>(getGenerateWikiUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      generateWikiRequest,)
+  }
+);}
+
+
+
+
+export const getGenerateWikiMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateWiki>>, TError,{data: GenerateWikiRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateWiki>>, TError,{data: GenerateWikiRequest}, TContext> => {
+
+const mutationKey = ['generateWiki'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateWiki>>, {data: GenerateWikiRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  generateWiki(data,requestOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateWikiMutationResult = NonNullable<Awaited<ReturnType<typeof generateWiki>>>
+    export type GenerateWikiMutationBody = GenerateWikiRequest
+    export type GenerateWikiMutationError = void
+
+    export const useGenerateWiki = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateWiki>>, TError,{data: GenerateWikiRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof generateWiki>>,
+        TError,
+        {data: GenerateWikiRequest},
+        TContext
+      > => {
+
+      const mutationOptions = getGenerateWikiMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
@@ -333,6 +423,119 @@ export function useGetWikiPage<TData = Awaited<ReturnType<typeof getWikiPage>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetWikiPageQueryOptions(slug,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+export type getRemoteBranchesResponse200 = {
+  data: RemoteBranchesResponse
+  status: 200
+}
+
+export type getRemoteBranchesResponse500 = {
+  data: void
+  status: 500
+}
+    
+export type getRemoteBranchesResponseSuccess = (getRemoteBranchesResponse200) & {
+  headers: Headers;
+};
+export type getRemoteBranchesResponseError = (getRemoteBranchesResponse500) & {
+  headers: Headers;
+};
+
+export type getRemoteBranchesResponse = (getRemoteBranchesResponseSuccess | getRemoteBranchesResponseError)
+
+export const getGetRemoteBranchesUrl = () => {
+
+
+  
+
+  return `/api/wiki/remote-branches`
+}
+
+export const getRemoteBranches = async ( options?: RequestInit): Promise<getRemoteBranchesResponse> => {
+  
+  return customFetch<getRemoteBranchesResponse>(getGetRemoteBranchesUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+
+
+export const getGetRemoteBranchesQueryKey = () => {
+    return [
+    `/api/wiki/remote-branches`
+    ] as const;
+    }
+
+    
+export const getGetRemoteBranchesQueryOptions = <TData = Awaited<ReturnType<typeof getRemoteBranches>>, TError = void>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRemoteBranches>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRemoteBranchesQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRemoteBranches>>> = ({ signal }) => getRemoteBranches({ signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRemoteBranches>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetRemoteBranchesQueryResult = NonNullable<Awaited<ReturnType<typeof getRemoteBranches>>>
+export type GetRemoteBranchesQueryError = void
+
+
+export function useGetRemoteBranches<TData = Awaited<ReturnType<typeof getRemoteBranches>>, TError = void>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRemoteBranches>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRemoteBranches>>,
+          TError,
+          Awaited<ReturnType<typeof getRemoteBranches>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRemoteBranches<TData = Awaited<ReturnType<typeof getRemoteBranches>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRemoteBranches>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRemoteBranches>>,
+          TError,
+          Awaited<ReturnType<typeof getRemoteBranches>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRemoteBranches<TData = Awaited<ReturnType<typeof getRemoteBranches>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRemoteBranches>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetRemoteBranches<TData = Awaited<ReturnType<typeof getRemoteBranches>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRemoteBranches>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetRemoteBranchesQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -752,95 +955,6 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
 
       const mutationOptions = getHandlePushWebhookMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    export type generateWikiResponse200 = {
-  data: GenerateWikiResponse
-  status: 200
-}
-
-export type generateWikiResponse400 = {
-  data: void
-  status: 400
-}
-
-export type generateWikiResponse500 = {
-  data: void
-  status: 500
-}
-    
-export type generateWikiResponseSuccess = (generateWikiResponse200) & {
-  headers: Headers;
-};
-export type generateWikiResponseError = (generateWikiResponse400 | generateWikiResponse500) & {
-  headers: Headers;
-};
-
-export type generateWikiResponse = (generateWikiResponseSuccess | generateWikiResponseError)
-
-export const getGenerateWikiUrl = () => {
-
-
-  
-
-  return `/api/wiki/generate`
-}
-
-export const generateWiki = async (generateWikiRequest: GenerateWikiRequest, options?: RequestInit): Promise<generateWikiResponse> => {
-  
-  return customFetch<generateWikiResponse>(getGenerateWikiUrl(),
-  {      
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      generateWikiRequest,)
-  }
-);}
-
-
-
-
-export const getGenerateWikiMutationOptions = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateWiki>>, TError,{data: GenerateWikiRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof generateWiki>>, TError,{data: GenerateWikiRequest}, TContext> => {
-
-const mutationKey = ['generateWiki'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateWiki>>, {data: GenerateWikiRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  generateWiki(data,requestOptions)
-        }
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type GenerateWikiMutationResult = NonNullable<Awaited<ReturnType<typeof generateWiki>>>
-    export type GenerateWikiMutationBody = GenerateWikiRequest
-    export type GenerateWikiMutationError = void
-
-    export const useGenerateWiki = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateWiki>>, TError,{data: GenerateWikiRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof generateWiki>>,
-        TError,
-        {data: GenerateWikiRequest},
-        TContext
-      > => {
-
-      const mutationOptions = getGenerateWikiMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }

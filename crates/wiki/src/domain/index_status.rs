@@ -90,10 +90,7 @@ impl IndexStatus {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum IndexProgress {
     /// Started indexing
-    Started {
-        branch: String,
-        total_files: u32,
-    },
+    Started { branch: String, total_files: u32 },
 
     /// Reading files
     ReadingFiles {
@@ -103,10 +100,7 @@ pub enum IndexProgress {
     },
 
     /// Creating embeddings
-    CreatingEmbeddings {
-        current: u32,
-        total: u32,
-    },
+    CreatingEmbeddings { current: u32, total: u32 },
 
     /// Generating wiki pages
     GeneratingWiki {
@@ -125,10 +119,7 @@ pub enum IndexProgress {
     },
 
     /// Failed with error
-    Failed {
-        branch: String,
-        error: String,
-    },
+    Failed { branch: String, error: String },
 }
 
 impl IndexProgress {
